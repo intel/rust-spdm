@@ -1,0 +1,123 @@
+name: Coverage
+on:
+  push:
+    # Pattern matched against refs/tags
+    tags:
+      - "**" # Push events to every tag including hierarchical tags like v0.1.0/beta
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+jobs:
+  generate_coverage:
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      - uses: ilammy/setup-nasm@v1
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "12.0.1"
+          directory: ${{ runner.temp }}/llvm
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly-2022-11-21
+          override: true
+          components: rust-src, rustfmt, clippy, llvm-tools-preview
+
+      - name: Run cargo install grcov
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: grcov
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Check code
+        run: |
+          ./sh_script/build.sh -c
+
+      - name: Install AFL (Linux)
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --force --version 0.12.12 afl
+        if: runner.os == 'Linux'
+
+      - name: Install Cargo-Fuzz (Linux)
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-fuzz
+        if: runner.os == 'Linux'
+
+      - name: set core_pattern for core
+        run: |
+          sudo su - root <<EOF
+          echo core >/proc/sys/kernel/core_pattern
+          pushd /sys/devices/system/cpu
+          echo performance | tee cpu*/cpufreq/scaling_governor
+          popd
+          exit
+          EOF
+        if: runner.os == 'Linux'
+
+      - name: cargo build
+        env:
+          LLVM_PROFILE_FILE: build-%p-%m.profraw
+          RUSTFLAGS: "-C instrument-coverage"
+          CC_x86_64_unknown_none: clang
+          AR_x86_64_unknown_none: llvm-ar
+          RUN_REQUESTER_FEATURES: "spdm-ring"
+          RUN_RESPONDER_FEATURES: "spdm-ring"
+        run: |
+          ./sh_script/build.sh -r
+
+      - name: cargo build enable hashed-transcript-data
+        env:
+          LLVM_PROFILE_FILE: build-hashed-transcript-data-%p-%m.profraw
+          RUSTFLAGS: "-C instrument-coverage"
+          CC_x86_64_unknown_none: clang
+          AR_x86_64_unknown_none: llvm-ar
+          RUN_REQUESTER_FEATURES: "spdm-ring,hashed-transcript-data"
+          RUN_RESPONDER_FEATURES: "spdm-ring,hashed-transcript-data"
+        run: |
+          ./sh_script/build.sh -r
+
+      - name: Run fuzz
+        env:
+          FUZZ_HASH_TRANSCRIPT_DATA_FEATURE: true
+        run: |
+          ./sh_script/fuzz_run.sh -c Scoverage
+
+      - name: Run fuzz
+        env:
+          FUZZ_HASH_TRANSCRIPT_DATA_FEATURE: false
+        run: |
+          ./sh_script/fuzz_run.sh -c Scoverage
+
+      - name: Run tests and collect coverage
+        run: |
+          grcov $(find . -name "*.profraw") \
+            --branch \
+            --binary-path ./target/debug/ \
+            -s . \
+            -t lcov \
+            --ignore-not-existing \
+            -o lcov.info
+      - name: Upload coverage reports to Codecov with GitHub Action
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./lcov.info
+          fail_ci_if_error: true
+          verbose: true

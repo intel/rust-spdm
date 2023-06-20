@@ -1,0 +1,44 @@
+[package]
+name = "spdmlib"
+version = "0.1.0"
+authors = [
+    "Jiewen Yao <jiewen.yao@intel.com>",
+    "Xiaoyu Lu <xiaoyux.lu@intel.com>"
+    ]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+codec = {path= "../codec"}
+bitflags = "1.2.1"
+log = "0.4.13"
+bytes = { version="1", default-features=false }
+conquer-once = { version = "0.3.2", default-features = false }
+lazy_static = { version = "1.0", features = ["spin_no_std"], optional = true }
+spin = { version = "0.9.8", optional = true }
+
+ring = { version = "0.16.20",  optional = true }
+webpki = { version = "0.22.0", default-features = false, features = ["alloc"], optional = true}
+untrusted = { version = "0.7.1", optional = true }
+zeroize = { version = "1.5.0", features = ["zeroize_derive"]}
+
+[target.'cfg(any(target_os = "uefi", target_os = "none"))'.dependencies]
+sys_time = { path = "../sys_time" }
+
+[build-dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+pcidoe_transport = { path = "../pcidoe_transport" }
+byteorder = { version = "1.0", default-features = false }
+bit_field = "0.10.1"
+
+[features]
+default = ["spdm-ring", "std", "hashed-transcript-data"]
+std = ["webpki/std"]
+spdm-ring = ["ring", "webpki", "untrusted", "lazy_static", "spin"]
+downcast = []
+hashed-transcript-data = []
+mut-auth = []

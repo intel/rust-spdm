@@ -1,0 +1,14 @@
+[package]
+name = "end_session_rsp"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+fuzzlib = { path = "../../fuzzlib", default-features = false }
+afl = { version = "=0.12.12", optional = true }
+
+[features]
+fuzzlogfile = []
+fuzz = ["afl"]

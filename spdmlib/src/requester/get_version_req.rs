@@ -11,8 +11,8 @@ use crate::requester::*;
 
 impl<'a> RequesterContext<'a> {
     pub fn send_receive_spdm_version(&mut self) -> SpdmResult {
-        self.common
-            .reset_buffer_via_request_code(SpdmRequestResponseCode::SpdmRequestGetVersion, None);
+        // reset context on get version request
+        self.common.reset_context();
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let send_used = self.encode_spdm_version(&mut send_buffer)?;

@@ -21,9 +21,6 @@ impl<'a> RequesterContext<'a> {
             session_id,
         );
 
-        // clear cache data
-        self.common.reset_context();
-
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
         let request = SpdmMessage {

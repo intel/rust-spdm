@@ -1,3 +1,5 @@
+[![CI](https://github.com/intel/rust-spdm/actions/workflows/main.yml/badge.svg)](https://github.com/intel/rust-spdm/actions/workflows/main.yml)
+
 # rust-spdm
 
 A rust version SPDM implementation.

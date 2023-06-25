@@ -90,6 +90,14 @@ impl<'a> Writer<'a> {
         self.buf.len() - self.offs
     }
 
+    pub fn left_slice(&self) -> &[u8] {
+        &self.buf[self.offs..]
+    }
+
+    pub fn mut_left_slice(&mut self) -> &mut [u8] {
+        &mut self.buf[self.offs..]
+    }
+
     pub fn used(&self) -> usize {
         self.offs
     }

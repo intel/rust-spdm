@@ -2,45 +2,100 @@
 //
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 use fuzzlib::{
+    spdmlib::common::session::{SpdmSession, SpdmSessionState},
     spdmlib::common::SpdmConnectionState,
     spdmlib::protocol::{SpdmBaseHashAlgo, SpdmVersion},
     *,
 };
+use spdmlib::protocol::*;
 
 fn fuzz_handle_spdm_certificate(data: &[u8]) {
-    let (config_info, provision_info) = rsp_create_info();
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle certificate request'
+    // - description: '<p>Responder send certificate response to requester.</p>'
+    // -
+    {
+        let (config_info, provision_info) = rsp_create_info();
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let shared_buffer = SharedBuffer::new();
+        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
 
-    let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let mut context = responder::ResponderContext::new(
+            &mut socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
 
-    let mut context = responder::ResponderContext::new(
-        &mut socket_io_transport,
-        pcidoe_transport_encap,
-        config_info,
-        provision_info,
-    );
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context.common.provision_info.my_cert_chain = [
+            Some(get_rsp_cert_chain_buff()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ];
+        context
+            .common
+            .runtime_info
+            .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-    context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
-    context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
-    context.common.provision_info.my_cert_chain = [
-        Some(get_rsp_cert_chain_buff()),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    ];
-    context
-        .common
-        .runtime_info
-        .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
+        let _ = context.handle_spdm_certificate(data, None).is_ok();
+    }
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle certificate request'
+    // - description: '<p>Responder send certificate response to requester in session.</p>'
+    // -
+    {
+        let (config_info, provision_info) = rsp_create_info();
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let shared_buffer = SharedBuffer::new();
+        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
 
-    context.handle_spdm_certificate(data, None);
+        let mut context = responder::ResponderContext::new(
+            &mut socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
+
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context.common.provision_info.my_cert_chain = [
+            Some(get_rsp_cert_chain_buff()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ];
+        context.common.session[0] = SpdmSession::new();
+        context.common.session[0].setup(4294836221).unwrap();
+        context.common.session[0].set_session_state(SpdmSessionState::SpdmSessionEstablished);
+        context.common.session[0].set_crypto_param(
+            SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+            SpdmDheAlgo::SECP_384_R1,
+            SpdmAeadAlgo::AES_256_GCM,
+            SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        );
+        context
+            .common
+            .runtime_info
+            .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
+
+        let _ = context
+            .handle_spdm_certificate(data, Some(4294836221))
+            .is_ok();
+    }
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]

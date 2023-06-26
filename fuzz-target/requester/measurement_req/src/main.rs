@@ -12,6 +12,7 @@ use spdmlib::message::*;
 use spdmlib::protocol::*;
 
 fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
+    spdmlib::crypto::asym_verify::register(FAKE_ASYM_VERIFY.clone());
     // TCD:
     // - id: 0
     // - title: 'Fuzz SPDM handle measurement response'
@@ -223,6 +224,7 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
     // - title: 'Fuzz SPDM handle measurement response'
     // - description: '<p>Request measurement in a session.</p>'
     // -
+    spdmlib::crypto::aead::register(FAKE_AEAD.clone());
     {
         let (req_config_info, req_provision_info) = req_create_info();
 

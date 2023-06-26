@@ -159,6 +159,45 @@ fn fuzz_send_receive_spdm_key_exchange(fuzzdata: &[u8]) {
             SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
         );
     }
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle key exchange response'
+    // - description: '<p>Request key exchange and requester responder all have MUT_AUTH_CAP.</p>'
+    // -
+    {
+        let (req_config_info, req_provision_info) = req_create_info();
+
+        let shared_buffer = SharedBuffer::new();
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+
+        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
+        device_io_requester.set_rx(fuzzdata);
+
+        let mut requester = requester::RequesterContext::new(
+            &mut device_io_requester,
+            pcidoe_transport_encap,
+            req_config_info,
+            req_provision_info,
+        );
+        requester.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        requester.common.negotiate_info.opaque_data_support = SpdmOpaqueSupport::OPAQUE_DATA_FMT1;
+        requester.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        requester.common.negotiate_info.aead_sel = SpdmAeadAlgo::AES_128_GCM;
+        requester.common.negotiate_info.dhe_sel = SpdmDheAlgo::SECP_384_R1;
+        requester.common.negotiate_info.base_asym_sel =
+            SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+        requester.common.peer_info.peer_cert_chain[0] = Some(get_rsp_cert_chain_buff());
+        requester.common.negotiate_info.req_capabilities_sel |=
+            SpdmRequestCapabilityFlags::CERT_CAP | SpdmRequestCapabilityFlags::MUT_AUTH_CAP;
+        requester.common.negotiate_info.rsp_capabilities_sel |=
+            SpdmResponseCapabilityFlags::CERT_CAP | SpdmResponseCapabilityFlags::MUT_AUTH_CAP;
+        requester.common.reset_runtime_info();
+
+        let _ = requester.send_receive_spdm_key_exchange(
+            0,
+            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+        );
+    }
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]

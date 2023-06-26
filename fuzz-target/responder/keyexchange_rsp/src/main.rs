@@ -9,44 +9,145 @@ use spdmlib::protocol::*;
 fn fuzz_handle_spdm_key_exchange(data: &[u8]) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::secret::measurement::register(SECRET_MEASUREMENT_IMPL_INSTANCE.clone());
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle key exchange request'
+    // - description: '<p>Responder handle with SpdmMeasurementSummaryHashTypeNone and send KEY_EXCHANGE_RSP.</p>'
+    // -
+    {
+        let (config_info, provision_info) = rsp_create_info();
+        let shared_buffer = SharedBuffer::new();
+        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
 
-    let (config_info, provision_info) = rsp_create_info();
-    let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let mut context = responder::ResponderContext::new(
+            &mut socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.opaque_data_support = SpdmOpaqueSupport::OPAQUE_DATA_FMT1;
+        context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context.common.negotiate_info.base_asym_sel = SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+        context.common.negotiate_info.dhe_sel = SpdmDheAlgo::SECP_384_R1;
+        context.common.negotiate_info.aead_sel = SpdmAeadAlgo::AES_256_GCM;
+        context.common.negotiate_info.req_asym_sel = SpdmReqAsymAlgo::TPM_ALG_RSAPSS_2048;
+        context.common.negotiate_info.key_schedule_sel = SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE;
+        context.common.provision_info.my_cert_chain = [
+            Some(get_rsp_cert_chain_buff()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ];
 
-    let mut context = responder::ResponderContext::new(
-        &mut socket_io_transport,
-        pcidoe_transport_encap,
-        config_info,
-        provision_info,
-    );
-    context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
-    context.common.negotiate_info.opaque_data_support = SpdmOpaqueSupport::OPAQUE_DATA_FMT1;
-    context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
-    context.common.negotiate_info.base_asym_sel = SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
-    context.common.negotiate_info.dhe_sel = SpdmDheAlgo::SECP_384_R1;
-    context.common.negotiate_info.aead_sel = SpdmAeadAlgo::AES_256_GCM;
-    context.common.negotiate_info.req_asym_sel = SpdmReqAsymAlgo::TPM_ALG_RSAPSS_2048;
-    context.common.negotiate_info.key_schedule_sel = SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE;
-    context.common.provision_info.my_cert_chain = [
-        Some(get_rsp_cert_chain_buff()),
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    ];
+        context.common.reset_runtime_info();
+        context
+            .common
+            .runtime_info
+            .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-    context.common.reset_runtime_info();
-    context
-        .common
-        .runtime_info
-        .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
+        let _ = context.handle_spdm_key_exchange(data).is_ok();
+    }
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle key exchange request'
+    // - description: '<p>Responder handle key exchange with HANDSHAKE_IN_THE_CLEAR_CAP.</p>'
+    // -
+    {
+        let (config_info, provision_info) = rsp_create_info();
+        let shared_buffer = SharedBuffer::new();
+        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
 
-    context.handle_spdm_key_exchange(data);
+        let mut context = responder::ResponderContext::new(
+            &mut socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.opaque_data_support = SpdmOpaqueSupport::OPAQUE_DATA_FMT1;
+        context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context.common.negotiate_info.base_asym_sel = SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+        context.common.negotiate_info.dhe_sel = SpdmDheAlgo::SECP_384_R1;
+        context.common.negotiate_info.aead_sel = SpdmAeadAlgo::AES_256_GCM;
+        context.common.negotiate_info.req_asym_sel = SpdmReqAsymAlgo::TPM_ALG_RSAPSS_2048;
+        context.common.negotiate_info.key_schedule_sel = SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE;
+        context.common.negotiate_info.req_capabilities_sel |= SpdmRequestCapabilityFlags::CERT_CAP
+            | SpdmRequestCapabilityFlags::HANDSHAKE_IN_THE_CLEAR_CAP;
+        context.common.negotiate_info.rsp_capabilities_sel |= SpdmResponseCapabilityFlags::CERT_CAP
+            | SpdmResponseCapabilityFlags::HANDSHAKE_IN_THE_CLEAR_CAP;
+        context.common.provision_info.my_cert_chain = [
+            Some(get_rsp_cert_chain_buff()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ];
+
+        context.common.reset_runtime_info();
+        context
+            .common
+            .runtime_info
+            .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
+
+        let _ = context.handle_spdm_key_exchange(data).is_ok();
+    }
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle key exchange request'
+    // - description: '<p>Responder handle with SpdmMeasurementSummaryHashTypeAll and send KEY_EXCHANGE_RSP.</p>'
+    // -
+    {
+        let (config_info, provision_info) = rsp_create_info();
+        let shared_buffer = SharedBuffer::new();
+        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+
+        let mut context = responder::ResponderContext::new(
+            &mut socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.opaque_data_support = SpdmOpaqueSupport::OPAQUE_DATA_FMT1;
+        context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context.common.negotiate_info.base_asym_sel = SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+        context.common.negotiate_info.dhe_sel = SpdmDheAlgo::SECP_384_R1;
+        context.common.negotiate_info.aead_sel = SpdmAeadAlgo::AES_256_GCM;
+        context.common.negotiate_info.req_asym_sel = SpdmReqAsymAlgo::TPM_ALG_RSAPSS_2048;
+        context.common.negotiate_info.key_schedule_sel = SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE;
+        context.common.negotiate_info.rsp_capabilities_sel |=
+            SpdmResponseCapabilityFlags::MEAS_CAP_SIG
+                | SpdmResponseCapabilityFlags::MEAS_CAP_NO_SIG;
+        context.common.provision_info.my_cert_chain = [
+            Some(get_rsp_cert_chain_buff()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ];
+
+        context.common.reset_runtime_info();
+        context
+            .common
+            .runtime_info
+            .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
+
+        let _ = context.handle_spdm_key_exchange(data).is_ok();
+    }
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]

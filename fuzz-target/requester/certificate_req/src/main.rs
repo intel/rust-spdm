@@ -3,16 +3,19 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
 
 use fuzzlib::*;
+use spdmlib::common::session::{SpdmSession, SpdmSessionState};
 use spdmlib::protocol::*;
 
 fn fuzz_send_receive_spdm_certificate(fuzzdata: &[u8]) {
-    let (req_config_info, req_provision_info) = req_create_info();
+    spdmlib::crypto::aead::register(FAKE_AEAD.clone());
+    spdmlib::crypto::cert_operation::register(FAKE_CERT_OPERATION.clone());
     // TCD:
     // - id: 0
     // - title: 'Fuzz SPDM handle certificate response'
     // - description: '<p>Request certificate and receive partial certificate.</p>'
     // -
     {
+        let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
 
         let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
@@ -31,6 +34,83 @@ fn fuzz_send_receive_spdm_certificate(fuzzdata: &[u8]) {
             SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
 
         let _ = requester.send_receive_spdm_certificate(None, 0).is_err();
+    }
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle certificate response'
+    // - description: '<p>Requester receives certificate and pass the verification of provisioned root cert.</p>'
+    // -
+    {
+        let (req_config_info, req_provision_info) = req_create_info();
+        let shared_buffer = SharedBuffer::new();
+
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
+        device_io_requester.set_rx(fuzzdata);
+
+        let mut requester = requester::RequesterContext::new(
+            &mut device_io_requester,
+            pcidoe_transport_encap,
+            req_config_info,
+            req_provision_info,
+        );
+        requester.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        requester.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        requester.common.negotiate_info.base_asym_sel =
+            SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+        requester.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
+
+        // to pass the verification of provisioned root cert with fake cert_operation
+        let mut fake_root = SpdmCertChainData::default();
+        // range [68..101] of seed `certificate_req.raw` is fake root cert
+        fake_root.data_size = 33;
+        let start_index = 68;
+        let end_index = start_index + fake_root.data_size as usize;
+        if fuzzdata.len() >= end_index {
+            fake_root.data[0..fake_root.data_size as usize]
+                .copy_from_slice(&fuzzdata[start_index..end_index]);
+        }
+        requester.common.provision_info.peer_root_cert_data = Some(fake_root);
+        let _ = requester.send_receive_spdm_certificate(None, 0).is_err();
+    }
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle certificate response'
+    // - description: '<p>Request certificate and receive partial certificate in session.</p>'
+    // -
+    {
+        let (req_config_info, req_provision_info) = req_create_info();
+        let shared_buffer = SharedBuffer::new();
+
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+
+        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
+        device_io_requester.set_rx(fuzzdata);
+
+        let mut requester = requester::RequesterContext::new(
+            &mut device_io_requester,
+            pcidoe_transport_encap,
+            req_config_info,
+            req_provision_info,
+        );
+        requester.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        requester.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        requester.common.negotiate_info.base_asym_sel =
+            SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+
+        requester.common.session[0] = SpdmSession::new();
+        requester.common.session[0].setup(4294836221).unwrap();
+        requester.common.session[0].set_session_state(SpdmSessionState::SpdmSessionEstablished);
+        requester.common.session[0].set_crypto_param(
+            SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+            SpdmDheAlgo::SECP_384_R1,
+            SpdmAeadAlgo::AES_256_GCM,
+            SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        );
+
+        let _ = requester
+            .send_receive_spdm_certificate(Some(4294836221), 0)
+            .is_err();
     }
 }
 

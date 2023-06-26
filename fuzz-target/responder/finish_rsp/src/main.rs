@@ -4,6 +4,7 @@
 
 use fuzzlib::{
     spdmlib::common::session::{SpdmSession, SpdmSessionState},
+    spdmlib::message::SpdmKeyExchangeMutAuthAttributes,
     *,
 };
 use spdmlib::protocol::*;
@@ -12,6 +13,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::crypto::hmac::register(FAKE_HMAC.clone());
     spdmlib::crypto::hkdf::register(FAKE_HKDF.clone());
+    spdmlib::crypto::asym_verify::register(FAKE_ASYM_VERIFY.clone());
 
     // TCD:
     // - id: 0
@@ -73,7 +75,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        context.handle_spdm_finish(4294836221, data);
+        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
     }
     // TCD:
     // - id: 0
@@ -135,7 +137,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        context.handle_spdm_finish(4294836221, data);
+        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
     }
     // TCD:
     // - id: 0
@@ -196,7 +198,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        context.handle_spdm_finish(4294836221, data);
+        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
     }
     // TCD:
     // - id: 0
@@ -263,7 +265,73 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        context.handle_spdm_finish(4294836221, data);
+        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
+    }
+    // TCD:
+    // - id: 0
+    // - title: 'Fuzz SPDM handle finish request'
+    // - description: '<p>Respond finish rsp to complete the handshake, with mut auth requested.</p>'
+    // -
+    {
+        let (config_info, provision_info) = rsp_create_info();
+        let shared_buffer = SharedBuffer::new();
+        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let mut context = responder::ResponderContext::new(
+            &mut socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.base_asym_sel = SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+        context.common.negotiate_info.req_asym_sel = SpdmReqAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+        context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context.common.negotiate_info.req_capabilities_sel =
+            SpdmRequestCapabilityFlags::CERT_CAP | SpdmRequestCapabilityFlags::KEY_UPD_CAP;
+        context.common.negotiate_info.rsp_capabilities_sel =
+            SpdmResponseCapabilityFlags::CERT_CAP | SpdmResponseCapabilityFlags::KEY_UPD_CAP;
+        context.common.peer_info.peer_cert_chain[0] = Some(get_rsp_cert_chain_buff());
+        context.common.provision_info.my_cert_chain = [
+            Some(get_rsp_cert_chain_buff()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ];
+
+        context.common.session[0] = SpdmSession::new();
+        context.common.session[0].setup(4294836221).unwrap();
+        context.common.session[0].set_crypto_param(
+            SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+            SpdmDheAlgo::SECP_384_R1,
+            SpdmAeadAlgo::AES_256_GCM,
+            SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        );
+
+        #[cfg(feature = "hashed-transcript-data")]
+        {
+            let mut dhe_secret = SpdmDheFinalKeyStruct::default();
+            dhe_secret.data_size = SpdmDheAlgo::SECP_384_R1.get_size();
+            context.common.session[0]
+                .set_dhe_secret(SpdmVersion::SpdmVersion12, dhe_secret)
+                .unwrap();
+            context.common.session[0].runtime_info.digest_context_th =
+                spdmlib::crypto::hash::hash_ctx_init(SpdmBaseHashAlgo::TPM_ALG_SHA_384);
+        }
+
+        context.common.session[0].set_session_state(SpdmSessionState::SpdmSessionHandshaking);
+        context.common.session[0].set_mut_auth_requested(
+            SpdmKeyExchangeMutAuthAttributes::MUT_AUTH_REQ_WITH_GET_DIGESTS,
+        );
+        context
+            .common
+            .runtime_info
+            .set_last_session_id(Some(4294836221));
+        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
     }
 }
 fn main() {

@@ -142,19 +142,22 @@ fn fake_hkdf_expand(
     hash_algo: SpdmBaseHashAlgo,
     _pk: &SpdmHkdfPseudoRandomKey,
     _info: &[u8],
-    _out_size: u16,
+    out_size: u16,
 ) -> Option<SpdmHkdfOutputKeyingMaterial> {
+    if out_size as usize > SPDM_MAX_HKDF_OKM_SIZE {
+        return None;
+    }
     match hash_algo {
         SpdmBaseHashAlgo::TPM_ALG_SHA_256 => Some(SpdmHkdfOutputKeyingMaterial {
-            data_size: SHA256_DIGEST_SIZE as u16,
+            data_size: out_size,
             data: Box::new([100u8; SPDM_MAX_HKDF_OKM_SIZE]),
         }),
         SpdmBaseHashAlgo::TPM_ALG_SHA_384 => Some(SpdmHkdfOutputKeyingMaterial {
-            data_size: SHA384_DIGEST_SIZE as u16,
+            data_size: out_size,
             data: Box::new([100u8; SPDM_MAX_HKDF_OKM_SIZE]),
         }),
         SpdmBaseHashAlgo::TPM_ALG_SHA_512 => Some(SpdmHkdfOutputKeyingMaterial {
-            data_size: SHA512_DIGEST_SIZE as u16,
+            data_size: out_size,
             data: Box::new([100u8; SPDM_MAX_HKDF_OKM_SIZE]),
         }),
         _ => None,

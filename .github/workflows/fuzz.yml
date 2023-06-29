@@ -2,9 +2,9 @@ name: FUZZING CODE
 
 on:
   push:
-    branches: ["master"]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
   workflow_dispatch:
 
@@ -15,10 +15,31 @@ jobs:
         fuzz_hash_transcript_data_feature: [true, false]
         fuzz_mut_auth_feature: [true, false]
 
-    runs-on: self-hosted
+    runs-on: ubuntu-22.04
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+      - name: install NASM
+        uses: ilammy/setup-nasm@v1
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "12.0.1"
+          directory: ${{ runner.temp }}/llvm
+
+      - name: Checkout sources
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly-2022-11-21
+          override: true
+          components: rust-src, rustfmt, clippy, llvm-tools-preview
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
@@ -27,6 +48,30 @@ jobs:
       - name: Check code
         run: |
           ./sh_script/build.sh -c
+
+      - name: Install AFL (Linux)
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: --force --version 0.12.17 afl
+        if: runner.os == 'Linux'
+
+      - name: Install Cargo-Fuzz (Linux)
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-fuzz
+        if: runner.os == 'Linux'
+      - name: set core_pattern for core
+        run: |
+          sudo su - root <<EOF
+          echo core >/proc/sys/kernel/core_pattern
+          pushd /sys/devices/system/cpu
+          echo performance | tee cpu*/cpufreq/scaling_governor
+          popd
+          exit
+          EOF
+        if: runner.os == 'Linux'
 
       - name: Run fuzz
         env:

@@ -13,6 +13,9 @@ use simple_logger::SimpleLogger;
 use spdm_emu::crypto_callback::SECRET_ASYM_IMPL_INSTANCE;
 use spdm_emu::secret_impl_sample::SECRET_PSK_IMPL_INSTANCE;
 use spdmlib::common;
+use spdmlib::common::session::SpdmSessionSecretParam;
+use spdmlib::common::session::SpdmSessionState;
+use spdmlib::common::SpdmNegotiateInfo;
 use spdmlib::common::SpdmOpaqueSupport;
 use spdmlib::common::ST1;
 use spdmlib::config;
@@ -321,6 +324,175 @@ fn test_spdm(
     }
 }
 
+fn test_seamless_update_start_session(
+    socket_io_transport: &mut SocketIoTransport,
+    transport_encap: &mut dyn SpdmTransportEncap,
+) -> (
+    u32,
+    SpdmNegotiateInfo,
+    SpdmDirectionDataSecretStruct,
+    SpdmDirectionDataSecretStruct,
+    SpdmSessionSecretParam,
+    SpdmSessionSecretParam,
+) {
+    let req_capabilities = SpdmRequestCapabilityFlags::ENCRYPT_CAP
+        | SpdmRequestCapabilityFlags::MAC_CAP
+        | SpdmRequestCapabilityFlags::KEY_EX_CAP
+        | SpdmRequestCapabilityFlags::HBEAT_CAP
+        | SpdmRequestCapabilityFlags::KEY_UPD_CAP;
+
+    let config_info = common::SpdmConfigInfo {
+        spdm_version: [
+            SpdmVersion::Unknown(0),
+            SpdmVersion::Unknown(0),
+            SpdmVersion::SpdmVersion12,
+        ],
+        req_capabilities,
+        req_ct_exponent: 0,
+        measurement_specification: SpdmMeasurementSpecification::DMTF,
+        base_asym_algo: SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384,
+        base_hash_algo: SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+        dhe_algo: SpdmDheAlgo::SECP_384_R1,
+        aead_algo: SpdmAeadAlgo::AES_256_GCM,
+        req_asym_algo: SpdmReqAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384,
+        key_schedule_algo: SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        opaque_support: SpdmOpaqueSupport::OPAQUE_DATA_FMT1,
+        data_transfer_size: config::MAX_SPDM_MSG_SIZE as u32,
+        max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
+        ..Default::default()
+    };
+
+    let provision_info = common::SpdmProvisionInfo::default();
+
+    let mut context = requester::RequesterContext::new(
+        socket_io_transport,
+        transport_encap,
+        config_info,
+        provision_info,
+    );
+
+    if context.init_connection().is_err() {
+        panic!("init_connection failed!");
+    }
+
+    if context.send_receive_spdm_digest(None).is_err() {
+        panic!("send_receive_spdm_digest failed!");
+    }
+
+    if context.send_receive_spdm_certificate(None, 0).is_err() {
+        panic!("send_receive_spdm_certificate failed!");
+    }
+
+    let spdm_negotiate_info = SpdmNegotiateInfo {
+        ..context.common.negotiate_info
+    };
+
+    if let Ok(session_id) = context.start_session(
+        false,
+        0,
+        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+    ) {
+        let session = context.common.get_session_via_id(session_id).unwrap();
+        let (request_direction, response_direction) = session.export_keys();
+        (
+            session_id,
+            spdm_negotiate_info,
+            session.get_request_data_secret(),
+            session.get_response_data_secret(),
+            request_direction,
+            response_direction,
+        )
+    } else {
+        panic!("Failed to start session!");
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn test_seamless_update_heartbeat_key_update(
+    socket_io_transport: &mut SocketIoTransport,
+    transport_encap: &mut dyn SpdmTransportEncap,
+    spdm_negotiate_info: SpdmNegotiateInfo,
+    spdm_session_id: u32,
+    request_data_secret: SpdmDirectionDataSecretStruct,
+    response_data_secret: SpdmDirectionDataSecretStruct,
+    request_direction: SpdmSessionSecretParam,
+    response_direction: SpdmSessionSecretParam,
+) {
+    let req_capabilities = SpdmRequestCapabilityFlags::ENCRYPT_CAP
+        | SpdmRequestCapabilityFlags::MAC_CAP
+        | SpdmRequestCapabilityFlags::KEY_EX_CAP
+        | SpdmRequestCapabilityFlags::HBEAT_CAP
+        | SpdmRequestCapabilityFlags::KEY_UPD_CAP;
+
+    let config_info = common::SpdmConfigInfo {
+        spdm_version: [
+            SpdmVersion::Unknown(0),
+            SpdmVersion::Unknown(0),
+            SpdmVersion::SpdmVersion12,
+        ],
+        req_capabilities,
+        req_ct_exponent: 0,
+        measurement_specification: SpdmMeasurementSpecification::DMTF,
+        base_asym_algo: SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384,
+        base_hash_algo: SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+        dhe_algo: SpdmDheAlgo::SECP_384_R1,
+        aead_algo: SpdmAeadAlgo::AES_256_GCM,
+        req_asym_algo: SpdmReqAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384,
+        key_schedule_algo: SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        opaque_support: SpdmOpaqueSupport::OPAQUE_DATA_FMT1,
+        data_transfer_size: config::MAX_SPDM_MSG_SIZE as u32,
+        max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
+        ..Default::default()
+    };
+
+    let provision_info = common::SpdmProvisionInfo::default();
+
+    let mut context = requester::RequesterContext::new(
+        socket_io_transport,
+        transport_encap,
+        config_info,
+        provision_info,
+    );
+
+    context.common.negotiate_info = spdm_negotiate_info;
+
+    context.common.session[0].set_session_id(spdm_session_id);
+    context.common.session[0].set_session_state(SpdmSessionState::SpdmSessionEstablished);
+    context.common.session[0].set_crypto_param(
+        context.common.negotiate_info.base_hash_sel,
+        context.common.negotiate_info.dhe_sel,
+        context.common.negotiate_info.aead_sel,
+        context.common.negotiate_info.key_schedule_sel,
+    );
+    context.common.session[0].set_request_data_secret(request_data_secret);
+    context.common.session[0].set_response_data_secret(response_data_secret);
+    context.common.session[0].set_application_request_direction_aead_secret(request_direction);
+    context.common.session[0].set_application_response_direction_aead_secret(response_direction);
+
+    if context
+        .send_receive_spdm_heartbeat(spdm_session_id)
+        .is_err()
+    {
+        panic!("test_seamless_update_heartbeat_key_update - send_receive_spdm_heartbeat failed - before key update");
+    }
+
+    if context
+        .send_receive_spdm_key_update(spdm_session_id, SpdmKeyUpdateOperation::SpdmUpdateAllKeys)
+        .is_err()
+    {
+        panic!("test_seamless_update_heartbeat_key_update - send_receive_spdm_key_update failed");
+    }
+
+    if context
+        .send_receive_spdm_heartbeat(spdm_session_id)
+        .is_err()
+    {
+        panic!("test_seamless_update_heartbeat_key_update - send_receive_spdm_heartbeat failed - after key update");
+    }
+
+    info!("test_seamless_update_heartbeat_key_update good!");
+}
+
 // A new logger enables the user to choose log level by setting a `SPDM_LOG` environment variable.
 // Use the `Trace` level by default.
 fn new_logger_from_env() -> SimpleLogger {
@@ -373,6 +545,28 @@ fn main() {
 
     let socket_io_transport = &mut SocketIoTransport::new(&mut socket);
     test_spdm(socket_io_transport, transport_encap);
+    let socket_io_transport = &mut SocketIoTransport::new(&mut socket);
+    let (
+        session_id,
+        spdm_negotiate_info,
+        request_data_secret,
+        response_data_secret,
+        request_direction_aead,
+        response_direction_aead,
+    ) = test_seamless_update_start_session(socket_io_transport, transport_encap);
+    let socket_io_transport = &mut SocketIoTransport::new(&mut socket);
+    test_seamless_update_heartbeat_key_update(
+        socket_io_transport,
+        transport_encap,
+        // below is the minimal parameters needed to
+        // recover a session for application phase purpose
+        spdm_negotiate_info,
+        session_id,
+        request_data_secret,
+        response_data_secret,
+        request_direction_aead,
+        response_direction_aead,
+    );
 
     send_receive_stop(&mut socket, transport_encap, transport_type);
 }

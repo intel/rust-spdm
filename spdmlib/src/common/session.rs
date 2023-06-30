@@ -172,6 +172,39 @@ impl SpdmSession {
         self.application_secret.response_direction.sequence_number
     }
 
+    pub fn get_request_data_secret(&self) -> SpdmDirectionDataSecretStruct {
+        self.application_secret.request_data_secret.clone()
+    }
+
+    pub fn set_request_data_secret(&mut self, request_data_secret: SpdmDirectionDataSecretStruct) {
+        self.application_secret.request_data_secret = request_data_secret;
+    }
+
+    pub fn get_response_data_secret(&self) -> SpdmDirectionDataSecretStruct {
+        self.application_secret.response_data_secret.clone()
+    }
+
+    pub fn set_response_data_secret(
+        &mut self,
+        response_data_secret: SpdmDirectionDataSecretStruct,
+    ) {
+        self.application_secret.response_data_secret = response_data_secret;
+    }
+
+    pub fn set_application_request_direction_aead_secret(
+        &mut self,
+        request_direction: SpdmSessionSecretParam,
+    ) {
+        self.application_secret.request_direction = request_direction;
+    }
+
+    pub fn set_application_response_direction_aead_secret(
+        &mut self,
+        response_direction: SpdmSessionSecretParam,
+    ) {
+        self.application_secret.response_direction = response_direction;
+    }
+
     pub fn set_default(&mut self) {
         self.session_id = INVALID_SESSION_ID;
         self.use_psk = false;
@@ -191,6 +224,10 @@ impl SpdmSession {
 
     pub fn get_session_id(&self) -> u32 {
         self.session_id
+    }
+
+    pub fn set_session_id(&mut self, session_id: u32) {
+        self.session_id = session_id;
     }
 
     pub fn setup(&mut self, session_id: u32) -> SpdmResult {

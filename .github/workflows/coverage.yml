@@ -94,6 +94,28 @@ jobs:
         run: |
           ./sh_script/build.sh -r
 
+      - name: cargo build enable hashed-transcript-data
+        env:
+          LLVM_PROFILE_FILE: build-hashed-transcript-data-%p-%m.profraw
+          RUSTFLAGS: "-C instrument-coverage"
+          CC_x86_64_unknown_none: clang
+          AR_x86_64_unknown_none: llvm-ar
+          RUN_REQUESTER_FEATURES: "spdm-mbedtls"
+          RUN_RESPONDER_FEATURES: "spdm-mbedtls"
+        run: |
+          ./sh_script/build.sh -r
+
+      - name: cargo build enable hashed-transcript-data
+        env:
+          LLVM_PROFILE_FILE: build-hashed-transcript-data-%p-%m.profraw
+          RUSTFLAGS: "-C instrument-coverage"
+          CC_x86_64_unknown_none: clang
+          AR_x86_64_unknown_none: llvm-ar
+          RUN_REQUESTER_FEATURES: "spdm-mbedtls,hashed-transcript-data,spdm-mbedtls-hashed-transcript-data"
+          RUN_RESPONDER_FEATURES: "spdm-mbedtls,hashed-transcript-data,spdm-mbedtls-hashed-transcript-data"
+        run: |
+          ./sh_script/build.sh -r
+
       - name: Run fuzz
         env:
           FUZZ_HASH_TRANSCRIPT_DATA_FEATURE: true
@@ -112,12 +134,17 @@ jobs:
             --branch \
             --binary-path ./target/debug/ \
             -s . \
+            -t html \
+            --ignore-not-existing \
+            -o coverage
+          grcov $(find . -name "*.profraw") \
+            --branch \
+            --binary-path ./target/debug/ \
+            -s . \
             -t lcov \
             --ignore-not-existing \
-            -o lcov.info
-      - name: Upload coverage reports to Codecov with GitHub Action
-        uses: codecov/codecov-action@v3
+            -o coverage/lcov.info
+      - uses: actions/upload-artifact@v3
         with:
-          files: ./lcov.info
-          fail_ci_if_error: true
-          verbose: true
+          name: coverage_data-${{ GITHUB_SHA }}
+          path: coverage/

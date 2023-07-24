@@ -1,5 +1,9 @@
 /** @file
  * X.509 Certificate Verification Wrapper Implementation.
+ *
+ * Copyright (c) 2022 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ *
  **/
 
 #include <mbedtls/x509.h>

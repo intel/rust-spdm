@@ -1,6 +1,9 @@
 /** @file
  * EcDSA and RSA Wrapper Implementation.
  *
+ * Copyright (c) 2022 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ *
  **/
 
 #include <mbedtls/x509.h>

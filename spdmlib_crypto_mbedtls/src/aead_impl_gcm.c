@@ -3,6 +3,10 @@
  *
  * RFC 5116 - An Interface and Algorithms for Authenticated Encryption
  * NIST SP800-38d - Cipher Modes of Operation: Galois / Counter Mode(GCM) and GMAC
+ *
+ * Copyright (c) 2022 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ *
  **/
 #include <mbedtls/gcm.h>
 #define bool int

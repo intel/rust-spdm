@@ -3,6 +3,10 @@
  *
  * RFC 5116 - An Interface and Algorithms for Authenticated Encryption
  * RFC 8439 - ChaCha20 and Poly1305
+ *
+ * Copyright (c) 2022 Intel Corporation
+ * SPDX-License-Identifier: Apache-2.0
+ *
  **/
 
 #include <mbedtls/chachapoly.h>

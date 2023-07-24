@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Intel Corporation
 //
-// SPDX-License-Identifier: BSD-2-Clause-Patent
+// SPDX-License-Identifier: Apache-2.0
 
 use crate::crypto::{x509v3, SpdmAsymVerify};
 use crate::error::{SpdmResult, SPDM_STATUS_INVALID_CERT, SPDM_STATUS_VERIF_FAIL};

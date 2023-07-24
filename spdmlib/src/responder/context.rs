@@ -1,6 +1,6 @@
 // Copyright (c) 2020 Intel Corporation
 //
-// SPDX-License-Identifier: BSD-2-Clause-Patent
+// SPDX-License-Identifier: Apache-2.0
 
 use super::app_message_handler::dispatch_secured_app_message_cb;
 use crate::common::SpdmConnectionState;

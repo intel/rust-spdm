@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Intel Corporation
 //
-// SPDX-License-Identifier: BSD-2-Clause-Patent
+// SPDX-License-Identifier: Apache-2.0
 
 use crate::common;
 use crate::common::spdm_codec::SpdmCodec;

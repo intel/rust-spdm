@@ -1,6 +1,6 @@
 // Copyright (c) 2022 Intel Corporation
 //
-// SPDX-License-Identifier: BSD-2-Clause-Patent
+// SPDX-License-Identifier: Apache-2.0
 
 use core::arch::x86_64::_rdrand64_step;
 use spdmlib::crypto::SpdmCryptoRandom;

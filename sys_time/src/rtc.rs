@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Intel Corporation
 //
-// SPDX-License-Identifier: BSD-2-Clause-Patent
+// SPDX-License-Identifier: Apache-2.0
 
 //! Untrusted time get from CMOS/RTC device commonly seen on x86 I/O port 0x70/0x71
 

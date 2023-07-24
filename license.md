@@ -1,11 +1,11 @@
-This project uses BSD-2-Clause-Patent license.
+This project uses Apache-2.0 license.
 
-[SPDX-License-Identifier](https://spdx.org/licenses/): [BSD-2-Clause-Patent](https://spdx.org/licenses/BSD-2-Clause-Patent.html).
+[SPDX-License-Identifier](https://spdx.org/licenses/): [Apache-2.0](https://spdx.org/licenses/Apache-2.0.html).
 
 ```
 Copyright (c) 2021, Intel Corporation.  All rights reserved.
 
-SPDX-License-Identifier: BSD-2-Clause-Patent
+SPDX-License-Identifier: Apache-2.0
 ```
 
 codec derived from [rustls](https://github.com/ctz/rustls) project.

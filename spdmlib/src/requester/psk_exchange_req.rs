@@ -1,6 +1,6 @@
 // Copyright (c) 2020 Intel Corporation
 //
-// SPDX-License-Identifier: BSD-2-Clause-Patent
+// SPDX-License-Identifier: Apache-2.0
 
 use config::MAX_SPDM_PSK_CONTEXT_SIZE;
 

@@ -1,6 +1,6 @@
 // Copyright (c) 2022 Intel Corporation
 //
-// SPDX-License-Identifier: BSD-2-Clause-Patent
+// SPDX-License-Identifier: Apache-2.0
 
 use core::ffi::{c_int, c_uchar, c_void};
 

@@ -11,6 +11,14 @@ codec = { path = "../../codec" }
 log = "0.4.13"
 ring = { version = "0.16.20" }
 bytes = { version="1", default-features=false }
+futures = { version = "0.3", default-features = false }
+async-trait = "0.1.71"
+async-recursion = "1.0.4"
+spin = { version = "0.9.8" }
+executor = { path = "../../executor" }
+
+[dev-dependencies]
+env_logger = "*"
 
 [features]
 default = ["hashed-transcript-data", "mut-auth"]

@@ -172,6 +172,14 @@ impl SpdmSession {
         self.application_secret.response_direction.sequence_number
     }
 
+    pub fn get_application_secret(&self) -> SpdmSessionAppliationSecret {
+        self.application_secret.clone()
+    }
+
+    pub fn set_application_secret(&mut self, application_secret: SpdmSessionAppliationSecret) {
+        self.application_secret = application_secret;
+    }
+
     pub fn set_default(&mut self) {
         self.session_id = INVALID_SESSION_ID;
         self.use_psk = false;
@@ -191,6 +199,10 @@ impl SpdmSession {
 
     pub fn get_session_id(&self) -> u32 {
         self.session_id
+    }
+
+    pub fn set_session_id(&mut self, session_id: u32) {
+        self.session_id = session_id;
     }
 
     pub fn setup(&mut self, session_id: u32) -> SpdmResult {

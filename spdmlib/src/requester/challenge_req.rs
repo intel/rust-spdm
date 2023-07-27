@@ -13,8 +13,8 @@ use crate::message::*;
 use crate::protocol::*;
 use crate::requester::*;
 
-impl<'a> RequesterContext<'a> {
-    pub fn send_receive_spdm_challenge(
+impl RequesterContext {
+    pub async fn send_receive_spdm_challenge(
         &mut self,
         slot_id: u8,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
@@ -31,11 +31,11 @@ impl<'a> RequesterContext<'a> {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let send_used =
             self.encode_spdm_challenge(slot_id, measurement_summary_hash_type, &mut send_buffer)?;
-        self.send_message(&send_buffer[..send_used])?;
+        self.send_message(&send_buffer[..send_used]).await?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self.receive_message(&mut receive_buffer, true)?;
+        let used = self.receive_message(&mut receive_buffer, true).await?;
         self.handle_spdm_challenge_response(
             0, // NULL
             slot_id,

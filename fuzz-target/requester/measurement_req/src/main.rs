@@ -11,7 +11,14 @@ use spdmlib::common::SpdmConnectionState;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 
-fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::borrow::BorrowMut;
+use core::ops::DerefMut;
+
+async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
     spdmlib::crypto::asym_verify::register(FAKE_ASYM_VERIFY.clone());
     // TCD:
     // - id: 0
@@ -22,13 +29,17 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
 
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap: Arc<Mutex<(dyn SpdmTransportEncap + Send + Sync + 'static)>> =
+            Arc::new(Mutex::new(PciDoeTransportEncap {}));
 
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester: Arc<Mutex<(dyn SpdmDeviceIo + Send + Sync + 'static)>> =
+            Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -56,14 +67,16 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
 
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
-        let _ = requester.send_receive_spdm_measurement(
-            None,
-            0,
-            SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
-            SpdmMeasurementOperation::SpdmMeasurementRequestAll,
-            &mut total_number,
-            &mut spdm_measurement_record_structure,
-        );
+        let _ = requester
+            .send_receive_spdm_measurement(
+                None,
+                0,
+                SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+                SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+                &mut total_number,
+                &mut spdm_measurement_record_structure,
+            )
+            .await;
     }
     // TCD:
     // - id: 0
@@ -73,15 +86,15 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
     {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
-        let mut device_io_responder = FuzzSpdmDeviceIoReceve::new(&shared_buffer, fuzzdata);
 
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -107,14 +120,16 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
 
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
-        let _ = requester.send_receive_spdm_measurement(
-            None,
-            0,
-            SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
-            SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
-            &mut total_number,
-            &mut spdm_measurement_record_structure,
-        );
+        let _ = requester
+            .send_receive_spdm_measurement(
+                None,
+                0,
+                SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+                SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
+                &mut total_number,
+                &mut spdm_measurement_record_structure,
+            )
+            .await;
     }
     // TCD:
     // - id: 0
@@ -125,15 +140,15 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
         let (req_config_info, req_provision_info) = req_create_info();
 
         let shared_buffer = SharedBuffer::new();
-        let mut device_io_responder = FuzzSpdmDeviceIoReceve::new(&shared_buffer, fuzzdata);
 
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -159,14 +174,16 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
 
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
-        let _ = requester.send_receive_spdm_measurement(
-            None,
-            0,
-            SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
-            SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
-            &mut total_number,
-            &mut spdm_measurement_record_structure,
-        );
+        let _ = requester
+            .send_receive_spdm_measurement(
+                None,
+                0,
+                SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
+                SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
+                &mut total_number,
+                &mut spdm_measurement_record_structure,
+            )
+            .await;
     }
     // TCD:
     // - id: 0
@@ -178,13 +195,14 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
 
         let shared_buffer = SharedBuffer::new();
 
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -210,14 +228,16 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
 
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
-        let _ = requester.send_receive_spdm_measurement(
-            None,
-            0,
-            SpdmMeasurementAttributes::empty(),
-            SpdmMeasurementOperation::Unknown(4),
-            &mut total_number,
-            &mut spdm_measurement_record_structure,
-        );
+        let _ = requester
+            .send_receive_spdm_measurement(
+                None,
+                0,
+                SpdmMeasurementAttributes::empty(),
+                SpdmMeasurementOperation::Unknown(4),
+                &mut total_number,
+                &mut spdm_measurement_record_structure,
+            )
+            .await;
     }
     // TCD:
     // - id: 0
@@ -230,13 +250,14 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
 
         let shared_buffer = SharedBuffer::new();
 
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -289,14 +310,16 @@ fn fuzz_send_receive_spdm_measurement(fuzzdata: &[u8]) {
         requester.common.reset_runtime_info();
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
-        let _ = requester.send_receive_spdm_measurement(
-            Some(4294836221),
-            0,
-            SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
-            SpdmMeasurementOperation::SpdmMeasurementRequestAll,
-            &mut total_number,
-            &mut spdm_measurement_record_structure,
-        );
+        let _ = requester
+            .send_receive_spdm_measurement(
+                Some(4294836221),
+                0,
+                SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+                SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+                &mut total_number,
+                &mut spdm_measurement_record_structure,
+            )
+            .await;
     }
 }
 
@@ -324,20 +347,20 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [
+            let fuzzdata = vec![
                 01, 00, 01, 00, 0x0c, 00, 00, 00, 11, 0xe0, 01, 04, 0x0a, 0xfc, 04, 0xa0, 63, 0x5c,
                 0x2e, 0x6c, 0x4b, 0x62, 0xd6, 0xc0, 0x1c, 0xf5, 0xc5, 0xa1, 0xb0, 0x9f, 0xff, 0x5a,
                 0x1a, 68, 0xab, 78, 0xb1, 0xea, 25, 0xa8, 94, 0x6b, 0xac, 0xf4, 00, 00, 00, 00,
             ];
-            fuzz_send_receive_spdm_measurement(&fuzzdata);
+            executor::block_on(fuzz_send_receive_spdm_measurement(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_send_receive_spdm_measurement(data.as_slice());
+            executor::block_on(fuzz_send_receive_spdm_measurement(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_send_receive_spdm_measurement(data);
+        executor::block_on(fuzz_send_receive_spdm_measurement(Arc::new(data.to_vec())));
     });
 }

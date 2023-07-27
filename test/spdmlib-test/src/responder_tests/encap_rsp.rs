@@ -18,209 +18,264 @@ use spdmlib::error::{SpdmResult, SPDM_STATUS_BUFFER_FULL};
 use spdmlib::protocol::*;
 use spdmlib::responder::ResponderContext;
 use spdmlib::{crypto, message::*, secret};
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
 const CERT_PORTION_LEN: usize = 512;
 const SESSION_ID: u32 = 4294901758;
 
 #[test]
 fn test_handle_get_encapsulated_request() {
-    let (config_info, provision_info) = create_info();
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-    let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let task = async {
+        let (config_info, provision_info) = create_info();
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let shared_buffer = SharedBuffer::new();
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
-    let mut context = setup_test_context_and_session(
-        &mut socket_io_transport,
-        pcidoe_transport_encap,
-        config_info,
-        provision_info,
-    );
+        let mut context = setup_test_context_and_session(
+            socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
 
-    let request = &mut [0u8; MAX_SPDM_MSG_SIZE];
-    let mut writer = Writer::init(request);
-    let header = SpdmMessageHeader {
-        version: SpdmVersion::SpdmVersion12,
-        request_response_code: SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest,
+        let request = &mut [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(request);
+        let header = SpdmMessageHeader {
+            version: SpdmVersion::SpdmVersion12,
+            request_response_code: SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest,
+        };
+        assert!(header.encode(&mut writer).is_ok());
+
+        let payload = SpdmGetEncapsulatedRequestPayload {};
+        assert!(payload
+            .spdm_encode(&mut context.common, &mut writer)
+            .is_ok());
+
+        assert!(context
+            .handle_get_encapsulated_request(SESSION_ID, writer.used_slice())
+            .await
+            .is_ok());
+
+        let receive = &mut [0u8; config::RECEIVER_BUFFER_SIZE];
+        let receive_size = {
+            let mut device_io = context.common.device_io.lock();
+            let device_io = device_io.deref_mut();
+            device_io
+                .receive(Arc::new(Mutex::new(receive)), 0)
+                .await
+                .unwrap()
+        };
+
+        let response = &mut [0u8; config::MAX_SPDM_MSG_SIZE];
+        let size = context
+            .common
+            .decode_secured_message(SESSION_ID, &receive[..receive_size], response)
+            .await
+            .unwrap();
+
+        assert_eq!(size, 8); // Encapsulated Request + Get Digest
+
+        let mut reader = Reader::init(&response[..size]);
+        let header = SpdmMessageHeader::read(&mut reader).unwrap();
+        let payload = SpdmEncapsulatedRequestPayload::spdm_read(&mut context.common, &mut reader);
+        assert_eq!(header.version, SpdmVersion::SpdmVersion12);
+        assert_eq!(
+            header.request_response_code,
+            SpdmRequestResponseCode::SpdmResponseEncapsulatedRequest
+        );
+        assert!(payload.is_some());
+
+        let encap_header = SpdmMessageHeader::read(&mut reader).unwrap();
+        let encap_payload =
+            SpdmGetDigestsRequestPayload::spdm_read(&mut context.common, &mut reader);
+        assert_eq!(encap_header.version, SpdmVersion::SpdmVersion12);
+        assert_eq!(
+            encap_header.request_response_code,
+            SpdmRequestResponseCode::SpdmRequestGetDigests
+        );
+        assert!(encap_payload.is_some());
     };
-    assert!(header.encode(&mut writer).is_ok());
 
-    let payload = SpdmGetEncapsulatedRequestPayload {};
-    assert!(payload
-        .spdm_encode(&mut context.common, &mut writer)
-        .is_ok());
-
-    assert!(context
-        .handle_get_encapsulated_request(SESSION_ID, writer.used_slice())
-        .is_ok());
-
-    let receive = &mut [0u8; config::RECEIVER_BUFFER_SIZE];
-    let receive_size = context.common.device_io.receive(receive, 0).unwrap();
-
-    let response = &mut [0u8; config::MAX_SPDM_MSG_SIZE];
-    let size = context
-        .common
-        .decode_secured_message(SESSION_ID, &receive[..receive_size], response)
-        .unwrap();
-
-    assert_eq!(size, 8); // Encapsulated Request + Get Digest
-
-    let mut reader = Reader::init(&response[..size]);
-    let header = SpdmMessageHeader::read(&mut reader).unwrap();
-    let payload = SpdmEncapsulatedRequestPayload::spdm_read(&mut context.common, &mut reader);
-    assert_eq!(header.version, SpdmVersion::SpdmVersion12);
-    assert_eq!(
-        header.request_response_code,
-        SpdmRequestResponseCode::SpdmResponseEncapsulatedRequest
-    );
-    assert!(payload.is_some());
-
-    let encap_header = SpdmMessageHeader::read(&mut reader).unwrap();
-    let encap_payload = SpdmGetDigestsRequestPayload::spdm_read(&mut context.common, &mut reader);
-    assert_eq!(encap_header.version, SpdmVersion::SpdmVersion12);
-    assert_eq!(
-        encap_header.request_response_code,
-        SpdmRequestResponseCode::SpdmRequestGetDigests
-    );
-    assert!(encap_payload.is_some());
+    executor::block_on(task);
 }
 
 #[test]
 fn test_handle_deliver_encapsulated_reponse_digest() {
-    let (config_info, provision_info) = create_info();
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-    let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let task = async {
+        let (config_info, provision_info) = create_info();
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let shared_buffer = SharedBuffer::new();
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
-    let mut context = setup_test_context_and_session(
-        &mut socket_io_transport,
-        pcidoe_transport_encap,
-        config_info,
-        provision_info,
-    );
+        let mut context = setup_test_context_and_session(
+            socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
 
-    let request = &mut [0u8; config::MAX_SPDM_MSG_SIZE];
-    let mut writer = Writer::init(request);
-    let header = SpdmMessageHeader {
-        version: SpdmVersion::SpdmVersion12,
-        request_response_code: SpdmRequestResponseCode::SpdmRequestDeliverEncapsulatedResponse,
+        let request = &mut [0u8; config::MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(request);
+        let header = SpdmMessageHeader {
+            version: SpdmVersion::SpdmVersion12,
+            request_response_code: SpdmRequestResponseCode::SpdmRequestDeliverEncapsulatedResponse,
+        };
+        assert!(header.encode(&mut writer).is_ok());
+
+        let payload = SpdmDeliverEncapsulatedResponsePayload { request_id: 0xa };
+        assert!(payload
+            .spdm_encode(&mut context.common, &mut writer)
+            .is_ok());
+
+        assert!(write_spdm_get_digest_response(&mut context, &mut writer).is_ok());
+
+        assert!(context
+            .handle_deliver_encapsulated_reponse(SESSION_ID, request)
+            .await
+            .is_ok());
+
+        // Get data sent by responder and decode the secured message
+        let receive = &mut [0u8; config::RECEIVER_BUFFER_SIZE];
+        let receive_size = {
+            let mut device_io = context.common.device_io.lock();
+            let device_io = device_io.deref_mut();
+
+            device_io
+                .receive(Arc::new(Mutex::new(receive)), 0)
+                .await
+                .unwrap()
+        };
+
+        let response = &mut [0u8; config::MAX_SPDM_MSG_SIZE];
+        let size = context
+            .common
+            .decode_secured_message(SESSION_ID, &receive[..receive_size], response)
+            .await
+            .unwrap();
+
+        // Verify the message sent by responder
+        let mut reader = Reader::init(&response[..size]);
+        let header = SpdmMessageHeader::read(&mut reader).unwrap();
+        let payload =
+            SpdmEncapsulatedResponseAckPayload::spdm_read(&mut context.common, &mut reader)
+                .unwrap();
+        assert_eq!(header.version, SpdmVersion::SpdmVersion12);
+        assert_eq!(
+            header.request_response_code,
+            SpdmRequestResponseCode::SpdmResponseEncapsulatedResponseAck
+        );
+        assert_eq!(payload.ack_request_id, 0xa);
+
+        let encap_header = SpdmMessageHeader::read(&mut reader).unwrap();
+        let encap_payload = SpdmDigestsResponsePayload::spdm_read(&mut context.common, &mut reader);
+        assert_eq!(encap_header.version, SpdmVersion::SpdmVersion12);
+        assert_eq!(
+            encap_header.request_response_code,
+            SpdmRequestResponseCode::SpdmRequestGetCertificate
+        );
+        assert!(encap_payload.is_some());
     };
-    assert!(header.encode(&mut writer).is_ok());
 
-    let payload = SpdmDeliverEncapsulatedResponsePayload { request_id: 0xa };
-    assert!(payload
-        .spdm_encode(&mut context.common, &mut writer)
-        .is_ok());
-
-    assert!(write_spdm_get_digest_response(&mut context, &mut writer).is_ok());
-
-    assert!(context
-        .handle_deliver_encapsulated_reponse(SESSION_ID, request)
-        .is_ok());
-
-    // Get data sent by responder and decode the secured message
-    let receive = &mut [0u8; config::RECEIVER_BUFFER_SIZE];
-    let receive_size = context.common.device_io.receive(receive, 0).unwrap();
-    let response = &mut [0u8; config::MAX_SPDM_MSG_SIZE];
-    let size = context
-        .common
-        .decode_secured_message(SESSION_ID, &receive[..receive_size], response)
-        .unwrap();
-
-    // Verify the message sent by responder
-    let mut reader = Reader::init(&response[..size]);
-    let header = SpdmMessageHeader::read(&mut reader).unwrap();
-    let payload =
-        SpdmEncapsulatedResponseAckPayload::spdm_read(&mut context.common, &mut reader).unwrap();
-    assert_eq!(header.version, SpdmVersion::SpdmVersion12);
-    assert_eq!(
-        header.request_response_code,
-        SpdmRequestResponseCode::SpdmResponseEncapsulatedResponseAck
-    );
-    assert_eq!(payload.ack_request_id, 0xa);
-
-    let encap_header = SpdmMessageHeader::read(&mut reader).unwrap();
-    let encap_payload = SpdmDigestsResponsePayload::spdm_read(&mut context.common, &mut reader);
-    assert_eq!(encap_header.version, SpdmVersion::SpdmVersion12);
-    assert_eq!(
-        encap_header.request_response_code,
-        SpdmRequestResponseCode::SpdmRequestGetCertificate
-    );
-    assert!(encap_payload.is_some());
+    executor::block_on(task);
 }
 
 #[test]
 fn test_handle_deliver_encapsulated_reponse_cert() {
-    let (config_info, provision_info) = create_info();
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-    let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let task = async {
+        let (config_info, provision_info) = create_info();
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let shared_buffer = SharedBuffer::new();
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
-    let mut context = setup_test_context_and_session(
-        &mut socket_io_transport,
-        pcidoe_transport_encap,
-        config_info,
-        provision_info,
-    );
-    if context.common.peer_info.peer_cert_chain_temp.is_none() {
-        context.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
-    }
+        let mut context = setup_test_context_and_session(
+            socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
+        if context.common.peer_info.peer_cert_chain_temp.is_none() {
+            context.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
+        }
 
-    let request = &mut [0u8; config::MAX_SPDM_MSG_SIZE];
-    let mut writer = Writer::init(request);
-    let header = SpdmMessageHeader {
-        version: SpdmVersion::SpdmVersion12,
-        request_response_code: SpdmRequestResponseCode::SpdmRequestDeliverEncapsulatedResponse,
+        let request = &mut [0u8; config::MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(request);
+        let header = SpdmMessageHeader {
+            version: SpdmVersion::SpdmVersion12,
+            request_response_code: SpdmRequestResponseCode::SpdmRequestDeliverEncapsulatedResponse,
+        };
+        assert!(header.encode(&mut writer).is_ok());
+
+        let payload = SpdmDeliverEncapsulatedResponsePayload { request_id: 0xa };
+        assert!(payload
+            .spdm_encode(&mut context.common, &mut writer)
+            .is_ok());
+
+        assert!(write_spdm_get_certificate_response(&mut context, &mut writer).is_ok());
+
+        assert!(context
+            .handle_deliver_encapsulated_reponse(SESSION_ID, request)
+            .await
+            .is_ok());
+
+        let receive: &mut [u8] = &mut [0u8; config::RECEIVER_BUFFER_SIZE];
+        let receive_size = {
+            let mut device_io = context.common.device_io.lock();
+            let device_io = device_io.deref_mut();
+
+            device_io
+                .receive(Arc::new(Mutex::new(receive)), 0)
+                .await
+                .unwrap()
+        };
+
+        let mut response = [0u8; config::MAX_SPDM_MSG_SIZE];
+        let size = context
+            .common
+            .decode_secured_message(SESSION_ID, &receive[..receive_size], &mut response)
+            .await
+            .unwrap();
+
+        // Verify the message sent by responder
+        let mut reader = Reader::init(&response[..size]);
+        let header = SpdmMessageHeader::read(&mut reader).unwrap();
+        let payload =
+            SpdmEncapsulatedResponseAckPayload::spdm_read(&mut context.common, &mut reader)
+                .unwrap();
+        assert_eq!(header.version, SpdmVersion::SpdmVersion12);
+        assert_eq!(
+            header.request_response_code,
+            SpdmRequestResponseCode::SpdmResponseEncapsulatedResponseAck
+        );
+        assert_eq!(payload.ack_request_id, 0xa);
+
+        let encap_header = SpdmMessageHeader::read(&mut reader).unwrap();
+        let encap_payload = SpdmDigestsResponsePayload::spdm_read(&mut context.common, &mut reader);
+        assert_eq!(encap_header.version, SpdmVersion::SpdmVersion12);
+        assert_eq!(
+            encap_header.request_response_code,
+            SpdmRequestResponseCode::SpdmRequestGetCertificate
+        );
+        assert!(encap_payload.is_some());
     };
-    assert!(header.encode(&mut writer).is_ok());
 
-    let payload = SpdmDeliverEncapsulatedResponsePayload { request_id: 0xa };
-    assert!(payload
-        .spdm_encode(&mut context.common, &mut writer)
-        .is_ok());
-
-    assert!(write_spdm_get_certificate_response(&mut context, &mut writer).is_ok());
-
-    assert!(context
-        .handle_deliver_encapsulated_reponse(SESSION_ID, request)
-        .is_ok());
-
-    let mut receive = [0u8; config::RECEIVER_BUFFER_SIZE];
-    let receive_size = context.common.device_io.receive(&mut receive, 0).unwrap();
-
-    let mut response = [0u8; config::MAX_SPDM_MSG_SIZE];
-    let size = context
-        .common
-        .decode_secured_message(SESSION_ID, &receive[..receive_size], &mut response)
-        .unwrap();
-
-    // Verify the message sent by responder
-    let mut reader = Reader::init(&response[..size]);
-    let header = SpdmMessageHeader::read(&mut reader).unwrap();
-    let payload =
-        SpdmEncapsulatedResponseAckPayload::spdm_read(&mut context.common, &mut reader).unwrap();
-    assert_eq!(header.version, SpdmVersion::SpdmVersion12);
-    assert_eq!(
-        header.request_response_code,
-        SpdmRequestResponseCode::SpdmResponseEncapsulatedResponseAck
-    );
-    assert_eq!(payload.ack_request_id, 0xa);
-
-    let encap_header = SpdmMessageHeader::read(&mut reader).unwrap();
-    let encap_payload = SpdmDigestsResponsePayload::spdm_read(&mut context.common, &mut reader);
-    assert_eq!(encap_header.version, SpdmVersion::SpdmVersion12);
-    assert_eq!(
-        encap_header.request_response_code,
-        SpdmRequestResponseCode::SpdmRequestGetCertificate
-    );
-    assert!(encap_payload.is_some());
+    executor::block_on(task);
 }
 
-fn setup_test_context_and_session<'a>(
-    device_io: &'a mut dyn SpdmDeviceIo,
-    transport_encap: &'a mut dyn SpdmTransportEncap,
+fn setup_test_context_and_session(
+    device_io: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
+    transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
     config_info: SpdmConfigInfo,
     provision_info: SpdmProvisionInfo,
-) -> ResponderContext<'a> {
+) -> ResponderContext {
     let mut context =
         ResponderContext::new(device_io, transport_encap, config_info, provision_info);
 

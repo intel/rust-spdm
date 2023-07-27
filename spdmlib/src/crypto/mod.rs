@@ -247,13 +247,12 @@ pub mod dhe {
     use crate::protocol::{SpdmDheAlgo, SpdmDheExchangeStruct};
 
     #[cfg(not(any(feature = "spdm-ring")))]
-    static DEFAULT: SpdmDhe =
-        SpdmDhe {
-            generate_key_pair_cb: |_dhe_algo: SpdmDheAlgo| -> Option<(
-                SpdmDheExchangeStruct,
-                Box<dyn SpdmDheKeyExchange>,
-            )> { unimplemented!() },
-        };
+    static DEFAULT: SpdmDhe = SpdmDhe {
+        generate_key_pair_cb: |_dhe_algo: SpdmDheAlgo| -> Option<(
+            SpdmDheExchangeStruct,
+            Box<dyn SpdmDheKeyExchange + Send>,
+        )> { unimplemented!() },
+    };
     #[cfg(feature = "spdm-ring")]
     use super::spdm_ring::dhe_impl::DEFAULT;
 
@@ -263,7 +262,7 @@ pub mod dhe {
 
     pub fn generate_key_pair(
         dhe_algo: SpdmDheAlgo,
-    ) -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange>)> {
+    ) -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange + Send>)> {
         (CRYPTO_DHE
             .try_get_or_init(|| DEFAULT.clone())
             .ok()?

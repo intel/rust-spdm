@@ -12,13 +12,16 @@ use spdmlib::common::*;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::{config, responder, secret};
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
 
 #[test]
 fn test_case0_send_secured_message() {
     let (config_info, provision_info) = create_info();
     let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
     let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
     secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
 
     let mut context = responder::ResponderContext::new(
@@ -65,7 +68,7 @@ fn test_case1_send_secured_message() {
     let (config_info, provision_info) = create_info();
     let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
     let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
     secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     let mut context = responder::ResponderContext::new(
         &mut socket_io_transport,
@@ -106,7 +109,7 @@ fn test_case0_receive_message() {
     let shared_buffer = SharedBuffer::new();
     shared_buffer.set_buffer(receive_buffer);
 
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
     secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     let mut context = responder::ResponderContext::new(
         &mut socket_io_transport,
@@ -137,7 +140,7 @@ fn test_case0_process_message() {
     let shared_buffer = SharedBuffer::new();
     shared_buffer.set_buffer(receive_buffer);
 
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
     let mut context = responder::ResponderContext::new(
         &mut socket_io_transport,
         pcidoe_transport_encap,
@@ -166,7 +169,7 @@ fn test_case0_dispatch_secured_message() {
     let (config_info, provision_info) = create_info();
     let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
     let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
 
     let mut context = responder::ResponderContext::new(
         &mut socket_io_transport,

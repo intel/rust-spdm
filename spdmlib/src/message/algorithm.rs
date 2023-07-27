@@ -611,6 +611,7 @@ mod tests {
     use super::*;
     use crate::common::{SpdmConfigInfo, SpdmContext, SpdmProvisionInfo};
     use testlib::{create_spdm_context, DeviceIO, TransportEncap};
+    extern crate alloc;
 
     #[test]
     fn test_case0_spdm_negotiate_algorithms_request_payload() {
@@ -645,11 +646,7 @@ mod tests {
                 },
             ],
         };
-        let transport_encap = &mut TransportEncap {};
-        let device_io = &mut DeviceIO {};
-        let config_info = SpdmConfigInfo::default();
-        let provision_info = SpdmProvisionInfo::default();
-        let mut context = SpdmContext::new(device_io, transport_encap, config_info, provision_info);
+        create_spdm_context!(context);
         context.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
 
         assert!(value.spdm_encode(&mut context, &mut writer).is_ok());
@@ -718,11 +715,7 @@ mod tests {
             alg_struct: gen_array_clone(SpdmAlgStruct::default(), 4),
         };
 
-        let transport_encap = &mut TransportEncap {};
-        let device_io = &mut DeviceIO {};
-        let config_info = SpdmConfigInfo::default();
-        let provision_info = SpdmProvisionInfo::default();
-        let mut context = SpdmContext::new(device_io, transport_encap, config_info, provision_info);
+        create_spdm_context!(context);
         context.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
 
         assert!(value.spdm_encode(&mut context, &mut writer).is_ok());
@@ -752,11 +745,7 @@ mod tests {
             alg_struct: gen_array_clone(SpdmAlgStruct::default(), 4),
         };
 
-        let transport_encap = &mut TransportEncap {};
-        let device_io = &mut DeviceIO {};
-        let config_info = SpdmConfigInfo::default();
-        let provision_info = SpdmProvisionInfo::default();
-        let mut context = SpdmContext::new(device_io, transport_encap, config_info, provision_info);
+        create_spdm_context!(context);
         context.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
 
         assert!(value.spdm_encode(&mut context, &mut writer).is_ok());
@@ -803,11 +792,7 @@ mod tests {
             ],
         };
 
-        let transport_encap = &mut TransportEncap {};
-        let device_io = &mut DeviceIO {};
-        let config_info = SpdmConfigInfo::default();
-        let provision_info = SpdmProvisionInfo::default();
-        let mut context = SpdmContext::new(device_io, transport_encap, config_info, provision_info);
+        create_spdm_context!(context);
         context.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
 
         context.config_info.measurement_specification = SpdmMeasurementSpecification::DMTF;
@@ -913,11 +898,7 @@ mod tests {
             alg_struct: gen_array_clone(SpdmAlgStruct::default(), 4),
         };
 
-        let transport_encap = &mut TransportEncap {};
-        let device_io = &mut DeviceIO {};
-        let config_info = SpdmConfigInfo::default();
-        let provision_info = SpdmProvisionInfo::default();
-        let mut context = SpdmContext::new(device_io, transport_encap, config_info, provision_info);
+        create_spdm_context!(context);
         context.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
 
         assert!(value.spdm_encode(&mut context, &mut writer).is_ok());

@@ -16,8 +16,8 @@ use crate::responder::*;
 extern crate alloc;
 use alloc::boxed::Box;
 
-impl<'a> ResponderContext<'a> {
-    pub fn handle_spdm_finish(&mut self, session_id: u32, bytes: &[u8]) -> SpdmResult {
+impl ResponderContext {
+    pub async fn handle_spdm_finish(&mut self, session_id: u32, bytes: &[u8]) -> SpdmResult {
         let in_clear_text = self
             .common
             .negotiate_info
@@ -34,9 +34,10 @@ impl<'a> ResponderContext<'a> {
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_finish_response(session_id, bytes, &mut writer)?;
         if in_clear_text {
-            self.send_message(writer.used_slice())
+            self.send_message(writer.used_slice()).await
         } else {
             self.send_secured_message(session_id, writer.used_slice(), false)
+                .await
         }
     }
 

@@ -98,6 +98,8 @@ pushd spdmlib
 cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring"
 ```
 
+## Run Rust SPDM emulator
+
 ### Run emulator with default feature
 
 Open one command windows and run:

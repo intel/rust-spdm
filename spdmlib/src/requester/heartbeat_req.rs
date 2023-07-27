@@ -6,8 +6,8 @@ use crate::error::{SpdmResult, SPDM_STATUS_ERROR_PEER, SPDM_STATUS_INVALID_MSG_F
 use crate::message::*;
 use crate::requester::*;
 
-impl<'a> RequesterContext<'a> {
-    pub fn send_receive_spdm_heartbeat(&mut self, session_id: u32) -> SpdmResult {
+impl RequesterContext {
+    pub async fn send_receive_spdm_heartbeat(&mut self, session_id: u32) -> SpdmResult {
         info!("send spdm heartbeat\n");
 
         self.common.reset_buffer_via_request_code(
@@ -17,11 +17,14 @@ impl<'a> RequesterContext<'a> {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = self.encode_spdm_heartbeat(&mut send_buffer)?;
-        self.send_secured_message(session_id, &send_buffer[..used], false)?;
+        self.send_secured_message(session_id, &send_buffer[..used], false)
+            .await?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self.receive_secured_message(session_id, &mut receive_buffer, false)?;
+        let used = self
+            .receive_secured_message(session_id, &mut receive_buffer, false)
+            .await?;
         self.handle_spdm_heartbeat_response(session_id, &receive_buffer[..used])
     }
 

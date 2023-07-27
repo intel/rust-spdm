@@ -105,8 +105,9 @@ pub struct SpdmCertOperation {
     pub verify_cert_chain_cb: fn(cert_chain: &[u8]) -> SpdmResult,
 }
 
-type GenerateKeyPairCb =
-    fn(dhe_algo: SpdmDheAlgo) -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange>)>;
+type GenerateKeyPairCb = fn(
+    dhe_algo: SpdmDheAlgo,
+) -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange + Send>)>;
 
 #[derive(Clone)]
 pub struct SpdmDhe {

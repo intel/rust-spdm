@@ -8,8 +8,13 @@ use fuzzlib::{
     spdmlib::protocol::*,
     *,
 };
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_handle_spdm_measurement(data: &[u8]) {
+async fn fuzz_handle_spdm_measurement(data: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     // TCD:
     // - id: 0
@@ -18,12 +23,15 @@ fn fuzz_handle_spdm_measurement(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -50,7 +58,7 @@ fn fuzz_handle_spdm_measurement(data: &[u8]) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        context.handle_spdm_measurement(None, data);
+        context.handle_spdm_measurement(None, &data).await.unwrap();
     }
     // TCD:
     // - id: 0
@@ -59,12 +67,15 @@ fn fuzz_handle_spdm_measurement(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -100,7 +111,9 @@ fn fuzz_handle_spdm_measurement(data: &[u8]) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        context.handle_spdm_measurement(Some(4294836221), data);
+        context
+            .handle_spdm_measurement(Some(4294836221), &data)
+            .await;
     }
 }
 
@@ -128,16 +141,16 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [17, 224, 0, 0];
-            fuzz_handle_spdm_measurement(&fuzzdata);
+            let fuzzdata = vec![17, 224, 0, 0];
+            executor::block_on(fuzz_handle_spdm_measurement(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_handle_spdm_measurement(data.as_slice());
+            executor::block_on(fuzz_handle_spdm_measurement(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_handle_spdm_measurement(data);
+        executor::block_on(fuzz_handle_spdm_measurement(Arc::new(data.to_vec())));
     });
 }

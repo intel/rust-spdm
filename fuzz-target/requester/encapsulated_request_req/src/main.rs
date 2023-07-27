@@ -6,8 +6,13 @@ use fuzzlib::spdmlib::message::SpdmKeyExchangeMutAuthAttributes;
 use fuzzlib::*;
 use spdmlib::common::session::{SpdmSession, SpdmSessionState};
 use spdmlib::protocol::*;
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
+async fn fuzz_session_based_mutual_authenticate(fuzzdata: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::crypto::aead::register(FAKE_AEAD.clone());
     // TCD:
@@ -18,12 +23,14 @@ fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
     {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -54,6 +61,7 @@ fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
 
         let _ = requester
             .session_based_mutual_authenticate(4294836221)
+            .await
             .is_ok();
     }
     // TCD:
@@ -64,12 +72,14 @@ fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
     {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -101,6 +111,7 @@ fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
 
         let _ = requester
             .session_based_mutual_authenticate(4294836221)
+            .await
             .is_ok();
     }
     // TCD:
@@ -111,12 +122,14 @@ fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
     {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -148,6 +161,7 @@ fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
 
         let _ = requester
             .session_based_mutual_authenticate(4294836221)
+            .await
             .is_ok();
     }
     // TCD:
@@ -158,12 +172,14 @@ fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
     {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -192,6 +208,7 @@ fn fuzz_session_based_mutual_authenticate(fuzzdata: &[u8]) {
 
         let _ = requester
             .session_based_mutual_authenticate(4294836221)
+            .await
             .is_ok();
     }
 }
@@ -220,15 +237,19 @@ fn main() {
             // Here you can replace the single-step debugging value in the fuzzdata array.
             let fuzzdata =
                 include_bytes!("../../../in/encapsulated_request_req/encap_resp_ack.raw");
-            fuzz_session_based_mutual_authenticate(fuzzdata);
+            executor::block_on(fuzz_session_based_mutual_authenticate(Arc::new(
+                fuzzdata.to_vec(),
+            )));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_session_based_mutual_authenticate(data.as_slice());
+            executor::block_on(fuzz_session_based_mutual_authenticate(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_session_based_mutual_authenticate(data);
+        executor::block_on(fuzz_session_based_mutual_authenticate(Arc::new(
+            data.to_vec(),
+        )));
     });
 }

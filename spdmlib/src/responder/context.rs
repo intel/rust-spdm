@@ -9,16 +9,23 @@ use crate::config;
 use crate::error::{SpdmResult, SPDM_STATUS_UNSUPPORTED_CAP};
 use crate::message::*;
 use crate::protocol::{SpdmRequestCapabilityFlags, SpdmResponseCapabilityFlags};
+use async_recursion::async_recursion;
 use codec::{Codec, Reader, Writer};
+extern crate alloc;
+use alloc::boxed::Box;
+use core::ops::DerefMut;
 
-pub struct ResponderContext<'a> {
-    pub common: crate::common::SpdmContext<'a>,
+use alloc::sync::Arc;
+use spin::Mutex;
+
+pub struct ResponderContext {
+    pub common: crate::common::SpdmContext,
 }
 
-impl<'a> ResponderContext<'a> {
+impl ResponderContext {
     pub fn new(
-        device_io: &'a mut dyn SpdmDeviceIo,
-        transport_encap: &'a mut dyn SpdmTransportEncap,
+        device_io: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
+        transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
         config_info: crate::common::SpdmConfigInfo,
         provision_info: crate::common::SpdmProvisionInfo,
     ) -> Self {
@@ -32,18 +39,26 @@ impl<'a> ResponderContext<'a> {
         }
     }
 
-    pub fn send_message(&mut self, send_buffer: &[u8]) -> SpdmResult {
+    #[async_recursion]
+    pub async fn send_message(&mut self, send_buffer: &[u8]) -> SpdmResult {
         if self.common.negotiate_info.req_data_transfer_size_sel != 0
             && (send_buffer.len() > self.common.negotiate_info.req_data_transfer_size_sel as usize)
         {
             let mut err_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
             let mut writer = Writer::init(&mut err_buffer);
             self.write_spdm_error(SpdmErrorCode::SpdmErrorResponseTooLarge, 0, &mut writer);
-            return self.send_message(writer.used_slice());
+            return self.send_message(writer.used_slice()).await;
         }
         let mut transport_buffer = [0u8; config::SENDER_BUFFER_SIZE];
-        let used = self.common.encap(send_buffer, &mut transport_buffer)?;
-        let result = self.common.device_io.send(&transport_buffer[..used]);
+        let used = self
+            .common
+            .encap(send_buffer, &mut transport_buffer)
+            .await?;
+        let result = {
+            let mut device_io = self.common.device_io.lock();
+            let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
+            device_io.send(Arc::new(&transport_buffer[..used])).await
+        };
         if result.is_ok() {
             let opcode = send_buffer[1];
             if opcode == SpdmRequestResponseCode::SpdmResponseVersion.get_u8() {
@@ -92,7 +107,8 @@ impl<'a> ResponderContext<'a> {
         result
     }
 
-    pub fn send_secured_message(
+    #[async_recursion]
+    pub async fn send_secured_message(
         &mut self,
         session_id: u32,
         send_buffer: &[u8],
@@ -105,18 +121,27 @@ impl<'a> ResponderContext<'a> {
             let mut err_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
             let mut writer = Writer::init(&mut err_buffer);
             self.write_spdm_error(SpdmErrorCode::SpdmErrorResponseTooLarge, 0, &mut writer);
-            return self.send_secured_message(session_id, writer.used_slice(), is_app_message);
+            return self
+                .send_secured_message(session_id, writer.used_slice(), is_app_message)
+                .await;
         }
 
         let mut transport_buffer = [0u8; config::SENDER_BUFFER_SIZE];
-        let used = self.common.encode_secured_message(
-            session_id,
-            send_buffer,
-            &mut transport_buffer,
-            false,
-            is_app_message,
-        )?;
-        let result = self.common.device_io.send(&transport_buffer[..used]);
+        let used = self
+            .common
+            .encode_secured_message(
+                session_id,
+                send_buffer,
+                &mut transport_buffer,
+                false,
+                is_app_message,
+            )
+            .await?;
+        let result = {
+            let mut device_io = self.common.device_io.lock();
+            let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
+            device_io.send(Arc::new(&transport_buffer[..used])).await
+        };
         if result.is_ok() {
             let opcode = send_buffer[1];
             // change state after message is sent.
@@ -136,13 +161,13 @@ impl<'a> ResponderContext<'a> {
         result
     }
 
-    pub fn process_message(
+    pub async fn process_message(
         &mut self,
         timeout: usize,
         auxiliary_app_data: &[u8],
     ) -> Result<bool, (usize, [u8; config::RECEIVER_BUFFER_SIZE])> {
         let mut receive_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
-        match self.receive_message(&mut receive_buffer[..], timeout) {
+        match self.receive_message(&mut receive_buffer[..], timeout).await {
             Ok((used, secured_message)) => {
                 if secured_message {
                     let mut read = Reader::init(&receive_buffer[0..used]);
@@ -166,10 +191,17 @@ impl<'a> ResponderContext<'a> {
                     let decode_size = decode_size.unwrap();
 
                     let mut spdm_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-                    let decap_result = self
-                        .common
-                        .transport_encap
-                        .decap_app(&app_buffer[0..decode_size], &mut spdm_buffer);
+                    let decap_result = {
+                        let mut transport_encap = self.common.transport_encap.lock();
+                        let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                            transport_encap.deref_mut();
+                        transport_encap
+                            .decap_app(
+                                Arc::new(&app_buffer[0..decode_size]),
+                                Arc::new(Mutex::new(&mut spdm_buffer)),
+                            )
+                            .await
+                    };
                     match decap_result {
                         Err(_) => Err((used, receive_buffer)),
                         Ok((decode_size, is_app_message)) => {
@@ -179,6 +211,7 @@ impl<'a> ResponderContext<'a> {
                                         session_id,
                                         &spdm_buffer[0..decode_size],
                                     )
+                                    .await
                                     .is_ok())
                             } else {
                                 Ok(self
@@ -187,12 +220,16 @@ impl<'a> ResponderContext<'a> {
                                         &spdm_buffer[..decode_size],
                                         auxiliary_app_data,
                                     )
+                                    .await
                                     .is_ok())
                             }
                         }
                     }
                 } else {
-                    Ok(self.dispatch_message(&receive_buffer[0..used]).is_ok())
+                    Ok(self
+                        .dispatch_message(&receive_buffer[0..used])
+                        .await
+                        .is_ok())
                 }
             }
             Err(used) => Err((used, receive_buffer)),
@@ -203,7 +240,7 @@ impl<'a> ResponderContext<'a> {
     // whose value is not normal, will return Err to caller to handle the raw packet,
     // So can't swap transport_buffer and receive_buffer, even though it should be by
     // their name suggestion. (03.01.2022)
-    fn receive_message(
+    async fn receive_message(
         &mut self,
         receive_buffer: &mut [u8],
         timeout: usize,
@@ -212,19 +249,32 @@ impl<'a> ResponderContext<'a> {
 
         let mut transport_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
 
-        let used = self.common.device_io.receive(receive_buffer, timeout)?;
+        let used = {
+            let mut device_io = self.common.device_io.lock();
+            let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
+            device_io
+                .receive(Arc::new(Mutex::new(receive_buffer)), timeout)
+                .await?
+        };
 
-        let (used, secured_message) = self
-            .common
-            .transport_encap
-            .decap(&receive_buffer[..used], &mut transport_buffer)
-            .map_err(|_| used)?;
+        let (used, secured_message) = {
+            let mut transport_encap = self.common.transport_encap.lock();
+            let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                transport_encap.deref_mut();
+            transport_encap
+                .decap(
+                    Arc::new(&receive_buffer[..used]),
+                    Arc::new(Mutex::new(&mut transport_buffer)),
+                )
+                .await
+                .map_err(|_| used)?
+        };
 
         receive_buffer[..used].copy_from_slice(&transport_buffer[..used]);
         Ok((used, secured_message))
     }
 
-    fn dispatch_secured_message(&mut self, session_id: u32, bytes: &[u8]) -> SpdmResult {
+    async fn dispatch_secured_message(&mut self, session_id: u32, bytes: &[u8]) -> SpdmResult {
         let mut reader = Reader::init(bytes);
 
         let session = self.common.get_immutable_session_via_id(session_id);
@@ -254,21 +304,24 @@ impl<'a> ResponderContext<'a> {
                         #[cfg(feature = "mut-auth")]
                         SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest => {
                             self.handle_get_encapsulated_request(session_id, bytes)
+                                .await
                         }
                         #[cfg(feature = "mut-auth")]
                         SpdmRequestResponseCode::SpdmRequestDeliverEncapsulatedResponse => {
                             self.handle_deliver_encapsulated_reponse(session_id, bytes)
+                                .await
                         }
                         SpdmRequestResponseCode::SpdmRequestFinish => {
-                            self.handle_spdm_finish(session_id, bytes)
+                            self.handle_spdm_finish(session_id, bytes).await
                         }
 
                         SpdmRequestResponseCode::SpdmRequestPskFinish => {
-                            self.handle_spdm_psk_finish(session_id, bytes)
+                            self.handle_spdm_psk_finish(session_id, bytes).await
                         }
 
                         SpdmRequestResponseCode::SpdmRequestVendorDefinedRequest => {
                             self.handle_spdm_vendor_defined_request(Some(session_id), bytes)
+                                .await
                         }
 
                         SpdmRequestResponseCode::SpdmRequestGetVersion
@@ -282,19 +335,23 @@ impl<'a> ResponderContext<'a> {
                         | SpdmRequestResponseCode::SpdmRequestPskExchange
                         | SpdmRequestResponseCode::SpdmRequestHeartbeat
                         | SpdmRequestResponseCode::SpdmRequestKeyUpdate
-                        | SpdmRequestResponseCode::SpdmRequestEndSession => self
-                            .handle_error_request(
+                        | SpdmRequestResponseCode::SpdmRequestEndSession => {
+                            self.handle_error_request(
                                 SpdmErrorCode::SpdmErrorUnexpectedRequest,
                                 Some(session_id),
                                 bytes,
-                            ),
+                            )
+                            .await
+                        }
 
-                        SpdmRequestResponseCode::SpdmRequestResponseIfReady => self
-                            .handle_error_request(
+                        SpdmRequestResponseCode::SpdmRequestResponseIfReady => {
+                            self.handle_error_request(
                                 SpdmErrorCode::SpdmErrorUnsupportedRequest,
                                 Some(session_id),
                                 bytes,
-                            ),
+                            )
+                            .await
+                        }
 
                         _ => Err(SPDM_STATUS_UNSUPPORTED_CAP),
                     },
@@ -305,28 +362,29 @@ impl<'a> ResponderContext<'a> {
                 match SpdmMessageHeader::read(&mut reader) {
                     Some(message_header) => match message_header.request_response_code {
                         SpdmRequestResponseCode::SpdmRequestGetDigests => {
-                            self.handle_spdm_digest(bytes, Some(session_id))
+                            self.handle_spdm_digest(bytes, Some(session_id)).await
                         }
                         SpdmRequestResponseCode::SpdmRequestGetCertificate => {
-                            self.handle_spdm_certificate(bytes, Some(session_id))
+                            self.handle_spdm_certificate(bytes, Some(session_id)).await
                         }
                         SpdmRequestResponseCode::SpdmRequestGetMeasurements => {
-                            self.handle_spdm_measurement(Some(session_id), bytes)
+                            self.handle_spdm_measurement(Some(session_id), bytes).await
                         }
 
                         SpdmRequestResponseCode::SpdmRequestHeartbeat => {
-                            self.handle_spdm_heartbeat(session_id, bytes)
+                            self.handle_spdm_heartbeat(session_id, bytes).await
                         }
 
                         SpdmRequestResponseCode::SpdmRequestKeyUpdate => {
-                            self.handle_spdm_key_update(session_id, bytes)
+                            self.handle_spdm_key_update(session_id, bytes).await
                         }
 
                         SpdmRequestResponseCode::SpdmRequestEndSession => {
-                            self.handle_spdm_end_session(session_id, bytes)
+                            self.handle_spdm_end_session(session_id, bytes).await
                         }
                         SpdmRequestResponseCode::SpdmRequestVendorDefinedRequest => {
                             self.handle_spdm_vendor_defined_request(Some(session_id), bytes)
+                                .await
                         }
 
                         SpdmRequestResponseCode::SpdmRequestGetVersion
@@ -336,19 +394,23 @@ impl<'a> ResponderContext<'a> {
                         | SpdmRequestResponseCode::SpdmRequestKeyExchange
                         | SpdmRequestResponseCode::SpdmRequestPskExchange
                         | SpdmRequestResponseCode::SpdmRequestFinish
-                        | SpdmRequestResponseCode::SpdmRequestPskFinish => self
-                            .handle_error_request(
+                        | SpdmRequestResponseCode::SpdmRequestPskFinish => {
+                            self.handle_error_request(
                                 SpdmErrorCode::SpdmErrorUnexpectedRequest,
                                 Some(session_id),
                                 bytes,
-                            ),
+                            )
+                            .await
+                        }
 
-                        SpdmRequestResponseCode::SpdmRequestResponseIfReady => self
-                            .handle_error_request(
+                        SpdmRequestResponseCode::SpdmRequestResponseIfReady => {
+                            self.handle_error_request(
                                 SpdmErrorCode::SpdmErrorUnsupportedRequest,
                                 Some(session_id),
                                 bytes,
-                            ),
+                            )
+                            .await
+                        }
 
                         _ => Err(SPDM_STATUS_UNSUPPORTED_CAP),
                     },
@@ -360,7 +422,7 @@ impl<'a> ResponderContext<'a> {
         }
     }
 
-    fn dispatch_secured_app_message(
+    async fn dispatch_secured_app_message(
         &mut self,
         session_id: u32,
         bytes: &[u8],
@@ -371,39 +433,45 @@ impl<'a> ResponderContext<'a> {
         let (rsp_app_buffer, size) =
             dispatch_secured_app_message_cb(self, session_id, bytes, auxiliary_app_data).unwrap();
         self.send_secured_message(session_id, &rsp_app_buffer[..size], true)
+            .await
     }
-    pub fn dispatch_message(&mut self, bytes: &[u8]) -> SpdmResult {
+
+    pub async fn dispatch_message(&mut self, bytes: &[u8]) -> SpdmResult {
         let mut reader = Reader::init(bytes);
         match SpdmMessageHeader::read(&mut reader) {
             Some(message_header) => match message_header.request_response_code {
-                SpdmRequestResponseCode::SpdmRequestGetVersion => self.handle_spdm_version(bytes),
+                SpdmRequestResponseCode::SpdmRequestGetVersion => {
+                    self.handle_spdm_version(bytes).await
+                }
                 SpdmRequestResponseCode::SpdmRequestGetCapabilities => {
-                    self.handle_spdm_capability(bytes)
+                    self.handle_spdm_capability(bytes).await
                 }
                 SpdmRequestResponseCode::SpdmRequestNegotiateAlgorithms => {
-                    self.handle_spdm_algorithm(bytes)
+                    self.handle_spdm_algorithm(bytes).await
                 }
                 SpdmRequestResponseCode::SpdmRequestGetDigests => {
-                    self.handle_spdm_digest(bytes, None)
+                    self.handle_spdm_digest(bytes, None).await
                 }
                 SpdmRequestResponseCode::SpdmRequestGetCertificate => {
-                    self.handle_spdm_certificate(bytes, None)
+                    self.handle_spdm_certificate(bytes, None).await
                 }
-                SpdmRequestResponseCode::SpdmRequestChallenge => self.handle_spdm_challenge(bytes),
+                SpdmRequestResponseCode::SpdmRequestChallenge => {
+                    self.handle_spdm_challenge(bytes).await
+                }
                 SpdmRequestResponseCode::SpdmRequestGetMeasurements => {
-                    self.handle_spdm_measurement(None, bytes)
+                    self.handle_spdm_measurement(None, bytes).await
                 }
 
                 SpdmRequestResponseCode::SpdmRequestKeyExchange => {
-                    self.handle_spdm_key_exchange(bytes)
+                    self.handle_spdm_key_exchange(bytes).await
                 }
 
                 SpdmRequestResponseCode::SpdmRequestPskExchange => {
-                    self.handle_spdm_psk_exchange(bytes)
+                    self.handle_spdm_psk_exchange(bytes).await
                 }
 
                 SpdmRequestResponseCode::SpdmRequestVendorDefinedRequest => {
-                    self.handle_spdm_vendor_defined_request(None, bytes)
+                    self.handle_spdm_vendor_defined_request(None, bytes).await
                 }
 
                 SpdmRequestResponseCode::SpdmRequestFinish => {
@@ -425,7 +493,7 @@ impl<'a> ResponderContext<'a> {
                                 if session.get_session_state()
                                     == SpdmSessionState::SpdmSessionHandshaking
                                 {
-                                    return self.handle_spdm_finish(session_id, bytes);
+                                    return self.handle_spdm_finish(session_id, bytes).await;
                                 }
                             }
                         }
@@ -436,22 +504,29 @@ impl<'a> ResponderContext<'a> {
                         None,
                         bytes,
                     )
+                    .await
                 }
 
                 SpdmRequestResponseCode::SpdmRequestPskFinish
                 | SpdmRequestResponseCode::SpdmRequestHeartbeat
                 | SpdmRequestResponseCode::SpdmRequestKeyUpdate
-                | SpdmRequestResponseCode::SpdmRequestEndSession => self.handle_error_request(
-                    SpdmErrorCode::SpdmErrorUnexpectedRequest,
-                    None,
-                    bytes,
-                ),
+                | SpdmRequestResponseCode::SpdmRequestEndSession => {
+                    self.handle_error_request(
+                        SpdmErrorCode::SpdmErrorUnexpectedRequest,
+                        None,
+                        bytes,
+                    )
+                    .await
+                }
 
-                SpdmRequestResponseCode::SpdmRequestResponseIfReady => self.handle_error_request(
-                    SpdmErrorCode::SpdmErrorUnsupportedRequest,
-                    None,
-                    bytes,
-                ),
+                SpdmRequestResponseCode::SpdmRequestResponseIfReady => {
+                    self.handle_error_request(
+                        SpdmErrorCode::SpdmErrorUnsupportedRequest,
+                        None,
+                        bytes,
+                    )
+                    .await
+                }
 
                 _ => Err(SPDM_STATUS_UNSUPPORTED_CAP),
             },

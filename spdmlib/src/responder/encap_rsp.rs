@@ -21,8 +21,12 @@ use crate::{
 
 use super::ResponderContext;
 
-impl<'a> ResponderContext<'a> {
-    pub fn handle_get_encapsulated_request(&mut self, session_id: u32, bytes: &[u8]) -> SpdmResult {
+impl ResponderContext {
+    pub async fn handle_get_encapsulated_request(
+        &mut self,
+        session_id: u32,
+        bytes: &[u8],
+    ) -> SpdmResult {
         let mut encapsulated_request = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut encapsulated_request);
 
@@ -33,6 +37,7 @@ impl<'a> ResponderContext<'a> {
         self.write_encap_request_response(bytes, &mut writer);
 
         self.send_secured_message(session_id, writer.used_slice(), false)
+            .await
     }
 
     fn write_encap_request_response(&mut self, bytes: &[u8], writer: &mut Writer) {
@@ -73,7 +78,7 @@ impl<'a> ResponderContext<'a> {
         }
     }
 
-    pub fn handle_deliver_encapsulated_reponse(
+    pub async fn handle_deliver_encapsulated_reponse(
         &mut self,
         session_id: u32,
         bytes: &[u8],
@@ -88,6 +93,7 @@ impl<'a> ResponderContext<'a> {
         self.write_encap_response_ack_response(bytes, &mut writer);
 
         self.send_secured_message(session_id, writer.used_slice(), false)
+            .await
     }
 
     fn write_encap_response_ack_response(&mut self, bytes: &[u8], writer: &mut Writer) {

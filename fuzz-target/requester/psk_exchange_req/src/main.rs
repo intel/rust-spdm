@@ -5,8 +5,13 @@
 use fuzzlib::{common::SpdmOpaqueSupport, *};
 use spdmlib::common::SpdmConnectionState;
 use spdmlib::protocol::*;
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
+async fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::secret::measurement::register(SECRET_MEASUREMENT_IMPL_INSTANCE.clone());
     spdmlib::secret::psk::register(SECRET_PSK_IMPL_INSTANCE.clone());
@@ -20,13 +25,14 @@ fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
     {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -39,10 +45,12 @@ fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
             requester.common.negotiate_info.rsp_capabilities_sel
                 | SpdmResponseCapabilityFlags::PSK_CAP_WITH_CONTEXT;
 
-        let _ = requester.send_receive_spdm_psk_exchange(
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-            None,
-        );
+        let _ = requester
+            .send_receive_spdm_psk_exchange(
+                SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+                None,
+            )
+            .await;
     }
 
     spdmlib::crypto::hmac::register(FAKE_HMAC.clone());
@@ -55,13 +63,14 @@ fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
     {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -74,10 +83,12 @@ fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
             requester.common.negotiate_info.rsp_capabilities_sel
                 | SpdmResponseCapabilityFlags::PSK_CAP_WITH_CONTEXT;
 
-        let _ = requester.send_receive_spdm_psk_exchange(
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-            None,
-        );
+        let _ = requester
+            .send_receive_spdm_psk_exchange(
+                SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+                None,
+            )
+            .await;
     }
     // TCD:
     // - id: 0
@@ -87,13 +98,14 @@ fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
     {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -106,10 +118,12 @@ fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
             requester.common.negotiate_info.rsp_capabilities_sel
                 | SpdmResponseCapabilityFlags::PSK_CAP_WITHOUT_CONTEXT;
 
-        let _ = requester.send_receive_spdm_psk_exchange(
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-            None,
-        );
+        let _ = requester
+            .send_receive_spdm_psk_exchange(
+                SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+                None,
+            )
+            .await;
     }
     // TCD:
     // - id: 0
@@ -120,13 +134,14 @@ fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
 
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = requester::RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -138,10 +153,12 @@ fn fuzz_send_receive_spdm_psk_exchange(fuzzdata: &[u8]) {
             requester.common.negotiate_info.rsp_capabilities_sel
                 | SpdmResponseCapabilityFlags::PSK_CAP_WITH_CONTEXT;
 
-        let _ = requester.send_receive_spdm_psk_exchange(
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-            None,
-        );
+        let _ = requester
+            .send_receive_spdm_psk_exchange(
+                SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+                None,
+            )
+            .await;
     }
 }
 
@@ -167,7 +184,7 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [
+            let fuzzdata = vec![
                 0x1, 0x0, 0x1, 0x0, 0x21, 0x0, 0x0, 0x0, 0x11, 0x66, 0x0, 0x0, 0xfd, 0xff, 0x0,
                 0x0, 0x30, 0x0, 0x10, 0x0, 0xfc, 0xed, 0xa7, 0xd8, 0x7f, 0x87, 0xc1, 0x93, 0x3d,
                 0x5c, 0x9c, 0x60, 0x65, 0xa0, 0xc5, 0xf7, 0xb7, 0x88, 0x98, 0x7c, 0x24, 0x83, 0xf,
@@ -180,15 +197,15 @@ fn main() {
                 0xc9, 0xa2, 0xfa,
             ];
 
-            fuzz_send_receive_spdm_psk_exchange(&fuzzdata);
+            executor::block_on(fuzz_send_receive_spdm_psk_exchange(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_send_receive_spdm_psk_exchange(data.as_slice());
+            executor::block_on(fuzz_send_receive_spdm_psk_exchange(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_send_receive_spdm_psk_exchange(data);
+        executor::block_on(fuzz_send_receive_spdm_psk_exchange(Arc::new(data.to_vec())));
     });
 }

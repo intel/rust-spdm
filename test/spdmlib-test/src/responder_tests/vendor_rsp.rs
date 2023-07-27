@@ -11,19 +11,24 @@ use spdmlib::message::VendorDefinedReqPayloadStruct;
 use spdmlib::message::*;
 use spdmlib::responder::ResponderContext;
 use spdmlib::{config, secret};
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
 
 #[test]
 fn test_case0_handle_spdm_vendor_defined_request() {
     let (rsp_config_info, rsp_provision_info) = create_info();
 
     let shared_buffer = SharedBuffer::new();
-    let mut device_io_responder = FakeSpdmDeviceIoReceve::new(&shared_buffer);
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+    let device_io_responder = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+        shared_buffer,
+    ))));
+    let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
 
     secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
 
     let mut responder = ResponderContext::new(
-        &mut device_io_responder,
+        device_io_responder,
         pcidoe_transport_encap,
         rsp_config_info,
         rsp_provision_info,

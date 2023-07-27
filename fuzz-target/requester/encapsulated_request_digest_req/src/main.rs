@@ -7,8 +7,13 @@ use fuzzlib::spdmlib::message::SpdmKeyExchangeMutAuthAttributes;
 use fuzzlib::*;
 use spdmlib::common::session::{SpdmSession, SpdmSessionState};
 use spdmlib::protocol::*;
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_encap_handle_get_digest(fuzzdata: &[u8]) {
+async fn fuzz_encap_handle_get_digest(fuzzdata: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::crypto::aead::register(FAKE_AEAD.clone());
     // TCD:
@@ -18,12 +23,14 @@ fn fuzz_encap_handle_get_digest(fuzzdata: &[u8]) {
     // -
     {
         let (req_config_info, req_provision_info) = req_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut requester = requester::RequesterContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -66,7 +73,7 @@ fn fuzz_encap_handle_get_digest(fuzzdata: &[u8]) {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
 
-        requester.encap_handle_get_digest(fuzzdata, &mut writer)
+        requester.encap_handle_get_digest(&fuzzdata, &mut writer)
     }
     // TCD:
     // - id: 0
@@ -75,12 +82,14 @@ fn fuzz_encap_handle_get_digest(fuzzdata: &[u8]) {
     // -
     {
         let (req_config_info, req_provision_info) = req_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut requester = requester::RequesterContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
@@ -122,7 +131,7 @@ fn fuzz_encap_handle_get_digest(fuzzdata: &[u8]) {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
 
-        requester.encap_handle_get_digest(fuzzdata, &mut writer)
+        requester.encap_handle_get_digest(&fuzzdata, &mut writer)
     }
 }
 
@@ -148,16 +157,16 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [1, 0, 1, 0, 48, 0, 0, 0, 17, 2, 255, 1, 127, 0, 0, 0];
-            fuzz_encap_handle_get_digest(&fuzzdata);
+            let fuzzdata = vec![1, 0, 1, 0, 48, 0, 0, 0, 17, 2, 255, 1, 127, 0, 0, 0];
+            executor::block_on(fuzz_encap_handle_get_digest(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_encap_handle_get_digest(data.as_slice());
+            executor::block_on(fuzz_encap_handle_get_digest(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_encap_handle_get_digest(data);
+        executor::block_on(fuzz_encap_handle_get_digest(Arc::new(data.to_vec())));
     });
 }

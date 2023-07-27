@@ -9,8 +9,8 @@ use crate::{
 
 use super::RequesterContext;
 
-impl<'a> RequesterContext<'a> {
-    pub fn session_based_mutual_authenticate(&mut self, session_id: u32) -> SpdmResult<()> {
+impl RequesterContext {
+    pub async fn session_based_mutual_authenticate(&mut self, session_id: u32) -> SpdmResult<()> {
         self.common.construct_my_cert_chain()?;
 
         let spdm_session = self
@@ -24,6 +24,7 @@ impl<'a> RequesterContext<'a> {
             SpdmKeyExchangeMutAuthAttributes::MUT_AUTH_REQ_WITH_ENCAP_REQUEST
             | SpdmKeyExchangeMutAuthAttributes::MUT_AUTH_REQ_WITH_GET_DIGESTS => {
                 self.get_encapsulated_request_response(session_id, mut_auth_requested)
+                    .await
             }
             _ => Err(SPDM_STATUS_INVALID_MSG_FIELD),
         }

@@ -5,8 +5,13 @@
 use fuzzlib::*;
 use spdmlib::common::SpdmConnectionState;
 use spdmlib::protocol::*;
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_handle_spdm_challenge(data: &[u8]) {
+async fn fuzz_handle_spdm_challenge(data: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::secret::measurement::register(SECRET_MEASUREMENT_IMPL_INSTANCE.clone());
     spdmlib::crypto::rand::register(FAKE_RAND.clone());
@@ -17,12 +22,15 @@ fn fuzz_handle_spdm_challenge(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -45,7 +53,7 @@ fn fuzz_handle_spdm_challenge(data: &[u8]) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_challenge(data).is_ok();
+        let _ = context.handle_spdm_challenge(&data).await.is_ok();
     }
     // TCD:
     // - id: 0
@@ -54,12 +62,15 @@ fn fuzz_handle_spdm_challenge(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -85,7 +96,7 @@ fn fuzz_handle_spdm_challenge(data: &[u8]) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_challenge(data).is_ok();
+        let _ = context.handle_spdm_challenge(&data).await.is_ok();
     }
 }
 
@@ -111,19 +122,19 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [
+            let fuzzdata = vec![
                 17, 131, 0, 0, 96, 98, 50, 80, 166, 189, 68, 2, 27, 142, 255, 200, 180, 230, 76,
                 45, 12, 178, 253, 70, 242, 202, 83, 171, 115, 148, 32, 249, 52, 170, 141, 122,
             ];
-            fuzz_handle_spdm_challenge(&fuzzdata);
+            executor::block_on(fuzz_handle_spdm_challenge(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_handle_spdm_challenge(data.as_slice());
+            executor::block_on(fuzz_handle_spdm_challenge(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_handle_spdm_challenge(data);
+        executor::block_on(fuzz_handle_spdm_challenge(Arc::new(data.to_vec())));
     });
 }

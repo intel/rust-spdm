@@ -27,7 +27,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err
+          args: -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
 
   rustfmt:
     name: Format
@@ -100,4 +100,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err
+          args: -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features

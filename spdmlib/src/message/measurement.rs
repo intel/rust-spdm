@@ -228,6 +228,7 @@ mod tests {
     use crate::protocol::*;
     use codec::u24;
     use testlib::{create_spdm_context, DeviceIO, TransportEncap};
+    extern crate alloc;
 
     #[test]
     fn test_case0_spdm_spdm_measuremente_attributes() {

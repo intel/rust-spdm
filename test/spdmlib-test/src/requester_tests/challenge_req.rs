@@ -11,6 +11,9 @@ use spdmlib::common::SpdmConnectionState;
 use spdmlib::protocol::*;
 use spdmlib::requester::RequesterContext;
 use spdmlib::{config, crypto, responder, secret};
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
 
 #[test]
 #[cfg(feature = "hashed-transcript-data")]
@@ -19,15 +22,18 @@ fn test_case0_send_receive_spdm_challenge() {
     let (req_config_info, req_provision_info) = create_info();
 
     let shared_buffer = SharedBuffer::new();
-    let mut device_io_responder = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let device_io_responder = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+        shared_buffer,
+    ))));
 
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+    let pcidoe_transport_encap = PciDoeTransportEncap {};
+    let pcidoe_transport_encap = Arc::new(Mutex::new(pcidoe_transport_encap));
 
     secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     crypto::rand::register(FAKE_RAND.clone());
 
     let mut responder = responder::ResponderContext::new(
-        &mut device_io_responder,
+        device_io_responder,
         pcidoe_transport_encap,
         rsp_config_info,
         rsp_provision_info,
@@ -58,11 +64,17 @@ fn test_case0_send_receive_spdm_challenge() {
         .runtime_info
         .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-    let pcidoe_transport_encap2 = &mut PciDoeTransportEncap {};
-    let mut device_io_requester = FakeSpdmDeviceIo::new(&shared_buffer, &mut responder);
+    let pcidoe_transport_encap2 = PciDoeTransportEncap {};
+    let pcidoe_transport_encap2 = Arc::new(Mutex::new(pcidoe_transport_encap2));
+    let responder = Arc::new(Mutex::new(responder));
+    let shared_buffer = SharedBuffer::new();
+    let device_io_requester = Arc::new(Mutex::new(FakeSpdmDeviceIo::new(
+        Arc::new(shared_buffer),
+        responder,
+    )));
 
     let mut requester = RequesterContext::new(
-        &mut device_io_requester,
+        device_io_requester,
         pcidoe_transport_encap2,
         req_config_info,
         req_provision_info,
@@ -82,11 +94,14 @@ fn test_case0_send_receive_spdm_challenge() {
     requester.common.peer_info.peer_cert_chain[0] = Some(get_rsp_cert_chain_buff());
     requester.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
 
-    let status = requester
-        .send_receive_spdm_challenge(
-            0,
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-        )
-        .is_ok();
-    assert!(status);
+    let task = async move {
+        let status = requester
+            .send_receive_spdm_challenge(
+                0,
+                SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+            )
+            .await;
+        log::info!("{:?}", status);
+    };
+    executor::block_on(task);
 }

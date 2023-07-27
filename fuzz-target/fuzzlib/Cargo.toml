@@ -14,6 +14,11 @@ log = "0.4.13"
 ring = { version = "0.16.20" }
 flexi_logger = "0.18.0"
 spdmlib-test = { path = "../../test/spdmlib-test" }
+futures = { version = "0.3", default-features = false }
+async-trait = "0.1.71"
+async-recursion = "1.0.4"
+spin = { version = "0.9.8" }
+executor = { path = "../../executor" }
 
 [features]
 default = ["hashed-transcript-data", "afl"]

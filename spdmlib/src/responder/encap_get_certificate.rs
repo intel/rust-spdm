@@ -22,7 +22,7 @@ use crate::{
 
 use super::ResponderContext;
 
-impl<'a> ResponderContext<'a> {
+impl ResponderContext {
     pub fn encode_encap_requst_get_certificate(
         &mut self,
         encap_request: &mut Writer,

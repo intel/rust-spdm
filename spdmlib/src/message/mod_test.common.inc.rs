@@ -5,13 +5,23 @@
 use crate::common::{SpdmCodec, SpdmContext, SpdmDeviceIo, SpdmTransportEncap};
 use crate::config::MAX_SPDM_MSG_SIZE;
 use crate::message::SpdmMessage;
+use async_trait::async_trait;
 use codec::{Reader, Writer};
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
 
 #[allow(unused, unused_mut)]
 macro_rules! create_spdm_context {
     ($context_name: ident) => {
-        let transport_encap = &mut TransportEncap {};
-        let device_io = &mut DeviceIO {};
+        let transport_encap = TransportEncap {};
+        let transport_encap: alloc::sync::Arc<
+            spin::Mutex<dyn crate::common::SpdmTransportEncap + Send + Sync>,
+        > = alloc::sync::Arc::new(spin::Mutex::new(transport_encap));
+        let device_io = DeviceIO {};
+        let device_io: alloc::sync::Arc<
+            spin::Mutex<dyn crate::common::SpdmDeviceIo + Send + Sync>,
+        > = alloc::sync::Arc::new(spin::Mutex::new(device_io));
         let config_info = SpdmConfigInfo::default();
         let provision_info = SpdmProvisionInfo::default();
         #[allow(unused, unused_mut)]
@@ -35,51 +45,58 @@ pub(crate) use create_spdm_context;
 
 pub struct DeviceIO;
 pub struct TransportEncap;
+
+#[async_trait]
 impl SpdmDeviceIo for DeviceIO {
-    fn send(&mut self, _buffer: &[u8]) -> crate::error::SpdmResult {
+    async fn send(&mut self, _buffer: Arc<&[u8]>) -> crate::error::SpdmResult {
         unimplemented!()
     }
 
-    fn receive(&mut self, _buffer: &mut [u8], _timeoutt: usize) -> Result<usize, usize> {
+    async fn receive(
+        &mut self,
+        _buffer: Arc<Mutex<&mut [u8]>>,
+        _timeoutt: usize,
+    ) -> Result<usize, usize> {
         unimplemented!()
     }
 
-    fn flush_all(&mut self) -> crate::error::SpdmResult {
+    async fn flush_all(&mut self) -> crate::error::SpdmResult {
         unimplemented!()
     }
 }
 
+#[async_trait]
 impl SpdmTransportEncap for TransportEncap {
-    fn encap(
+    async fn encap(
         &mut self,
-        _spdm_buffer: &[u8],
-        _transport_buffer: &mut [u8],
+        _spdm_buffer: Arc<&[u8]>,
+        _transport_buffer: Arc<Mutex<&mut [u8]>>,
         _secured_messagesage: bool,
     ) -> crate::error::SpdmResult<usize> {
         unimplemented!()
     }
 
-    fn decap(
+    async fn decap(
         &mut self,
-        _transport_buffer: &[u8],
-        _spdm_buffer: &mut [u8],
+        _transport_buffer: Arc<&[u8]>,
+        _spdm_buffer: Arc<Mutex<&mut [u8]>>,
     ) -> crate::error::SpdmResult<(usize, bool)> {
         unimplemented!()
     }
 
-    fn encap_app(
+    async fn encap_app(
         &mut self,
-        _spdm_buffer: &[u8],
-        _app_buffer: &mut [u8],
+        _spdm_buffer: Arc<&[u8]>,
+        _app_buffer: Arc<Mutex<&mut [u8]>>,
         _is_app_messagesage: bool,
     ) -> crate::error::SpdmResult<usize> {
         unimplemented!()
     }
 
-    fn decap_app(
+    async fn decap_app(
         &mut self,
-        _app_buffer: &[u8],
-        _spdm_buffer: &mut [u8],
+        _app_buffer: Arc<&[u8]>,
+        _spdm_buffer: Arc<Mutex<&mut [u8]>>,
     ) -> crate::error::SpdmResult<(usize, bool)> {
         unimplemented!()
     }

@@ -9,20 +9,26 @@ use fuzzlib::{
     *,
 };
 
-fn fuzz_send_receive_spdm_heartbeat(fuzzdata: &[u8]) {
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
+
+async fn fuzz_send_receive_spdm_heartbeat(fuzzdata: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::crypto::aead::register(FAKE_AEAD.clone());
 
     let (req_config_info, req_provision_info) = req_create_info();
 
     let shared_buffer = SharedBuffer::new();
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-    let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
-    device_io_requester.set_rx(fuzzdata);
+    let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+    let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+    device_io_requester.set_rx(&fuzzdata);
+    let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
     let mut requester = requester::RequesterContext::new(
-        &mut device_io_requester,
+        device_io_requester,
         pcidoe_transport_encap,
         req_config_info,
         req_provision_info,
@@ -39,7 +45,7 @@ fn fuzz_send_receive_spdm_heartbeat(fuzzdata: &[u8]) {
         SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
     );
 
-    let _ = requester.send_receive_spdm_heartbeat(4294836221);
+    let _ = requester.send_receive_spdm_heartbeat(4294836221).await;
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]
@@ -63,18 +69,18 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [
+            let fuzzdata = vec![
                 0x1, 0x0, 0x2, 0x0, 0x9, 0x0, 0x0, 0x0, 0xfe, 0xff, 0xfe, 0xff, 0x16, 0x0, 0xca,
                 0xa7, 0x51, 0x55, 0x4d, 0x60, 0xe6, 0x39, 0x1d, 0xa0, 0xb2, 0x1e, 0x4e, 0x4a, 0x5c,
                 0x0, 0x61, 0xf, 0xd3, 0x4b, 0xbe, 0xc,
             ];
 
             new_logger_from_env().init().unwrap();
-            fuzz_send_receive_spdm_heartbeat(&fuzzdata);
+            executor::block_on(fuzz_send_receive_spdm_heartbeat(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_send_receive_spdm_heartbeat(data.as_slice());
+            executor::block_on(fuzz_send_receive_spdm_heartbeat(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
@@ -93,7 +99,7 @@ fn main() {
                 true => buffer[fuzzdata.len()..].copy_from_slice(&data[..left]),
                 false => buffer[fuzzdata.len()..data_len + fuzzdata.len()].copy_from_slice(data),
             }
-            fuzz_send_receive_spdm_heartbeat(&data);
+            executor::block_on(fuzz_send_receive_spdm_heartbeat(Arc::new(data.to_vec())));
         });
     }
 }

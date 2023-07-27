@@ -7,7 +7,7 @@ use crate::error::SpdmResult;
 use crate::message::*;
 use crate::responder::*;
 
-impl<'a> ResponderContext<'a> {
+impl ResponderContext {
     pub fn write_spdm_error(
         &mut self,
         error_code: SpdmErrorCode,
@@ -39,8 +39,8 @@ impl<'a> ResponderContext<'a> {
     }
 }
 
-impl<'a> ResponderContext<'a> {
-    pub fn handle_error_request(
+impl ResponderContext {
+    pub async fn handle_error_request(
         &mut self,
         error_code: SpdmErrorCode,
         session_id: Option<u32>,
@@ -51,8 +51,9 @@ impl<'a> ResponderContext<'a> {
         self.write_error_response(error_code, bytes, &mut writer);
         if let Some(session_id) = session_id {
             self.send_secured_message(session_id, writer.used_slice(), false)
+                .await
         } else {
-            self.send_message(writer.used_slice())
+            self.send_message(writer.used_slice()).await
         }
     }
 

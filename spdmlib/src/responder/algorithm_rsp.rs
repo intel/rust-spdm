@@ -9,12 +9,12 @@ use crate::message::*;
 use crate::protocol::*;
 use crate::responder::*;
 
-impl<'a> ResponderContext<'a> {
-    pub fn handle_spdm_algorithm(&mut self, bytes: &[u8]) -> SpdmResult {
+impl ResponderContext {
+    pub async fn handle_spdm_algorithm(&mut self, bytes: &[u8]) -> SpdmResult {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_algorithm(bytes, &mut writer);
-        self.send_message(writer.used_slice())
+        self.send_message(writer.used_slice()).await
     }
 
     pub fn write_spdm_algorithm(&mut self, bytes: &[u8], writer: &mut Writer) {

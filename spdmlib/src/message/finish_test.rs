@@ -8,6 +8,7 @@ use crate::{
     protocol::{SpdmBaseAsymAlgo, SpdmBaseHashAlgo},
 };
 use testlib::{create_spdm_context, DeviceIO, TransportEncap};
+extern crate alloc;
 
 #[test]
 fn test_finish_struct() {

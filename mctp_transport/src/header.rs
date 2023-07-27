@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use async_trait::async_trait;
 use codec::enum_builder;
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::SpdmTransportEncap;
@@ -9,6 +10,12 @@ use spdmlib::error::{
     SpdmResult, SPDM_STATUS_DECAP_APP_FAIL, SPDM_STATUS_DECAP_FAIL, SPDM_STATUS_ENCAP_APP_FAIL,
     SPDM_STATUS_ENCAP_FAIL,
 };
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::Deref;
+use core::ops::DerefMut;
+use spin::Mutex;
 
 enum_builder! {
     @U8
@@ -50,15 +57,18 @@ impl Codec for MctpMessageHeader {
 #[derive(Debug, Copy, Clone, Default)]
 pub struct MctpTransportEncap {}
 
+#[async_trait]
 impl SpdmTransportEncap for MctpTransportEncap {
-    fn encap(
+    async fn encap(
         &mut self,
-        spdm_buffer: &[u8],
-        transport_buffer: &mut [u8],
+        spdm_buffer: Arc<&[u8]>,
+        transport_buffer: Arc<Mutex<&mut [u8]>>,
         secured_message: bool,
     ) -> SpdmResult<usize> {
         let payload_len = spdm_buffer.len();
-        let mut writer = Writer::init(&mut *transport_buffer);
+        let mut transport_buffer = transport_buffer.lock();
+        let transport_buffer = transport_buffer.deref_mut();
+        let mut writer = Writer::init(transport_buffer);
         let mctp_header = MctpMessageHeader {
             r#type: if secured_message {
                 MctpMessageType::MctpMessageTypeSecuredMctp
@@ -73,15 +83,16 @@ impl SpdmTransportEncap for MctpTransportEncap {
         if transport_buffer.len() < header_size + payload_len {
             return Err(SPDM_STATUS_ENCAP_FAIL);
         }
-        transport_buffer[header_size..(header_size + payload_len)].copy_from_slice(spdm_buffer);
+        transport_buffer[header_size..(header_size + payload_len)].copy_from_slice(&spdm_buffer);
         Ok(header_size + payload_len)
     }
 
-    fn decap(
+    async fn decap(
         &mut self,
-        transport_buffer: &[u8],
-        spdm_buffer: &mut [u8],
+        transport_buffer: Arc<&[u8]>,
+        spdm_buffer: Arc<Mutex<&mut [u8]>>,
     ) -> SpdmResult<(usize, bool)> {
+        let transport_buffer: &[u8] = transport_buffer.deref();
         let mut reader = Reader::init(transport_buffer);
         let secured_message;
         match MctpMessageHeader::read(&mut reader) {
@@ -98,6 +109,8 @@ impl SpdmTransportEncap for MctpTransportEncap {
         }
         let header_size = reader.used();
         let payload_size = transport_buffer.len() - header_size;
+        let mut spdm_buffer = spdm_buffer.lock();
+        let spdm_buffer = spdm_buffer.deref_mut();
         if spdm_buffer.len() < payload_size {
             return Err(SPDM_STATUS_DECAP_FAIL);
         }
@@ -106,14 +119,16 @@ impl SpdmTransportEncap for MctpTransportEncap {
         Ok((payload_size, secured_message))
     }
 
-    fn encap_app(
+    async fn encap_app(
         &mut self,
-        spdm_buffer: &[u8],
-        app_buffer: &mut [u8],
+        spdm_buffer: Arc<&[u8]>,
+        app_buffer: Arc<Mutex<&mut [u8]>>,
         is_app_message: bool,
     ) -> SpdmResult<usize> {
         let payload_len = spdm_buffer.len();
-        let mut writer = Writer::init(&mut *app_buffer);
+        let mut app_buffer = app_buffer.lock();
+        let app_buffer = app_buffer.deref_mut();
+        let mut writer = Writer::init(app_buffer);
         let mctp_header = if is_app_message {
             MctpMessageHeader {
                 r#type: MctpMessageType::MctpMessageTypePldm,
@@ -130,16 +145,16 @@ impl SpdmTransportEncap for MctpTransportEncap {
         if app_buffer.len() < header_size + payload_len {
             return Err(SPDM_STATUS_ENCAP_APP_FAIL);
         }
-        app_buffer[header_size..(header_size + payload_len)].copy_from_slice(spdm_buffer);
+        app_buffer[header_size..(header_size + payload_len)].copy_from_slice(&spdm_buffer);
         Ok(header_size + payload_len)
     }
 
-    fn decap_app(
+    async fn decap_app(
         &mut self,
-        app_buffer: &[u8],
-        spdm_buffer: &mut [u8],
+        app_buffer: Arc<&[u8]>,
+        spdm_buffer: Arc<Mutex<&mut [u8]>>,
     ) -> SpdmResult<(usize, bool)> {
-        let mut reader = Reader::init(app_buffer);
+        let mut reader = Reader::init(&app_buffer);
         let mut is_app_mesaage = false;
         match MctpMessageHeader::read(&mut reader) {
             Some(mctp_header) => match mctp_header.r#type {
@@ -153,6 +168,8 @@ impl SpdmTransportEncap for MctpTransportEncap {
         }
         let header_size = reader.used();
         let payload_size = app_buffer.len() - header_size;
+        let mut spdm_buffer = spdm_buffer.lock();
+        let spdm_buffer = spdm_buffer.deref_mut();
         if spdm_buffer.len() < payload_size {
             return Err(SPDM_STATUS_DECAP_APP_FAIL);
         }
@@ -194,26 +211,52 @@ mod tests {
     }
     #[test]
     fn test_case0_encap() {
-        let mut mctp_transport_encap = MctpTransportEncap {};
-        let mut transport_buffer = [100u8; config::SENDER_BUFFER_SIZE];
-        let spdm_buffer = [100u8; config::MAX_SPDM_MSG_SIZE];
+        use crate::header::tests::alloc::sync::Arc;
+        extern crate alloc;
+        use core::ops::DerefMut;
+        use spin::Mutex;
 
-        let status = mctp_transport_encap
-            .encap(&spdm_buffer, &mut transport_buffer, false)
+        {
+            let mut mctp_transport_encap = MctpTransportEncap {};
+            let mut transport_buffer = [100u8; config::SENDER_BUFFER_SIZE];
+            let spdm_buffer = [100u8; config::MAX_SPDM_MSG_SIZE];
+
+            let status = executor::block_on(mctp_transport_encap.encap(
+                &spdm_buffer,
+                &mut transport_buffer,
+                false,
+            ))
             .is_ok();
-        assert!(status);
+            assert!(status);
+        }
 
-        let status = mctp_transport_encap
-            .encap(&spdm_buffer, &mut transport_buffer, true)
+        {
+            let mut mctp_transport_encap = MctpTransportEncap {};
+            let mut transport_buffer = [100u8; config::SENDER_BUFFER_SIZE];
+            let spdm_buffer = [100u8; config::MAX_SPDM_MSG_SIZE];
+
+            let status = executor::block_on(mctp_transport_encap.encap(
+                &spdm_buffer,
+                &mut transport_buffer,
+                true,
+            ))
             .is_ok();
-        assert!(status);
+            assert!(status);
+        }
 
-        let mut transport_buffer = [100u8; config::SENDER_BUFFER_SIZE];
-        let spdm_buffer = [100u8; config::SENDER_BUFFER_SIZE];
-        let status = mctp_transport_encap
-            .encap(&spdm_buffer, &mut transport_buffer, true)
-            .is_err();
-        assert!(status);
+        {
+            let mut mctp_transport_encap = MctpTransportEncap {};
+            let mut transport_buffer = [100u8; config::SENDER_BUFFER_SIZE];
+            let spdm_buffer = [100u8; config::SENDER_BUFFER_SIZE];
+
+            let status = executor::block_on(mctp_transport_encap.encap(
+                &spdm_buffer,
+                &mut transport_buffer,
+                true,
+            ))
+            .is_ok();
+            assert!(status);
+        }
     }
     #[test]
     fn test_case0_decap() {
@@ -223,9 +266,9 @@ mod tests {
 
         let transport_buffer = &mut [0u8; 10];
 
-        let status = mctp_transport_encap
-            .decap(transport_buffer, &mut spdm_buffer)
-            .is_err();
+        let status =
+            executor::block_on(mctp_transport_encap.decap(transport_buffer, &mut spdm_buffer))
+                .is_err();
         assert!(status);
 
         let mut writer = Writer::init(transport_buffer);
@@ -234,9 +277,9 @@ mod tests {
         };
         assert!(value.encode(&mut writer).is_ok());
 
-        let status = mctp_transport_encap
-            .decap(transport_buffer, &mut spdm_buffer)
-            .is_ok();
+        let status =
+            executor::block_on(mctp_transport_encap.decap(transport_buffer, &mut spdm_buffer))
+                .is_ok();
         assert!(status);
 
         let transport_buffer = &mut [0u8; 2];
@@ -246,9 +289,9 @@ mod tests {
         };
         assert!(value.encode(&mut writer).is_ok());
 
-        let status = mctp_transport_encap
-            .decap(transport_buffer, &mut spdm_buffer)
-            .is_ok();
+        let status =
+            executor::block_on(mctp_transport_encap.decap(transport_buffer, &mut spdm_buffer))
+                .is_ok();
         assert!(status);
     }
     #[test]
@@ -257,16 +300,22 @@ mod tests {
         let mut app_buffer = [0u8; 100];
         let spdm_buffer = [0u8; 10];
 
-        let status = mctp_transport_encap
-            .encap_app(&spdm_buffer, &mut app_buffer, false)
-            .is_ok();
+        let status = executor::block_on(mctp_transport_encap.encap_app(
+            &spdm_buffer,
+            &mut app_buffer,
+            false,
+        ))
+        .is_ok();
         assert!(status);
 
         let spdm_buffer = [100u8; config::MAX_SPDM_MSG_SIZE];
 
-        let status = mctp_transport_encap
-            .encap_app(&spdm_buffer, &mut app_buffer, false)
-            .is_err();
+        let status = executor::block_on(mctp_transport_encap.encap_app(
+            &spdm_buffer,
+            &mut app_buffer,
+            false,
+        ))
+        .is_err();
         assert!(status);
     }
     #[test]
@@ -277,9 +326,9 @@ mod tests {
 
         let transport_buffer = &mut [0u8; 10];
 
-        let status = mctp_transport_encap
-            .decap_app(transport_buffer, &mut spdm_buffer)
-            .is_err();
+        let status =
+            executor::block_on(mctp_transport_encap.decap_app(transport_buffer, &mut spdm_buffer))
+                .is_err();
         assert!(status);
 
         let mut writer = Writer::init(transport_buffer);
@@ -288,9 +337,9 @@ mod tests {
         };
         assert!(value.encode(&mut writer).is_ok());
 
-        let status = mctp_transport_encap
-            .decap_app(transport_buffer, &mut spdm_buffer)
-            .is_ok();
+        let status =
+            executor::block_on(mctp_transport_encap.decap_app(transport_buffer, &mut spdm_buffer))
+                .is_ok();
         assert!(status);
     }
     #[test]

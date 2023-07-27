@@ -4,6 +4,7 @@
 
 extern crate alloc;
 use alloc::boxed::Box;
+use core::ops::DerefMut;
 
 use crate::common::session::SpdmSession;
 use crate::error::SPDM_STATUS_BUFFER_FULL;
@@ -25,8 +26,8 @@ use crate::error::SpdmResult;
 use crate::message::*;
 use crate::protocol::{SpdmMeasurementSummaryHashType, SpdmSignatureStruct, SpdmVersion};
 
-impl<'a> RequesterContext<'a> {
-    pub fn send_receive_spdm_key_exchange(
+impl RequesterContext {
+    pub async fn send_receive_spdm_key_exchange(
         &mut self,
         slot_id: u8,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
@@ -49,11 +50,11 @@ impl<'a> RequesterContext<'a> {
             slot_id,
             measurement_summary_hash_type,
         )?;
-        self.send_message(&send_buffer[..send_used])?;
+        self.send_message(&send_buffer[..send_used]).await?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let receive_used = self.receive_message(&mut receive_buffer, false)?;
+        let receive_used = self.receive_message(&mut receive_buffer, false).await?;
         self.handle_spdm_key_exhcange_response(
             req_session_id,
             slot_id,
@@ -70,7 +71,7 @@ impl<'a> RequesterContext<'a> {
         buf: &mut [u8],
         slot_id: u8,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
-    ) -> SpdmResult<(Box<dyn crypto::SpdmDheKeyExchange>, usize)> {
+    ) -> SpdmResult<(Box<dyn crypto::SpdmDheKeyExchange + Send>, usize)> {
         let mut writer = Writer::init(buf);
 
         let mut random = [0u8; SPDM_RANDOM_SIZE];
@@ -192,10 +193,18 @@ impl<'a> RequesterContext<'a> {
                             let dhe_algo = self.common.negotiate_info.dhe_sel;
                             let aead_algo = self.common.negotiate_info.aead_sel;
                             let key_schedule_algo = self.common.negotiate_info.key_schedule_sel;
-                            let sequence_number_count =
-                                self.common.transport_encap.get_sequence_number_count();
-                            let max_random_count =
-                                self.common.transport_encap.get_max_random_count();
+                            let sequence_number_count = {
+                                let mut transport_encap = self.common.transport_encap.lock();
+                                let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                                    transport_encap.deref_mut();
+                                transport_encap.get_sequence_number_count()
+                            };
+                            let max_random_count = {
+                                let mut transport_encap = self.common.transport_encap.lock();
+                                let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                                    transport_encap.deref_mut();
+                                transport_encap.get_max_random_count()
+                            };
 
                             let secure_spdm_version_sel = if let Some(secured_message_version) =
                                 key_exchange_rsp

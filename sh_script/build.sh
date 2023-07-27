@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+export RUST_MIN_STACK=10485760
+set RUST_MIN_STACK=10485760
+
 usage() {
     cat <<EOM
 Usage: $(basename "$0") [OPTION]...
@@ -30,11 +33,11 @@ check() {
     set -x
     cargo check
     cargo fmt --all -- --check
-    cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err
+    cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
     
     pushd spdmlib_crypto_mbedtls
     cargo check
-    cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err
+    cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
     popd
     set +x
 }

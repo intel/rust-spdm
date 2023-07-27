@@ -16,6 +16,10 @@ spdmlib = { path = "../../spdmlib", default-features = false }
 mctp_transport = { path = "../../mctp_transport" }
 pcidoe_transport = { path = "../../pcidoe_transport" }
 bytes = { version = "1", default-features = false }
+futures = { version = "0.3", default-features = false }
+async-trait = "0.1.71"
+async-recursion = "1.0.4"
+spin = { version = "0.9.8" }
 
 spdmlib_crypto_mbedtls = { path = "../../spdmlib_crypto_mbedtls", default-features = false, optional = true }
 

@@ -8,8 +8,13 @@ use fuzzlib::{
     *,
 };
 use spdmlib::protocol::*;
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_handle_spdm_finish(data: &[u8]) {
+async fn fuzz_handle_spdm_finish(data: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::crypto::hmac::register(FAKE_HMAC.clone());
     spdmlib::crypto::hkdf::register(FAKE_HKDF.clone());
@@ -22,11 +27,14 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -75,7 +83,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
+        let _ = context.handle_spdm_finish(4294836221, &data).await.is_ok();
     }
     // TCD:
     // - id: 0
@@ -84,11 +92,14 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -137,7 +148,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
+        let _ = context.handle_spdm_finish(4294836221, &data).await.is_ok();
     }
     // TCD:
     // - id: 0
@@ -146,11 +157,14 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -198,7 +212,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
+        let _ = context.handle_spdm_finish(4294836221, &data).await.is_ok();
     }
     // TCD:
     // - id: 0
@@ -207,11 +221,14 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -265,7 +282,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
+        let _ = context.handle_spdm_finish(4294836221, &data).await.is_ok();
     }
     // TCD:
     // - id: 0
@@ -274,11 +291,14 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -331,7 +351,7 @@ fn fuzz_handle_spdm_finish(data: &[u8]) {
             .common
             .runtime_info
             .set_last_session_id(Some(4294836221));
-        let _ = context.handle_spdm_finish(4294836221, data).is_ok();
+        let _ = context.handle_spdm_finish(4294836221, &data).await.is_ok();
     }
 }
 fn main() {
@@ -355,21 +375,21 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [
+            let fuzzdata = vec![
                 0x11, 0xe5, 0x0, 0x0, 0xd4, 0xab, 0xc, 0x98, 0x44, 0x6, 0xc1, 0x77, 0xe4, 0x37,
                 0x79, 0x78, 0x26, 0xd4, 0x4c, 0x9b, 0x38, 0x30, 0xb2, 0xa3, 0xa, 0x5c, 0xa4, 0xd9,
                 0x7b, 0x12, 0xe1, 0xd6, 0x38, 0xcb, 0xe0, 0xfb, 0xaa, 0x1c, 0xeb, 0xc5, 0xcb, 0x35,
                 0x9b, 0xf8, 0x21, 0x9c, 0x7c, 0xd4, 0x33, 0x49, 0xdc, 0x61,
             ];
-            fuzz_handle_spdm_finish(&fuzzdata);
+            executor::block_on(fuzz_handle_spdm_finish(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_handle_spdm_finish(data.as_slice());
+            executor::block_on(fuzz_handle_spdm_finish(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_handle_spdm_finish(data);
+        executor::block_on(fuzz_handle_spdm_finish(Arc::new(data.to_vec())));
     });
 }

@@ -3,26 +3,38 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fuzzlib::*;
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_handle_spdm_version(data: &[u8]) {
+async fn fuzz_handle_spdm_version(data: Arc<Vec<u8>>) {
     let (config_info, provision_info) = rsp_create_info();
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+    let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
 
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
 
     let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+        shared_buffer,
+    ))));
 
     let mut context = responder::ResponderContext::new(
-        &mut socket_io_transport,
+        socket_io_transport.clone(),
         pcidoe_transport_encap,
         config_info,
         provision_info,
     );
 
-    context.handle_spdm_version(data);
+    context.handle_spdm_version(&data).await.unwrap();
     let mut req_buf = [0u8; 1024];
-    socket_io_transport.receive(&mut req_buf, 60).unwrap();
+    let mut socket_io_transport = socket_io_transport.lock();
+    let socket_io_transport = socket_io_transport.deref_mut();
+    socket_io_transport
+        .receive(Arc::new(Mutex::new(&mut req_buf)), 60)
+        .await
+        .unwrap();
     println!("Received: {:?}", req_buf);
 }
 
@@ -48,16 +60,16 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [17, 46, 43, 0];
-            fuzz_handle_spdm_version(&fuzzdata);
+            let fuzzdata = vec![17, 46, 43, 0];
+            executor::block_on(fuzz_handle_spdm_version(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_handle_spdm_version(data.as_slice());
+            executor::block_on(fuzz_handle_spdm_version(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_handle_spdm_version(data);
+        executor::block_on(fuzz_handle_spdm_version(Arc::new(data.to_vec())));
     });
 }

@@ -10,16 +10,21 @@ use spdmlib::common::SpdmCodec;
 use spdmlib::config;
 use spdmlib::protocol::*;
 use spdmlib::{message::*, requester};
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
 
 #[test]
 fn test_encode_encap_error_response() {
     let (config_info, provision_info) = create_info();
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+    let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
     let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+        shared_buffer,
+    ))));
 
     let mut context = requester::RequesterContext::new(
-        &mut socket_io_transport,
+        socket_io_transport,
         pcidoe_transport_encap,
         config_info,
         provision_info,

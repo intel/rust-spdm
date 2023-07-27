@@ -9,16 +9,21 @@ use crate::message::*;
 use crate::protocol::SPDM_MAX_SLOT_NUMBER;
 use crate::responder::*;
 
-impl<'a> ResponderContext<'a> {
-    pub fn handle_spdm_certificate(&mut self, bytes: &[u8], session_id: Option<u32>) -> SpdmResult {
+impl ResponderContext {
+    pub async fn handle_spdm_certificate(
+        &mut self,
+        bytes: &[u8],
+        session_id: Option<u32>,
+    ) -> SpdmResult {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_certificate_response(session_id, bytes, &mut writer);
 
         if let Some(session_id) = session_id {
             self.send_secured_message(session_id, writer.used_slice(), false)
+                .await
         } else {
-            self.send_message(writer.used_slice())
+            self.send_message(writer.used_slice()).await
         }
     }
 

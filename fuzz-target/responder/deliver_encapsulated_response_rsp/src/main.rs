@@ -5,8 +5,13 @@
 use fuzzlib::*;
 use spdmlib::common::SpdmConnectionState;
 use spdmlib::protocol::*;
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_handle_deliver_encapsulated_reponse(data: &[u8]) {
+async fn fuzz_handle_deliver_encapsulated_reponse(data: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::crypto::cert_operation::register(FAKE_CERT_OPERATION.clone());
     spdmlib::crypto::aead::register(FAKE_AEAD.clone());
@@ -17,12 +22,15 @@ fn fuzz_handle_deliver_encapsulated_reponse(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -45,7 +53,8 @@ fn fuzz_handle_deliver_encapsulated_reponse(data: &[u8]) {
         context.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
 
         let _ = context
-            .handle_deliver_encapsulated_reponse(4294836221, data)
+            .handle_deliver_encapsulated_reponse(4294836221, &data)
+            .await
             .is_err();
     }
     // TCD:
@@ -55,12 +64,15 @@ fn fuzz_handle_deliver_encapsulated_reponse(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -83,7 +95,8 @@ fn fuzz_handle_deliver_encapsulated_reponse(data: &[u8]) {
         context.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
 
         let _ = context
-            .handle_deliver_encapsulated_reponse(4294836221, data)
+            .handle_deliver_encapsulated_reponse(4294836221, &data)
+            .await
             .is_err();
     }
     // TCD:
@@ -93,12 +106,15 @@ fn fuzz_handle_deliver_encapsulated_reponse(data: &[u8]) {
     // -
     {
         let (config_info, provision_info) = rsp_create_info();
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+
         let shared_buffer = SharedBuffer::new();
-        let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+        let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
         let mut context = responder::ResponderContext::new(
-            &mut socket_io_transport,
+            socket_io_transport,
             pcidoe_transport_encap,
             config_info,
             provision_info,
@@ -119,7 +135,8 @@ fn fuzz_handle_deliver_encapsulated_reponse(data: &[u8]) {
         context.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
 
         let _ = context
-            .handle_deliver_encapsulated_reponse(4294836221, data)
+            .handle_deliver_encapsulated_reponse(4294836221, &data)
+            .await
             .is_err();
     }
 }
@@ -148,15 +165,19 @@ fn main() {
             let fuzzdata = include_bytes!(
                 "../../../in/deliver_encapsulated_response_rsp/encap_certificate.raw"
             );
-            fuzz_handle_deliver_encapsulated_reponse(fuzzdata);
+            executor::block_on(fuzz_handle_deliver_encapsulated_reponse(Arc::new(
+                fuzzdata.to_vec(),
+            )));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_handle_deliver_encapsulated_reponse(data.as_slice());
+            executor::block_on(fuzz_handle_deliver_encapsulated_reponse(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_handle_deliver_encapsulated_reponse(data);
+        executor::block_on(fuzz_handle_deliver_encapsulated_reponse(Arc::new(
+            data.to_vec(),
+        )));
     });
 }

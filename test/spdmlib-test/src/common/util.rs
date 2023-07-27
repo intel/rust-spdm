@@ -10,14 +10,20 @@ use crate::common::secret_callback::SECRET_ASYM_IMPL_INSTANCE;
 use crate::common::transport::PciDoeTransportEncap;
 use codec::{Reader, Writer};
 use spdmlib::common::{
-    SpdmCodec, SpdmConfigInfo, SpdmContext, SpdmOpaqueSupport, SpdmProvisionInfo,
-    DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11,
+    SpdmCodec, SpdmConfigInfo, SpdmContext, SpdmDeviceIo, SpdmOpaqueSupport, SpdmProvisionInfo,
+    SpdmTransportEncap, DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11,
 };
 use spdmlib::config;
 use spdmlib::crypto;
 use spdmlib::message::SpdmMessage;
 use spdmlib::protocol::*;
 use std::path::PathBuf;
+
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
 pub fn create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
     let config_info = SpdmConfigInfo {
@@ -111,10 +117,10 @@ pub fn create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
     (config_info, provision_info)
 }
 
-pub fn new_context<'a>(
-    my_spdm_device_io: &'a mut MySpdmDeviceIo,
-    pcidoe_transport_encap: &'a mut PciDoeTransportEncap,
-) -> SpdmContext<'a> {
+pub fn new_context(
+    my_spdm_device_io: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
+    pcidoe_transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
+) -> SpdmContext {
     let (config_info, provision_info) = create_info();
     let mut context = SpdmContext::new(
         my_spdm_device_io,

@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+use common::SpdmDeviceIo;
 use common::SpdmTransportEncap;
 
 use log::LevelFilter;
@@ -12,6 +13,7 @@ use simple_logger::SimpleLogger;
 
 use spdm_emu::crypto_callback::SECRET_ASYM_IMPL_INSTANCE;
 use spdm_emu::secret_impl_sample::SECRET_PSK_IMPL_INSTANCE;
+use spdm_emu::EMU_STACK_SIZE;
 use spdmlib::common;
 use spdmlib::common::SpdmOpaqueSupport;
 use spdmlib::common::ST1;
@@ -26,54 +28,76 @@ use spdm_emu::socket_io_transport::SocketIoTransport;
 use spdm_emu::spdm_emu::*;
 use std::net::TcpStream;
 
-fn send_receive_hello(
-    stream: &mut TcpStream,
-    transport_encap: &mut dyn common::SpdmTransportEncap,
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
+
+async fn send_receive_hello(
+    stream: Arc<Mutex<TcpStream>>,
+    transport_encap: Arc<Mutex<dyn common::SpdmTransportEncap + Send + Sync>>,
     transport_type: u32,
 ) {
     println!("send test");
     let mut payload = [0u8; 1024];
 
+    let mut transport_encap = transport_encap.lock();
+    let transport_encap = transport_encap.deref_mut();
     let used = transport_encap
-        .encap(b"Client Hello!\0", &mut payload[..], false)
+        .encap(
+            Arc::new(b"Client Hello!\0"),
+            Arc::new(Mutex::new(&mut payload[..])),
+            false,
+        )
+        .await
         .unwrap();
 
     let _buffer_size = spdm_emu::spdm_emu::send_message(
-        stream,
+        stream.clone(),
         transport_type,
         SOCKET_SPDM_COMMAND_TEST,
         &payload[0..used],
     );
     let mut buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
     let (_transport_type, _command, _payload) =
-        spdm_emu::spdm_emu::receive_message(stream, &mut buffer[..], ST1).unwrap();
+        spdm_emu::spdm_emu::receive_message(stream, &mut buffer[..], ST1)
+            .await
+            .unwrap();
 }
 
-fn send_receive_stop(
-    stream: &mut TcpStream,
-    transport_encap: &mut dyn common::SpdmTransportEncap,
+async fn send_receive_stop(
+    stream: Arc<Mutex<TcpStream>>,
+    transport_encap: Arc<Mutex<dyn common::SpdmTransportEncap + Send + Sync>>,
     transport_type: u32,
 ) {
     println!("send stop");
 
     let mut payload = [0u8; 1024];
 
-    let used = transport_encap.encap(b"", &mut payload[..], false).unwrap();
+    let mut transport_encap = transport_encap.lock();
+    let transport_encap = transport_encap.deref_mut();
+
+    let used = transport_encap
+        .encap(Arc::new(b""), Arc::new(Mutex::new(&mut payload[..])), false)
+        .await
+        .unwrap();
 
     let _buffer_size = spdm_emu::spdm_emu::send_message(
-        stream,
+        stream.clone(),
         transport_type,
         SOCKET_SPDM_COMMAND_STOP,
         &payload[0..used],
     );
     let mut buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
     let (_transport_type, _command, _payload) =
-        spdm_emu::spdm_emu::receive_message(stream, &mut buffer[..], ST1).unwrap();
+        spdm_emu::spdm_emu::receive_message(stream, &mut buffer[..], ST1)
+            .await
+            .unwrap();
 }
 
-fn test_spdm(
-    socket_io_transport: &mut SocketIoTransport,
-    transport_encap: &mut dyn SpdmTransportEncap,
+async fn test_spdm(
+    socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
+    transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
 ) {
     let req_capabilities = SpdmRequestCapabilityFlags::CERT_CAP
         | SpdmRequestCapabilityFlags::CHAL_CAP
@@ -198,15 +222,19 @@ fn test_spdm(
         provision_info,
     );
 
-    if context.init_connection().is_err() {
+    if context.init_connection().await.is_err() {
         panic!("init_connection failed!");
     }
 
-    if context.send_receive_spdm_digest(None).is_err() {
+    if context.send_receive_spdm_digest(None).await.is_err() {
         panic!("send_receive_spdm_digest failed!");
     }
 
-    if context.send_receive_spdm_certificate(None, 0).is_err() {
+    if context
+        .send_receive_spdm_certificate(None, 0)
+        .await
+        .is_err()
+    {
         panic!("send_receive_spdm_certificate failed!");
     }
 
@@ -215,6 +243,7 @@ fn test_spdm(
             0,
             SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
         )
+        .await
         .is_err()
     {
         panic!("send_receive_spdm_challenge failed!");
@@ -231,16 +260,19 @@ fn test_spdm(
             &mut total_number,
             &mut spdm_measurement_record_structure,
         )
+        .await
         .is_err()
     {
         panic!("send_receive_spdm_measurement failed!");
     }
 
-    let result = context.start_session(
-        false,
-        0,
-        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-    );
+    let result = context
+        .start_session(
+            false,
+            0,
+            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+        )
+        .await;
     if let Ok(session_id) = result {
         info!("\nSession established ... session_id {:0x?}\n", session_id);
         info!("Key Information ...\n");
@@ -264,12 +296,17 @@ fn test_spdm(
             response_direction.salt.as_ref()
         );
 
-        if context.send_receive_spdm_heartbeat(session_id).is_err() {
+        if context
+            .send_receive_spdm_heartbeat(session_id)
+            .await
+            .is_err()
+        {
             panic!("send_receive_spdm_heartbeat failed");
         }
 
         if context
             .send_receive_spdm_key_update(session_id, SpdmKeyUpdateOperation::SpdmUpdateAllKeys)
+            .await
             .is_err()
         {
             panic!("send_receive_spdm_key_update failed");
@@ -284,36 +321,44 @@ fn test_spdm(
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
+            .await
             .is_err()
         {
             panic!("send_receive_spdm_measurement failed");
         }
 
-        if context.send_receive_spdm_digest(Some(session_id)).is_err() {
+        if context
+            .send_receive_spdm_digest(Some(session_id))
+            .await
+            .is_err()
+        {
             panic!("send_receive_spdm_digest failed");
         }
 
         if context
             .send_receive_spdm_certificate(Some(session_id), 0)
+            .await
             .is_err()
         {
             panic!("send_receive_spdm_certificate failed");
         }
 
-        if context.end_session(session_id).is_err() {
+        if context.end_session(session_id).await.is_err() {
             panic!("end_session failed");
         }
     } else {
         panic!("\nSession session_id not got\n");
     }
 
-    let result = context.start_session(
-        true,
-        0,
-        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-    );
+    let result = context
+        .start_session(
+            true,
+            0,
+            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+        )
+        .await;
     if let Ok(session_id) = result {
-        if context.end_session(session_id).is_err() {
+        if context.end_session(session_id).await.is_err() {
             panic!("\nSession session_id is err\n");
         }
     } else {
@@ -335,10 +380,10 @@ fn new_logger_from_env() -> SimpleLogger {
         _ => LevelFilter::Trace,
     };
 
-    SimpleLogger::new().with_level(level)
+    SimpleLogger::new().with_utc_timestamps().with_level(level)
 }
 
-fn main() {
+fn emu_main() {
     new_logger_from_env().init().unwrap();
 
     spdmlib::secret::psk::register(SECRET_PSK_IMPL_INSTANCE.clone());
@@ -351,13 +396,16 @@ fn main() {
         .expect("Time went backwards");
     println!("current unit time epoch - {:?}", since_the_epoch.as_secs());
 
-    let mut socket =
-        TcpStream::connect("127.0.0.1:2323").expect("Couldn't connect to the server...");
+    let socket = TcpStream::connect("127.0.0.1:2323").expect("Couldn't connect to the server...");
 
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-    let mctp_transport_encap = &mut MctpTransportEncap {};
+    let socket: Arc<Mutex<TcpStream>> = Arc::new(Mutex::new(socket));
 
-    let transport_encap: &mut dyn SpdmTransportEncap = if USE_PCIDOE {
+    let pcidoe_transport_encap: Arc<Mutex<(dyn SpdmTransportEncap + Send + Sync)>> =
+        Arc::new(Mutex::new(PciDoeTransportEncap {}));
+    let mctp_transport_encap: Arc<Mutex<(dyn SpdmTransportEncap + Send + Sync)>> =
+        Arc::new(Mutex::new(MctpTransportEncap {}));
+
+    let transport_encap: Arc<Mutex<(dyn SpdmTransportEncap + Send + Sync)>> = if USE_PCIDOE {
         pcidoe_transport_encap
     } else {
         mctp_transport_encap
@@ -369,10 +417,30 @@ fn main() {
         SOCKET_TRANSPORT_TYPE_MCTP
     };
 
-    send_receive_hello(&mut socket, transport_encap, transport_type);
+    executor::block_on(send_receive_hello(
+        socket.clone(),
+        transport_encap.clone(),
+        transport_type,
+    ));
 
-    let socket_io_transport = &mut SocketIoTransport::new(&mut socket);
-    test_spdm(socket_io_transport, transport_encap);
+    let socket_io_transport = SocketIoTransport::new(socket.clone());
+    let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
+        Arc::new(Mutex::new(socket_io_transport));
+    executor::block_on(test_spdm(
+        socket_io_transport.clone(),
+        transport_encap.clone(),
+    ));
 
-    send_receive_stop(&mut socket, transport_encap, transport_type);
+    executor::block_on(send_receive_stop(socket, transport_encap, transport_type));
+}
+
+fn main() {
+    use std::thread;
+
+    thread::Builder::new()
+        .stack_size(EMU_STACK_SIZE)
+        .spawn(emu_main)
+        .unwrap()
+        .join()
+        .unwrap();
 }

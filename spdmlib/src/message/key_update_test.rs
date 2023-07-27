@@ -9,6 +9,7 @@ use crate::{
     protocol::SpdmVersion,
 };
 use testlib::{create_spdm_context, DeviceIO, TransportEncap};
+extern crate alloc;
 
 #[test]
 fn test_key_update_struct() {

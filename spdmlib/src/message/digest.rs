@@ -98,6 +98,7 @@ mod tests {
     use crate::common::{SpdmConfigInfo, SpdmContext, SpdmProvisionInfo};
     use crate::protocol::*;
     use testlib::{create_spdm_context, DeviceIO, TransportEncap};
+    extern crate alloc;
 
     #[test]
     fn test_case0_spdm_digests_response_payload() {

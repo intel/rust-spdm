@@ -6,6 +6,7 @@ use super::*;
 use crate::common::{SpdmCodec, SpdmConfigInfo, SpdmContext, SpdmProvisionInfo};
 use byteorder::{ByteOrder, LittleEndian};
 use testlib::{create_spdm_context, DeviceIO, TransportEncap};
+extern crate alloc;
 
 #[ignore = "Test Fail"]
 #[test]

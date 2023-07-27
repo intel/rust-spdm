@@ -15,7 +15,7 @@ use crate::{
 
 use super::RequesterContext;
 
-impl<'a> RequesterContext<'a> {
+impl RequesterContext {
     pub fn encode_encap_error_response(
         &mut self,
         error_code: SpdmErrorCode,

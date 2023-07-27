@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fuzzlib::{
-    fake_device_io::FakeSpdmDeviceIo,
+    fake_device_io::{self, FakeSpdmDeviceIo},
     req_create_info, spdmlib,
     spdmlib::protocol::MAX_SPDM_VERSION_COUNT,
     spdmlib::{protocol::SpdmVersion, requester::RequesterContext},
@@ -14,7 +14,13 @@ use fuzzlib::{
 #[allow(unused)]
 use fuzzlib::flexi_logger;
 
-fn fuzz_send_receive_spdm_version(fuzzdata: &[u8]) {
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
+
+async fn fuzz_send_receive_spdm_version(fuzzdata: Arc<Vec<u8>>) {
     // TCD:
     // - id: 0
     // - title: 'Fuzz SPDM handle version response'
@@ -24,19 +30,20 @@ fn fuzz_send_receive_spdm_version(fuzzdata: &[u8]) {
         let (req_config_info, req_provision_info) = req_create_info();
         let shared_buffer = SharedBuffer::new();
 
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
         );
 
-        let _ = requester.send_receive_spdm_version().is_err();
+        let _ = requester.send_receive_spdm_version().await.is_err();
     }
     // TCD:
     // - id: 0
@@ -51,19 +58,20 @@ fn fuzz_send_receive_spdm_version(fuzzdata: &[u8]) {
 
         let shared_buffer = SharedBuffer::new();
 
-        let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
-
-        let mut device_io_requester = FakeSpdmDeviceIo::new(&shared_buffer);
-        device_io_requester.set_rx(fuzzdata);
+        let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+        let mut device_io_requester =
+            fake_device_io::FakeSpdmDeviceIo::new(Arc::new(shared_buffer));
+        device_io_requester.set_rx(&fuzzdata);
+        let device_io_requester = Arc::new(Mutex::new(device_io_requester));
 
         let mut requester = RequesterContext::new(
-            &mut device_io_requester,
+            device_io_requester,
             pcidoe_transport_encap,
             req_config_info,
             req_provision_info,
         );
 
-        let _ = requester.send_receive_spdm_version().is_err();
+        let _ = requester.send_receive_spdm_version().await.is_err();
     }
 }
 
@@ -96,16 +104,16 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [17, 4, 0, 0, 0, 2, 0, 16, 0, 17];
-            fuzz_send_receive_spdm_version(&fuzzdata);
+            let fuzzdata = vec![17, 4, 0, 0, 0, 2, 0, 16, 0, 17];
+            executor::block_on(fuzz_send_receive_spdm_version(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_send_receive_spdm_version(data.as_slice());
+            executor::block_on(fuzz_send_receive_spdm_version(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_send_receive_spdm_version(data);
+        executor::block_on(fuzz_send_receive_spdm_version(Arc::new(data.to_vec())));
     });
 }

@@ -4,52 +4,71 @@
 
 use fuzzlib::*;
 use spdmlib::protocol::SpdmMeasurementSummaryHashType;
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
 
-pub fn fuzz_total_requesters() {
+pub async fn fuzz_total_requesters() {
     let (rsp_config_info, rsp_provision_info) = rsp_create_info();
     let (req_config_info, req_provision_info) = req_create_info();
 
     let shared_buffer = SharedBuffer::new();
-    let mut device_io_responder = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let device_io_responder: Arc<Mutex<(dyn fuzzlib::SpdmDeviceIo + Send + Sync + 'static)>> =
+        Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+            shared_buffer,
+        ))));
 
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+    let pcidoe_transport_encap: Arc<
+        Mutex<(dyn fuzzlib::SpdmTransportEncap + Send + Sync + 'static)>,
+    > = Arc::new(Mutex::new(PciDoeTransportEncap {}));
 
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
 
-    let mut responder = responder::ResponderContext::new(
-        &mut device_io_responder,
+    let responder = responder::ResponderContext::new(
+        device_io_responder,
         pcidoe_transport_encap,
         rsp_config_info,
         rsp_provision_info,
     );
 
-    let pcidoe_transport_encap2 = &mut PciDoeTransportEncap {};
-    let mut device_io_requester = fake_device_io::FakeSpdmDeviceIo::new(&shared_buffer);
+    let shared_buffer = SharedBuffer::new();
+    let pcidoe_transport_encap2: Arc<
+        Mutex<(dyn fuzzlib::SpdmTransportEncap + Send + Sync + 'static)>,
+    > = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+    let device_io_requester = Arc::new(Mutex::new(fake_device_io::FakeSpdmDeviceIo::new(
+        Arc::new(shared_buffer),
+    )));
 
     let mut requester = requester::RequesterContext::new(
-        &mut device_io_requester,
+        device_io_requester,
         pcidoe_transport_encap2,
         req_config_info,
         req_provision_info,
     );
 
-    if requester.init_connection().is_err() {
+    if requester.init_connection().await.is_err() {
         return;
     }
 
-    if requester.send_receive_spdm_digest(None).is_err() {
+    if requester.send_receive_spdm_digest(None).await.is_err() {
         return;
     }
 
-    if requester.send_receive_spdm_certificate(None, 0).is_err() {
+    if requester
+        .send_receive_spdm_certificate(None, 0)
+        .await
+        .is_err()
+    {
         return;
     }
 
-    let result = requester.start_session(
-        false,
-        0,
-        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-    );
+    let result = requester
+        .start_session(
+            false,
+            0,
+            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+        )
+        .await;
     if let Ok(session_id) = result {
         log::info!(
             "\nSession established ... session_id is {:0x?}\n",

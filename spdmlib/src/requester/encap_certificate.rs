@@ -16,7 +16,7 @@ use crate::{
 
 use super::RequesterContext;
 
-impl<'a> RequesterContext<'a> {
+impl RequesterContext {
     pub fn encap_handle_get_certificate(
         &mut self,
         encap_request: &[u8],

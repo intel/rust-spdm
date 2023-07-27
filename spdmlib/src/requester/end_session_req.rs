@@ -9,8 +9,8 @@ use crate::error::{
 use crate::message::*;
 use crate::requester::*;
 
-impl<'a> RequesterContext<'a> {
-    pub fn send_receive_spdm_end_session(&mut self, session_id: u32) -> SpdmResult {
+impl RequesterContext {
+    pub async fn send_receive_spdm_end_session(&mut self, session_id: u32) -> SpdmResult {
         info!("send spdm end_session\n");
 
         self.common.reset_buffer_via_request_code(
@@ -20,10 +20,13 @@ impl<'a> RequesterContext<'a> {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = self.encode_spdm_end_session(&mut send_buffer)?;
-        self.send_secured_message(session_id, &send_buffer[..used], false)?;
+        self.send_secured_message(session_id, &send_buffer[..used], false)
+            .await?;
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self.receive_secured_message(session_id, &mut receive_buffer, false)?;
+        let used = self
+            .receive_secured_message(session_id, &mut receive_buffer, false)
+            .await?;
         self.handle_spdm_end_session_response(session_id, &receive_buffer[..used])
     }
 

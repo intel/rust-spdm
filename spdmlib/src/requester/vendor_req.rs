@@ -6,8 +6,8 @@ use crate::error::{SpdmResult, SPDM_STATUS_ERROR_PEER, SPDM_STATUS_INVALID_MSG_F
 use crate::message::*;
 use crate::requester::*;
 
-impl<'a> RequesterContext<'a> {
-    pub fn send_spdm_vendor_defined_request(
+impl RequesterContext {
+    pub async fn send_spdm_vendor_defined_request(
         &mut self,
         session_id: Option<u32>,
         standard_id: RegistryOrStandardsBodyID,
@@ -40,10 +40,11 @@ impl<'a> RequesterContext<'a> {
 
         match session_id {
             Some(session_id) => {
-                self.send_secured_message(session_id, &send_buffer[..used], false)?;
+                self.send_secured_message(session_id, &send_buffer[..used], false)
+                    .await?;
             }
             None => {
-                self.send_message(&send_buffer[..used])?;
+                self.send_message(&send_buffer[..used]).await?;
             }
         }
 
@@ -51,9 +52,10 @@ impl<'a> RequesterContext<'a> {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let receive_used = match session_id {
             Some(session_id) => {
-                self.receive_secured_message(session_id, &mut receive_buffer, false)?
+                self.receive_secured_message(session_id, &mut receive_buffer, false)
+                    .await?
             }
-            None => self.receive_message(&mut receive_buffer, false)?,
+            None => self.receive_message(&mut receive_buffer, false).await?,
         };
 
         self.handle_spdm_vendor_defined_respond(session_id, &receive_buffer[..receive_used])

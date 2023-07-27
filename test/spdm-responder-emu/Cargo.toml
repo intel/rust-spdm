@@ -10,10 +10,13 @@ edition = "2018"
 spdm-emu = { path = "../spdm-emu", default-features = false }
 spdmlib = { path = "../../spdmlib", default-features = false }
 codec = { path = "../../codec" }
+executor = { path = "../../executor" }
 mctp_transport = { path = "../../mctp_transport" }
 pcidoe_transport = { path = "../../pcidoe_transport" }
 simple_logger = "1.11.0"
 log = "0.4.13"
+futures = { version = "0.3", default-features = false }
+spin = { version = "0.9.8" }
 
 [features]
 mut-auth = ["spdm-emu/mut-auth"]

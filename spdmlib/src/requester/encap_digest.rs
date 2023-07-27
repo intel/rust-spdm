@@ -21,7 +21,7 @@ use alloc::boxed::Box;
 
 use super::RequesterContext;
 
-impl<'a> RequesterContext<'a> {
+impl RequesterContext {
     pub fn encap_handle_get_digest(&mut self, encap_request: &[u8], encap_response: &mut Writer) {
         let mut reader = Reader::init(encap_request);
 

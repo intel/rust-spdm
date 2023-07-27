@@ -6,6 +6,7 @@ use crate::common::opaque::SpdmOpaqueStruct;
 use crate::common::SpdmCodec;
 use crate::common::SpdmConnectionState;
 use crate::common::SpdmOpaqueSupport;
+use crate::common::SpdmTransportEncap;
 use crate::common::INVALID_SLOT;
 use crate::crypto;
 use crate::error::SpdmResult;
@@ -20,13 +21,14 @@ use config::MAX_SPDM_PSK_CONTEXT_SIZE;
 extern crate alloc;
 use crate::secret;
 use alloc::boxed::Box;
+use core::ops::DerefMut;
 
-impl<'a> ResponderContext<'a> {
-    pub fn handle_spdm_psk_exchange(&mut self, bytes: &[u8]) -> SpdmResult {
+impl ResponderContext {
+    pub async fn handle_spdm_psk_exchange(&mut self, bytes: &[u8]) -> SpdmResult {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_psk_exchange_response(bytes, &mut writer)?;
-        self.send_message(writer.used_slice())
+        self.send_message(writer.used_slice()).await
     }
 
     pub fn write_spdm_psk_exchange_response(
@@ -190,8 +192,18 @@ impl<'a> ResponderContext<'a> {
         let dhe_algo = self.common.negotiate_info.dhe_sel;
         let aead_algo = self.common.negotiate_info.aead_sel;
         let key_schedule_algo = self.common.negotiate_info.key_schedule_sel;
-        let sequence_number_count = self.common.transport_encap.get_sequence_number_count();
-        let max_random_count = self.common.transport_encap.get_max_random_count();
+        let sequence_number_count = {
+            let mut transport_encap = self.common.transport_encap.lock();
+            let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                transport_encap.deref_mut();
+            transport_encap.get_sequence_number_count()
+        };
+        let max_random_count = {
+            let mut transport_encap = self.common.transport_encap.lock();
+            let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                transport_encap.deref_mut();
+            transport_encap.get_max_random_count()
+        };
 
         let spdm_version_sel = self.common.negotiate_info.spdm_version_sel;
         let message_a = self.common.runtime_info.message_a.clone();

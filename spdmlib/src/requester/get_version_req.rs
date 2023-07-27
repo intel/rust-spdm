@@ -9,17 +9,17 @@ use crate::message::*;
 use crate::protocol::*;
 use crate::requester::*;
 
-impl<'a> RequesterContext<'a> {
-    pub fn send_receive_spdm_version(&mut self) -> SpdmResult {
+impl RequesterContext {
+    pub async fn send_receive_spdm_version(&mut self) -> SpdmResult {
         // reset context on get version request
         self.common.reset_context();
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let send_used = self.encode_spdm_version(&mut send_buffer)?;
-        self.send_message(&send_buffer[..send_used])?;
+        self.send_message(&send_buffer[..send_used]).await?;
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self.receive_message(&mut receive_buffer, false)?;
+        let used = self.receive_message(&mut receive_buffer, false).await?;
         self.handle_spdm_version_response(0, &send_buffer[..send_used], &receive_buffer[..used])
     }
 

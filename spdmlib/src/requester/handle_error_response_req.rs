@@ -12,7 +12,7 @@ use crate::error::{
 use crate::message::*;
 use crate::requester::RequesterContext;
 
-impl<'a> RequesterContext<'a> {
+impl RequesterContext {
     fn spdm_handle_simple_error_response(
         &mut self,
         session_id: Option<u32>,

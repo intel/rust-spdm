@@ -16,9 +16,10 @@ use crate::protocol::SpdmMeasurementSummaryHashType;
 use crate::protocol::*;
 use crate::requester::*;
 extern crate alloc;
+use core::ops::DerefMut;
 
-impl<'a> RequesterContext<'a> {
-    pub fn send_receive_spdm_psk_exchange(
+impl RequesterContext {
+    pub async fn send_receive_spdm_psk_exchange(
         &mut self,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
         psk_hint: Option<&SpdmPskHintStruct>,
@@ -43,11 +44,11 @@ impl<'a> RequesterContext<'a> {
             &mut send_buffer,
         )?;
 
-        self.send_message(&send_buffer[..send_used])?;
+        self.send_message(&send_buffer[..send_used]).await?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let receive_used = self.receive_message(&mut receive_buffer, false)?;
+        let receive_used = self.receive_message(&mut receive_buffer, false).await?;
         self.handle_spdm_psk_exchange_response(
             half_session_id,
             measurement_summary_hash_type,
@@ -156,10 +157,18 @@ impl<'a> RequesterContext<'a> {
                             let dhe_algo = self.common.negotiate_info.dhe_sel;
                             let aead_algo = self.common.negotiate_info.aead_sel;
                             let key_schedule_algo = self.common.negotiate_info.key_schedule_sel;
-                            let sequence_number_count =
-                                self.common.transport_encap.get_sequence_number_count();
-                            let max_random_count =
-                                self.common.transport_encap.get_max_random_count();
+                            let sequence_number_count = {
+                                let mut transport_encap = self.common.transport_encap.lock();
+                                let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                                    transport_encap.deref_mut();
+                                transport_encap.get_sequence_number_count()
+                            };
+                            let max_random_count = {
+                                let mut transport_encap = self.common.transport_encap.lock();
+                                let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                                    transport_encap.deref_mut();
+                                transport_encap.get_max_random_count()
+                            };
 
                             let secure_spdm_version_sel = if let Some(secured_message_version) =
                                 psk_exchange_rsp

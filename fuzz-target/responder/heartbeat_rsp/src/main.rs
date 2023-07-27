@@ -7,18 +7,25 @@ use fuzzlib::{
     *,
 };
 use spdmlib::protocol::*;
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
-fn fuzz_handle_spdm_heartbeat(data: &[u8]) {
+async fn fuzz_handle_spdm_heartbeat(data: Arc<Vec<u8>>) {
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
 
     let (config_info, provision_info) = rsp_create_info();
-    let pcidoe_transport_encap = &mut PciDoeTransportEncap {};
+    let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
 
     let shared_buffer = SharedBuffer::new();
-    let mut socket_io_transport = FakeSpdmDeviceIoReceve::new(&shared_buffer);
+    let socket_io_transport = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+        shared_buffer,
+    ))));
 
     let mut context = responder::ResponderContext::new(
-        &mut socket_io_transport,
+        socket_io_transport,
         pcidoe_transport_encap,
         config_info,
         provision_info,
@@ -35,7 +42,7 @@ fn fuzz_handle_spdm_heartbeat(data: &[u8]) {
         SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
     );
 
-    context.handle_spdm_heartbeat(4294901758, data);
+    context.handle_spdm_heartbeat(4294901758, &data).await;
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]
@@ -60,16 +67,16 @@ fn main() {
         let args: Vec<String> = std::env::args().collect();
         if args.len() < 2 {
             // Here you can replace the single-step debugging value in the fuzzdata array.
-            let fuzzdata = [17, 46, 43];
-            fuzz_handle_spdm_heartbeat(&fuzzdata);
+            let fuzzdata = vec![17, 46, 43];
+            executor::block_on(fuzz_handle_spdm_heartbeat(Arc::new(fuzzdata)));
         } else {
             let path = &args[1];
             let data = std::fs::read(path).expect("read crash file fail");
-            fuzz_handle_spdm_heartbeat(data.as_slice());
+            executor::block_on(fuzz_handle_spdm_heartbeat(Arc::new(data)));
         }
     }
     #[cfg(feature = "fuzz")]
     afl::fuzz!(|data: &[u8]| {
-        fuzz_handle_spdm_heartbeat(data);
+        executor::block_on(fuzz_handle_spdm_heartbeat(Arc::new(data.to_vec())));
     });
 }

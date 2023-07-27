@@ -13,8 +13,8 @@ use crate::message::*;
 use crate::protocol::*;
 use crate::requester::*;
 
-impl<'a> RequesterContext<'a> {
-    fn send_receive_spdm_measurement_record(
+impl RequesterContext {
+    async fn send_receive_spdm_measurement_record(
         &mut self,
         session_id: Option<u32>,
         measurement_attributes: SpdmMeasurementAttributes,
@@ -42,10 +42,11 @@ impl<'a> RequesterContext<'a> {
         )?;
         match session_id {
             Some(session_id) => {
-                self.send_secured_message(session_id, &send_buffer[..send_used], false)?;
+                self.send_secured_message(session_id, &send_buffer[..send_used], false)
+                    .await?;
             }
             None => {
-                self.send_message(&send_buffer[..send_used])?;
+                self.send_message(&send_buffer[..send_used]).await?;
             }
         }
 
@@ -53,9 +54,10 @@ impl<'a> RequesterContext<'a> {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = match session_id {
             Some(session_id) => {
-                self.receive_secured_message(session_id, &mut receive_buffer, true)?
+                self.receive_secured_message(session_id, &mut receive_buffer, true)
+                    .await?
             }
-            None => self.receive_message(&mut receive_buffer, true)?,
+            None => self.receive_message(&mut receive_buffer, true).await?,
         };
 
         self.handle_spdm_measurement_record_response(
@@ -208,7 +210,7 @@ impl<'a> RequesterContext<'a> {
         }
     }
 
-    pub fn send_receive_spdm_measurement(
+    pub async fn send_receive_spdm_measurement(
         &mut self,
         session_id: Option<u32>,
         slot_id: u8,
@@ -218,13 +220,15 @@ impl<'a> RequesterContext<'a> {
         //      number of blocks got measured.
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure, // out
     ) -> SpdmResult {
-        *out_total_number = self.send_receive_spdm_measurement_record(
-            session_id,
-            spdm_measuremente_attributes,
-            measurement_operation,
-            spdm_measurement_record_structure,
-            slot_id,
-        )?;
+        *out_total_number = self
+            .send_receive_spdm_measurement_record(
+                session_id,
+                spdm_measuremente_attributes,
+                measurement_operation,
+                spdm_measurement_record_structure,
+                slot_id,
+            )
+            .await?;
         Ok(())
     }
 

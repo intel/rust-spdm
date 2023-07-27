@@ -9,7 +9,13 @@ pub mod spdm_codec;
 
 use crate::message::SpdmRequestResponseCode;
 use crate::{crypto, protocol::*};
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
 
+use async_trait::async_trait;
 pub use opaque::*;
 pub use spdm_codec::SpdmCodec;
 
@@ -72,12 +78,17 @@ pub const INITIAL_SESSION_ID: u16 = 0xFFFD;
 pub const INVALID_HALF_SESSION_ID: u16 = 0x0;
 pub const INVALID_SESSION_ID: u32 = 0x0;
 
+#[async_trait]
 pub trait SpdmDeviceIo {
-    fn send(&mut self, buffer: &[u8]) -> SpdmResult;
+    async fn send(&mut self, buffer: Arc<&[u8]>) -> SpdmResult;
 
-    fn receive(&mut self, buffer: &mut [u8], timeout: usize) -> Result<usize, usize>;
+    async fn receive(
+        &mut self,
+        buffer: Arc<Mutex<&mut [u8]>>,
+        timeout: usize,
+    ) -> Result<usize, usize>;
 
-    fn flush_all(&mut self) -> SpdmResult;
+    async fn flush_all(&mut self) -> SpdmResult;
 
     #[cfg(feature = "downcast")]
     fn as_any(&mut self) -> &mut dyn Any;
@@ -85,50 +96,42 @@ pub trait SpdmDeviceIo {
 
 use core::fmt::Debug;
 
-impl Debug for dyn SpdmDeviceIo {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Dyn SpdmDeviceIo")
-    }
-}
-
+#[async_trait]
 pub trait SpdmTransportEncap {
-    fn encap(
+    async fn encap(
         &mut self,
-        spdm_buffer: &[u8],
-        transport_buffer: &mut [u8],
+        spdm_buffer: Arc<&[u8]>,
+        transport_buffer: Arc<Mutex<&mut [u8]>>,
         secured_message: bool,
     ) -> SpdmResult<usize>;
 
-    fn decap(
+    async fn decap(
         &mut self,
-        transport_buffer: &[u8],
-        spdm_buffer: &mut [u8],
+        transport_buffer: Arc<&[u8]>,
+        spdm_buffer: Arc<Mutex<&mut [u8]>>,
     ) -> SpdmResult<(usize, bool)>;
 
-    fn encap_app(
+    async fn encap_app(
         &mut self,
-        spdm_buffer: &[u8],
-        app_buffer: &mut [u8],
+        spdm_buffer: Arc<&[u8]>,
+        app_buffer: Arc<Mutex<&mut [u8]>>,
         is_app_message: bool,
     ) -> SpdmResult<usize>;
 
-    fn decap_app(&mut self, app_buffer: &[u8], spdm_buffer: &mut [u8])
-        -> SpdmResult<(usize, bool)>;
+    async fn decap_app(
+        &mut self,
+        app_buffer: Arc<&[u8]>,
+        spdm_buffer: Arc<Mutex<&mut [u8]>>,
+    ) -> SpdmResult<(usize, bool)>;
 
     // for session
     fn get_sequence_number_count(&mut self) -> u8;
     fn get_max_random_count(&mut self) -> u16;
 }
 
-impl Debug for dyn SpdmTransportEncap {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Dyn SpdmTransportEncap")
-    }
-}
-
-pub struct SpdmContext<'a> {
-    pub device_io: &'a mut dyn SpdmDeviceIo,
-    pub transport_encap: &'a mut dyn SpdmTransportEncap,
+pub struct SpdmContext {
+    pub device_io: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
+    pub transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
 
     pub config_info: SpdmConfigInfo,
     pub negotiate_info: SpdmNegotiateInfo,
@@ -143,10 +146,10 @@ pub struct SpdmContext<'a> {
     pub session: [SpdmSession; config::MAX_SPDM_SESSION_COUNT],
 }
 
-impl<'a> SpdmContext<'a> {
+impl SpdmContext {
     pub fn new(
-        device_io: &'a mut dyn SpdmDeviceIo,
-        transport_encap: &'a mut dyn SpdmTransportEncap,
+        device_io: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
+        transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
         config_info: SpdmConfigInfo,
         provision_info: SpdmProvisionInfo,
     ) -> Self {
@@ -951,12 +954,23 @@ impl<'a> SpdmContext<'a> {
         }
     }
 
-    pub fn encap(&mut self, send_buffer: &[u8], transport_buffer: &mut [u8]) -> SpdmResult<usize> {
-        self.transport_encap
+    pub async fn encap(
+        &mut self,
+        send_buffer: &[u8],
+        transport_buffer: &mut [u8],
+    ) -> SpdmResult<usize> {
+        let mut transport_encap = self.transport_encap.lock();
+        let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+            transport_encap.deref_mut();
+        let send_buffer = Arc::new(send_buffer);
+        let transport_buffer = Mutex::new(transport_buffer);
+        let transport_buffer = Arc::new(transport_buffer);
+        transport_encap
             .encap(send_buffer, transport_buffer, false)
+            .await
     }
 
-    pub fn encode_secured_message(
+    pub async fn encode_secured_message(
         &mut self,
         session_id: u32,
         send_buffer: &[u8],
@@ -965,9 +979,17 @@ impl<'a> SpdmContext<'a> {
         is_app_message: bool,
     ) -> SpdmResult<usize> {
         let mut app_buffer = [0u8; config::SENDER_BUFFER_SIZE];
-        let used = self
-            .transport_encap
-            .encap_app(send_buffer, &mut app_buffer, is_app_message)?;
+        let used = {
+            let mut transport_encap = self.transport_encap.lock();
+            let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                transport_encap.deref_mut();
+            let send_buffer = Arc::new(send_buffer);
+            let app_buffer = Mutex::new(&mut app_buffer[..]);
+            let app_buffer = Arc::new(app_buffer);
+            transport_encap
+                .encap_app(send_buffer, app_buffer, is_app_message)
+                .await?
+        };
 
         let spdm_session = self
             .get_session_via_id(session_id)
@@ -980,18 +1002,33 @@ impl<'a> SpdmContext<'a> {
             is_requester,
         )?;
 
-        self.transport_encap
-            .encap(&encoded_send_buffer[..encode_size], transport_buffer, true)
+        let mut transport_encap = self.transport_encap.lock();
+        let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+            transport_encap.deref_mut();
+        transport_encap
+            .encap(
+                Arc::new(&encoded_send_buffer[..encode_size]),
+                Arc::new(Mutex::new(transport_buffer)),
+                true,
+            )
+            .await
     }
 
-    pub fn decap(
+    pub async fn decap(
         &mut self,
         transport_buffer: &[u8],
         receive_buffer: &mut [u8],
     ) -> SpdmResult<usize> {
-        let (used, secured_message) = self
-            .transport_encap
-            .decap(transport_buffer, receive_buffer)?;
+        let mut transport_encap = self.transport_encap.lock();
+        let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+            transport_encap.deref_mut();
+
+        let (used, secured_message) = transport_encap
+            .decap(
+                Arc::new(transport_buffer),
+                Arc::new(Mutex::new(receive_buffer)),
+            )
+            .await?;
 
         if secured_message {
             return Err(SPDM_STATUS_DECAP_FAIL); //need check
@@ -1000,16 +1037,26 @@ impl<'a> SpdmContext<'a> {
         Ok(used)
     }
 
-    pub fn decode_secured_message(
+    pub async fn decode_secured_message(
         &mut self,
         session_id: u32,
         transport_buffer: &[u8],
         receive_buffer: &mut [u8],
     ) -> SpdmResult<usize> {
         let mut encoded_receive_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
-        let (used, secured_message) = self
-            .transport_encap
-            .decap(transport_buffer, &mut encoded_receive_buffer)?;
+
+        let (used, secured_message) = {
+            let mut transport_encap = self.transport_encap.lock();
+            let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+                transport_encap.deref_mut();
+
+            transport_encap
+                .decap(
+                    Arc::new(transport_buffer),
+                    Arc::new(Mutex::new(&mut encoded_receive_buffer)),
+                )
+                .await?
+        };
 
         if !secured_message {
             return Err(SPDM_STATUS_DECAP_FAIL);
@@ -1026,9 +1073,16 @@ impl<'a> SpdmContext<'a> {
             false,
         )?;
 
-        let used = self
-            .transport_encap
-            .decap_app(&app_buffer[0..decode_size], receive_buffer)?;
+        let mut transport_encap = self.transport_encap.lock();
+        let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
+            transport_encap.deref_mut();
+
+        let used = transport_encap
+            .decap_app(
+                Arc::new(&app_buffer[0..decode_size]),
+                Arc::new(Mutex::new(receive_buffer)),
+            )
+            .await?;
 
         Ok(used.0)
     }

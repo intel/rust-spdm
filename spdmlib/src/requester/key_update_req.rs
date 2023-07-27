@@ -9,8 +9,8 @@ use crate::error::{
 use crate::message::*;
 use crate::requester::*;
 
-impl<'a> RequesterContext<'a> {
-    fn send_receive_spdm_key_update_op(
+impl RequesterContext {
+    async fn send_receive_spdm_key_update_op(
         &mut self,
         session_id: u32,
         key_update_operation: SpdmKeyUpdateOperation,
@@ -25,7 +25,8 @@ impl<'a> RequesterContext<'a> {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = self.encode_spdm_key_update_op(key_update_operation, tag, &mut send_buffer)?;
-        self.send_secured_message(session_id, &send_buffer[..used], false)?;
+        self.send_secured_message(session_id, &send_buffer[..used], false)
+            .await?;
 
         // update key
         let spdm_version_sel = self.common.negotiate_info.spdm_version_sel;
@@ -39,7 +40,9 @@ impl<'a> RequesterContext<'a> {
         let update_responder = key_update_operation == SpdmKeyUpdateOperation::SpdmUpdateAllKeys;
         session.create_data_secret_update(spdm_version_sel, update_requester, update_responder)?;
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self.receive_secured_message(session_id, &mut receive_buffer, false)?;
+        let used = self
+            .receive_secured_message(session_id, &mut receive_buffer, false)
+            .await?;
 
         self.handle_spdm_key_update_op_response(
             session_id,
@@ -126,7 +129,7 @@ impl<'a> RequesterContext<'a> {
         }
     }
 
-    pub fn send_receive_spdm_key_update(
+    pub async fn send_receive_spdm_key_update(
         &mut self,
         session_id: u32,
         key_update_operation: SpdmKeyUpdateOperation,
@@ -136,11 +139,13 @@ impl<'a> RequesterContext<'a> {
         {
             return Err(SPDM_STATUS_INVALID_MSG_FIELD);
         }
-        self.send_receive_spdm_key_update_op(session_id, key_update_operation, 1)?;
+        self.send_receive_spdm_key_update_op(session_id, key_update_operation, 1)
+            .await?;
         self.send_receive_spdm_key_update_op(
             session_id,
             SpdmKeyUpdateOperation::SpdmVerifyNewKey,
             2,
         )
+        .await
     }
 }

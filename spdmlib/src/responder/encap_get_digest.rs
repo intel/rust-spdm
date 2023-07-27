@@ -10,7 +10,7 @@ use crate::common::SpdmCodec;
 use crate::error::{SpdmResult, SPDM_STATUS_INVALID_MSG_FIELD};
 use crate::message::*;
 
-impl<'a> ResponderContext<'a> {
+impl ResponderContext {
     pub fn encode_encap_request_get_digest(&mut self, encap_request: &mut Writer) -> SpdmResult {
         let request = SpdmMessage {
             header: SpdmMessageHeader {

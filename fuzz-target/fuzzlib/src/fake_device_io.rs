@@ -6,44 +6,59 @@
 
 use super::*;
 use crate::spdmlib::error::SPDM_STATUS_SEND_FAIL;
+use async_trait::async_trait;
 use spdmlib_test::common::device_io::SharedBuffer;
 
-pub struct FakeSpdmDeviceIoReceve<'a> {
-    data: &'a SharedBuffer,
+use spin::Mutex;
+extern crate alloc;
+use alloc::boxed::Box;
+use alloc::sync::Arc;
+use core::borrow::BorrowMut;
+use core::ops::DerefMut;
+
+pub struct FakeSpdmDeviceIoReceve {
+    data: Arc<SharedBuffer>,
 }
 
-impl<'a> FakeSpdmDeviceIoReceve<'a> {
-    pub fn new(data: &'a SharedBuffer) -> Self {
+impl FakeSpdmDeviceIoReceve {
+    pub fn new(data: Arc<SharedBuffer>) -> Self {
         FakeSpdmDeviceIoReceve { data: data }
     }
 }
 
-impl SpdmDeviceIo for FakeSpdmDeviceIoReceve<'_> {
-    fn receive(&mut self, read_buffer: &mut [u8], _timeout: usize) -> Result<usize, usize> {
-        let len = self.data.get_buffer(read_buffer);
+#[async_trait]
+impl SpdmDeviceIo for FakeSpdmDeviceIoReceve {
+    async fn receive(
+        &mut self,
+        read_buffer: Arc<Mutex<&mut [u8]>>,
+        _timeout: usize,
+    ) -> Result<usize, usize> {
+        let len = self.data.get_buffer(read_buffer.clone());
+        let mut read_buffer = read_buffer.lock();
+        let read_buffer = read_buffer.deref_mut();
         log::info!("responder receive RAW - {:02x?}\n", &read_buffer[0..len]);
         Ok(len)
     }
 
-    fn send(&mut self, buffer: &[u8]) -> SpdmResult {
-        self.data.set_buffer(buffer);
+    async fn send(&mut self, buffer: Arc<&[u8]>) -> SpdmResult {
+        self.data.set_buffer_ref(buffer.clone());
         log::info!("responder send    RAW - {:02x?}\n", buffer);
         Ok(())
     }
 
-    fn flush_all(&mut self) -> SpdmResult {
+    async fn flush_all(&mut self) -> SpdmResult {
         Ok(())
     }
 }
 
-pub struct FuzzTmpSpdmDeviceIoReceve<'a> {
-    data: &'a SharedBuffer,
+pub struct FuzzTmpSpdmDeviceIoReceve {
+    data: Arc<SharedBuffer>,
     fuzzdata: [[u8; 528]; 4],
     current: usize,
 }
 
-impl<'a> FuzzTmpSpdmDeviceIoReceve<'a> {
-    pub fn new(data: &'a SharedBuffer, fuzzdata: [[u8; 528]; 4], current: usize) -> Self {
+impl FuzzTmpSpdmDeviceIoReceve {
+    pub fn new(data: Arc<SharedBuffer>, fuzzdata: [[u8; 528]; 4], current: usize) -> Self {
         FuzzTmpSpdmDeviceIoReceve {
             data: data,
             fuzzdata,
@@ -52,32 +67,40 @@ impl<'a> FuzzTmpSpdmDeviceIoReceve<'a> {
     }
 }
 
-impl SpdmDeviceIo for FuzzTmpSpdmDeviceIoReceve<'_> {
-    fn receive(&mut self, read_buffer: &mut [u8], _timeout: usize) -> Result<usize, usize> {
-        let len = self.data.get_buffer(read_buffer);
+#[async_trait]
+impl SpdmDeviceIo for FuzzTmpSpdmDeviceIoReceve {
+    async fn receive(
+        &mut self,
+        read_buffer: Arc<Mutex<&mut [u8]>>,
+        _timeout: usize,
+    ) -> Result<usize, usize> {
+        let len = self.data.get_buffer(read_buffer.clone());
+        let mut read_buffer = read_buffer.lock();
+        let read_buffer = read_buffer.deref_mut();
         log::info!("responder receive RAW - {:02x?}\n", &read_buffer[0..len]);
         Ok(len)
     }
 
-    fn send(&mut self, buffer: &[u8]) -> SpdmResult {
-        self.data.set_buffer(&(self.fuzzdata[self.current]));
+    async fn send(&mut self, buffer: Arc<&[u8]>) -> SpdmResult {
+        let buffer: &[u8] = &self.fuzzdata[self.current];
+        self.data.set_buffer_ref(Arc::new(buffer));
         log::info!("responder send    RAW - {:02x?}\n", buffer);
         self.current += 1;
         Ok(())
     }
 
-    fn flush_all(&mut self) -> SpdmResult {
+    async fn flush_all(&mut self) -> SpdmResult {
         Ok(())
     }
 }
 
-pub struct FuzzSpdmDeviceIoReceve<'a> {
-    data: &'a SharedBuffer,
-    fuzzdata: &'a [u8],
+pub struct FuzzSpdmDeviceIoReceve {
+    data: Arc<SharedBuffer>,
+    fuzzdata: Arc<[u8]>,
 }
 
-impl<'a> FuzzSpdmDeviceIoReceve<'a> {
-    pub fn new(data: &'a SharedBuffer, fuzzdata: &'a [u8]) -> Self {
+impl FuzzSpdmDeviceIoReceve {
+    pub fn new(data: Arc<SharedBuffer>, fuzzdata: Arc<[u8]>) -> Self {
         FuzzSpdmDeviceIoReceve {
             data: data,
             fuzzdata,
@@ -85,50 +108,64 @@ impl<'a> FuzzSpdmDeviceIoReceve<'a> {
     }
 }
 
-impl SpdmDeviceIo for FuzzSpdmDeviceIoReceve<'_> {
-    fn receive(&mut self, read_buffer: &mut [u8], _timeout: usize) -> Result<usize, usize> {
-        let len = self.data.get_buffer(read_buffer);
+#[async_trait]
+impl SpdmDeviceIo for FuzzSpdmDeviceIoReceve {
+    async fn receive(
+        &mut self,
+        read_buffer: Arc<Mutex<&mut [u8]>>,
+        _timeout: usize,
+    ) -> Result<usize, usize> {
+        let len = self.data.get_buffer(read_buffer.clone());
+        let mut read_buffer = read_buffer.lock();
+        let read_buffer = read_buffer.deref_mut();
         log::info!("responder receive RAW - {:02x?}\n", &read_buffer[0..len]);
         Ok(len)
     }
 
-    fn send(&mut self, buffer: &[u8]) -> SpdmResult {
-        self.data.set_buffer(self.fuzzdata);
+    async fn send(&mut self, buffer: Arc<&[u8]>) -> SpdmResult {
+        self.data.set_buffer(self.fuzzdata.clone());
         log::info!("responder send    RAW - {:02x?}\n", buffer);
         Ok(())
     }
 
-    fn flush_all(&mut self) -> SpdmResult {
+    async fn flush_all(&mut self) -> SpdmResult {
         Ok(())
     }
 }
 
-pub struct FakeSpdmDeviceIo<'a> {
-    pub rx: &'a SharedBuffer,
+pub struct FakeSpdmDeviceIo {
+    pub rx: Arc<SharedBuffer>,
 }
 
-impl<'a> FakeSpdmDeviceIo<'a> {
-    pub fn new(rx: &'a SharedBuffer) -> Self {
+impl FakeSpdmDeviceIo {
+    pub fn new(rx: Arc<SharedBuffer>) -> Self {
         FakeSpdmDeviceIo { rx }
     }
     pub fn set_rx(&mut self, buffer: &[u8]) {
-        self.rx.set_buffer(buffer);
+        self.rx.set_buffer_ref(Arc::new(buffer));
     }
 }
 
-impl SpdmDeviceIo for FakeSpdmDeviceIo<'_> {
-    fn receive(&mut self, read_buffer: &mut [u8], _timeout: usize) -> Result<usize, usize> {
-        let len = self.rx.get_buffer(read_buffer);
+#[async_trait]
+impl SpdmDeviceIo for FakeSpdmDeviceIo {
+    async fn receive(
+        &mut self,
+        read_buffer: Arc<Mutex<&mut [u8]>>,
+        _timeout: usize,
+    ) -> Result<usize, usize> {
+        let len = self.rx.get_buffer(read_buffer.clone());
+        let mut read_buffer = read_buffer.lock();
+        let read_buffer = read_buffer.deref_mut();
         log::info!("requester receive RAW - {:02x?}\n", &read_buffer[0..len]);
         Ok(len)
     }
 
-    fn send(&mut self, buffer: &[u8]) -> SpdmResult {
+    async fn send(&mut self, buffer: Arc<&[u8]>) -> SpdmResult {
         log::info!("requester send    RAW - {:02x?}\n", buffer);
         Ok(())
     }
 
-    fn flush_all(&mut self) -> SpdmResult {
+    async fn flush_all(&mut self) -> SpdmResult {
         Ok(())
     }
 }

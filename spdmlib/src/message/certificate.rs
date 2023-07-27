@@ -132,6 +132,7 @@ mod tests {
     use super::*;
     use crate::common::{SpdmConfigInfo, SpdmContext, SpdmProvisionInfo};
     use testlib::{create_spdm_context, DeviceIO, TransportEncap};
+    extern crate alloc;
 
     #[test]
     fn test_case0_spdm_get_certificate_request_payload() {

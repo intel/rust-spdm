@@ -5,6 +5,11 @@
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
+use spin::Mutex;
+extern crate alloc;
+use alloc::sync::Arc;
+use core::ops::DerefMut;
+
 use codec::{Codec, Reader, Writer};
 use spdmlib::config;
 
@@ -50,13 +55,15 @@ impl Codec for SpdmSocketHeader {
 }
 
 // u32 type, u32 command, usize, payload
-pub fn receive_message<'a>(
-    stream: &mut TcpStream,
-    buffer: &'a mut [u8],
+pub async fn receive_message(
+    stream: Arc<Mutex<TcpStream>>,
+    buffer: &mut [u8],
     _timeout: usize,
-) -> Option<(u32, u32, &'a [u8])> {
+) -> Option<(u32, u32, &[u8])> {
     let mut buffer_size = 0;
     let mut expected_size = 0;
+    let mut stream = stream.lock();
+    let stream = stream.deref_mut();
     loop {
         let s = stream
             .read(&mut buffer[buffer_size..])
@@ -93,7 +100,7 @@ pub fn receive_message<'a>(
 }
 
 pub fn send_message(
-    stream: &mut TcpStream,
+    stream: Arc<Mutex<TcpStream>>,
     transport_type: u32,
     command: u32,
     payload: &[u8],
@@ -112,6 +119,8 @@ pub fn send_message(
     assert_eq!(used, SOCKET_HEADER_LEN);
 
     let buffer_size = SOCKET_HEADER_LEN + payload_size;
+    let mut stream = stream.lock();
+    let stream = stream.deref_mut();
     stream
         .write_all(&buffer[..used])
         .expect("socket write error!");

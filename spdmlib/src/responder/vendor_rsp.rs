@@ -7,8 +7,8 @@ use crate::error::SpdmResult;
 use crate::message::*;
 use crate::responder::*;
 
-impl<'a> ResponderContext<'a> {
-    pub fn handle_spdm_vendor_defined_request(
+impl ResponderContext {
+    pub async fn handle_spdm_vendor_defined_request(
         &mut self,
         session_id: Option<u32>,
         bytes: &[u8],
@@ -17,8 +17,11 @@ impl<'a> ResponderContext<'a> {
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_vendor_defined_response(session_id, bytes, &mut writer);
         match session_id {
-            Some(session_id) => self.send_secured_message(session_id, writer.used_slice(), false),
-            None => self.send_message(writer.used_slice()),
+            Some(session_id) => {
+                self.send_secured_message(session_id, writer.used_slice(), false)
+                    .await
+            }
+            None => self.send_message(writer.used_slice()).await,
         }
     }
 

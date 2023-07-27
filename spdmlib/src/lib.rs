@@ -6,6 +6,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![feature(stmt_expr_attributes)]
 #![feature(try_trait_v2)]
+#![feature(async_fn_in_trait)]
 
 #[macro_use]
 extern crate log;

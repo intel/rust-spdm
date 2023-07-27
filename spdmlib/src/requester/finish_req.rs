@@ -10,8 +10,8 @@ use crate::requester::*;
 extern crate alloc;
 use alloc::boxed::Box;
 
-impl<'a> RequesterContext<'a> {
-    pub fn send_receive_spdm_finish(
+impl RequesterContext {
+    pub async fn send_receive_spdm_finish(
         &mut self,
         req_slot_id: Option<u8>,
         session_id: u32,
@@ -62,9 +62,10 @@ impl<'a> RequesterContext<'a> {
         }
         let send_used = res.unwrap();
         let res = if in_clear_text {
-            self.send_message(&send_buffer[..send_used])
+            self.send_message(&send_buffer[..send_used]).await
         } else {
             self.send_secured_message(session_id, &send_buffer[..send_used], false)
+                .await
         };
         if res.is_err() {
             let _ = self
@@ -77,9 +78,10 @@ impl<'a> RequesterContext<'a> {
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let res = if in_clear_text {
-            self.receive_message(&mut receive_buffer, false)
+            self.receive_message(&mut receive_buffer, false).await
         } else {
             self.receive_secured_message(session_id, &mut receive_buffer, false)
+                .await
         };
         if res.is_err() {
             let _ = self

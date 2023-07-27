@@ -16,7 +16,7 @@ pub static DEFAULT: SpdmDhe = SpdmDhe {
 
 fn generate_key_pair(
     dhe_algo: SpdmDheAlgo,
-) -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange>)> {
+) -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange + Send>)> {
     match dhe_algo {
         SpdmDheAlgo::SECP_256_R1 => SpdmDheKeyExchangeP256::generate_key_pair(),
         SpdmDheAlgo::SECP_384_R1 => SpdmDheKeyExchangeP384::generate_key_pair(),
@@ -54,7 +54,7 @@ impl SpdmDheKeyExchange for SpdmDheKeyExchangeP256 {
 }
 
 impl SpdmDheKeyExchangeP256 {
-    fn generate_key_pair() -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange>)> {
+    fn generate_key_pair() -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange + Send>)> {
         let rng = ring::rand::SystemRandom::new();
         let private_key =
             ring::agreement::EphemeralPrivateKey::generate(&ring::agreement::ECDH_P256, &rng)
@@ -62,7 +62,7 @@ impl SpdmDheKeyExchangeP256 {
         let public_key_old = private_key.compute_public_key().ok()?;
         let public_key = BytesMut::from(&public_key_old.as_ref()[1..]);
 
-        let res: Box<dyn SpdmDheKeyExchange> = Box::new(Self(private_key));
+        let res: Box<dyn SpdmDheKeyExchange + Send> = Box::new(Self(private_key));
 
         Some((SpdmDheExchangeStruct::from(public_key), res))
     }
@@ -98,7 +98,7 @@ impl SpdmDheKeyExchange for SpdmDheKeyExchangeP384 {
 }
 
 impl SpdmDheKeyExchangeP384 {
-    fn generate_key_pair() -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange>)> {
+    fn generate_key_pair() -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange + Send>)> {
         let rng = ring::rand::SystemRandom::new();
         let private_key =
             ring::agreement::EphemeralPrivateKey::generate(&ring::agreement::ECDH_P384, &rng)
@@ -106,7 +106,7 @@ impl SpdmDheKeyExchangeP384 {
         let public_key_old = private_key.compute_public_key().ok()?;
         let public_key = BytesMut::from(&public_key_old.as_ref()[1..]);
 
-        let res: Box<dyn SpdmDheKeyExchange> = Box::new(Self(private_key));
+        let res: Box<dyn SpdmDheKeyExchange + Send> = Box::new(Self(private_key));
 
         Some((SpdmDheExchangeStruct::from(public_key), res))
     }

@@ -104,7 +104,8 @@ impl<'a> RequesterContext<'a> {
                         if let Some(certificate) = certificate {
                             debug!("!!! certificate : {:02x?}\n", certificate);
 
-                            if certificate.portion_length > length
+                            if certificate.portion_length == 0
+                                || certificate.portion_length > length
                                 || certificate.portion_length
                                     > config::MAX_SPDM_CERT_CHAIN_DATA_SIZE as u16 - offset
                             {

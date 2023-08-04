@@ -1,0 +1,17 @@
+[package]
+name = "spdmlib_crypto_mbedtls"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+spdmlib = { path = "../spdmlib", default-features = false}
+lazy_static = { version = "1.0", features = ["spin_no_std"] }
+spin = "0.9.8"
+zeroize = { version = "1.5.0", features = ["zeroize_derive"]}
+mbedtls = { version = "0.11.0", default-features = false, features = ["no_std_deps", "rdrand"]}
+mbedtls-sys-auto = { version = "3.5.0-alpha.1", default-features = false }
+der = { version = "0.7.7", default-features = false }
+
+[features]
+default = ["hashed-transcript-data"]
+hashed-transcript-data = ["spdmlib/hashed-transcript-data"]

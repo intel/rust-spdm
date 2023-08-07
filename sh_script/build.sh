@@ -35,60 +35,17 @@ check() {
     cargo fmt --all -- --check
     cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
     
+    if [ "${RUNNER_OS:-Linux}" == "Linux" ]; then
     pushd spdmlib_crypto_mbedtls
     cargo check
     cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
     popd
+    fi
     set +x
-}
-
-
-build_mbedtls() {
-    pushd mbedtls
-    cp ../include/mbedtls/config.h ./include/mbedtls/
-    CURRENT_DIR=`pwd`/../include
-    export CFLAGS="-I$CURRENT_DIR -nostdlibinc -isystem -ffunction-sections -fdata-sections -fPIE"
-    make clean
-    make lib -j ${nproc:-1}
-    unset CFLAGS
-    popd
-}
-
-build_mbedtls_c_build_env() {
-    if [ -v CC ]; then
-        CC_BACKUP=$CC
-    fi
-    if [ -v AR ]; then
-        AR_BACKUP=$AR
-    fi
-    export CC=clang
-    export AR=llvm-ar
-    "$@"
-    if [ -v CC_BACKUP ]; then
-        CC=$CC_BACKUP;export $CC
-    else
-        unset CC
-    fi
-    if [ -v AR_BACKUP ]; then
-        AR=$AR_BACKUP;export $AR
-    else
-        unset AR
-    fi
-}
-
-build_mbedtls_crate() {
-    echo "Building Mbedtls library for Rust-SPDM..."
-    build_mbedtls_c_build_env build_mbedtls
 }
 
 RUSTFLAGS=${RUSTFLAGS:-}
 build() {
-    pushd spdmlib_crypto_mbedtls
-    if [ "${RUNNER_OS:-Linux}" == "Linux" ]; then
-        build_mbedtls_crate
-    fi
-    popd
-    
     pushd spdmlib
     echo "Building Rust-SPDM..."
     cargo build

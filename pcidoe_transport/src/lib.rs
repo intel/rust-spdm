@@ -9,3 +9,6 @@ mod header;
 pub use header::*;
 
 extern crate codec;
+
+pub const PCIDOE_TRANSPORT_STACK_SIZE: usize =
+    core::mem::size_of::<PciDoeTransportEncap>() + core::mem::size_of::<usize>() * 256; // for general stack case;

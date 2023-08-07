@@ -14,6 +14,10 @@ extern crate alloc;
 use alloc::sync::Arc;
 use core::ops::DerefMut;
 
+pub const DEVICE_IO_STACK_SIZE: usize = core::mem::size_of::<SocketIoTransport>()
+    + config::RECEIVER_BUFFER_SIZE
+    + core::mem::size_of::<usize>() * 256; // for general stack case;
+
 pub struct SocketIoTransport {
     pub data: Arc<Mutex<TcpStream>>,
     transport_type: u32,

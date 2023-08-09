@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+
 use mbedtls::cipher::{raw, Authenticated, Cipher, Decryption, Encryption, Fresh};
 use spdmlib::crypto::SpdmAead;
 use spdmlib::error::{SpdmResult, SPDM_STATUS_INVALID_PARAMETER};

@@ -20,3 +20,7 @@ This library depends on rust-mbedtls.
   * ECDHE SECP 256r1
 * AEAD
   * AES-256-GCM
+
+## no_std usage.
+
+Disable ```std``` feature and provide ```calloc``` ```free``` ```snprintf``` implementation.

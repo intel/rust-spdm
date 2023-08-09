@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(feature = "std"))]
+use alloc::{boxed::Box, vec::Vec};
+
 use mbedtls::ecp::EcPoint;
 use mbedtls::pk::{EcGroup, EcGroupId, Pk};
 use mbedtls::rng::RngCallback;

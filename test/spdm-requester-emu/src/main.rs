@@ -28,6 +28,8 @@ use spdm_emu::socket_io_transport::SocketIoTransport;
 use spdm_emu::spdm_emu::*;
 use std::net::TcpStream;
 
+use tokio::runtime::Runtime;
+
 use spin::Mutex;
 extern crate alloc;
 use alloc::sync::Arc;
@@ -417,7 +419,10 @@ fn emu_main() {
         SOCKET_TRANSPORT_TYPE_MCTP
     };
 
-    executor::block_on(send_receive_hello(
+    // Create the runtime
+    let rt = Runtime::new().unwrap();
+
+    rt.block_on(send_receive_hello(
         socket.clone(),
         transport_encap.clone(),
         transport_type,
@@ -426,12 +431,12 @@ fn emu_main() {
     let socket_io_transport = SocketIoTransport::new(socket.clone());
     let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
         Arc::new(Mutex::new(socket_io_transport));
-    executor::block_on(test_spdm(
+    rt.block_on(test_spdm(
         socket_io_transport.clone(),
         transport_encap.clone(),
     ));
 
-    executor::block_on(send_receive_stop(socket, transport_encap, transport_type));
+    rt.block_on(send_receive_stop(socket, transport_encap, transport_type));
 }
 
 fn main() {

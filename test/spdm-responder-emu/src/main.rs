@@ -102,13 +102,16 @@ fn emu_main() {
     let mctp_transport_encap: Arc<Mutex<(dyn SpdmTransportEncap + Send + Sync)>> =
         Arc::new(Mutex::new(MctpTransportEncap {}));
 
+    // Create the runtime
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
     for stream in listener.incoming() {
         let stream = stream.expect("Read stream error!");
         let stream = Arc::new(Mutex::new(stream));
         println!("new connection!");
         let mut need_continue;
         loop {
-            let res = executor::block_on(handle_message(
+            let res = rt.block_on(handle_message(
                 stream.clone(),
                 if USE_PCIDOE {
                     pcidoe_transport_encap.clone()
@@ -123,7 +126,7 @@ fn emu_main() {
                 }
                 Err((_used, buffer)) => {
                     let buffer = Arc::new(buffer);
-                    need_continue = executor::block_on(process_socket_message(
+                    need_continue = rt.block_on(process_socket_message(
                         stream.clone(),
                         if USE_PCIDOE {
                             pcidoe_transport_encap.clone()

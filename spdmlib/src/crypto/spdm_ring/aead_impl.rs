@@ -46,8 +46,7 @@ fn encrypt(
     d.copy_from_slice(&iv.data[..ring::aead::NONCE_LEN]);
     let nonce = ring::aead::Nonce::assume_unique_for_key(d);
 
-    let mut in_out = BytesMutStrubbed::new();
-    in_out.extend_from_slice(plain_text);
+    cipher_text.copy_from_slice(plain_text);
 
     let mut s_key: ring::aead::SealingKey<OneNonceSequence> =
         if let Ok(k) = make_key(aead_algo, key, nonce) {
@@ -55,10 +54,10 @@ fn encrypt(
         } else {
             return Err(SPDM_STATUS_CRYPTO_ERROR);
         };
-    match s_key.seal_in_place_append_tag(ring::aead::Aad::from(aad), &mut in_out) {
-        Ok(()) => {
-            cipher_text.copy_from_slice(&in_out[..plain_text_size]);
-            tag.copy_from_slice(&in_out[plain_text_size..(plain_text_size + tag_size)]);
+
+    match s_key.seal_in_place_separate_tag(ring::aead::Aad::from(aad), cipher_text) {
+        Ok(t) => {
+            tag.copy_from_slice(t.as_ref());
             Ok((plain_text_size, tag_size))
         }
         Err(_) => Err(SPDM_STATUS_CRYPTO_ERROR),

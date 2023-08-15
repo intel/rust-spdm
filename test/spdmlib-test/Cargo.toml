@@ -16,6 +16,7 @@ async-trait = "0.1.71"
 async-recursion = "1.0.4"
 spin = { version = "0.9.8" }
 executor = { path = "../../executor" }
+pcidoe_transport = { path = "../../pcidoe_transport" }
 
 [dev-dependencies]
 env_logger = "*"

@@ -10,7 +10,8 @@ pub const USE_ECDSA: bool = true;
 pub mod util;
 
 pub mod device_io;
-pub mod transport;
+
+pub use pcidoe_transport as transport;
 
 pub mod crypto_callback;
 pub mod secret_callback;

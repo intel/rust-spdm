@@ -3,7 +3,6 @@
 set -euo pipefail
 
 export RUST_MIN_STACK=10485760
-set RUST_MIN_STACK=10485760
 
 usage() {
     cat <<EOM

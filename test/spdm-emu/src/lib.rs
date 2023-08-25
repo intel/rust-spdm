@@ -46,5 +46,11 @@ const EMU_FUNCTION_STACK_SIZE: usize = SENDER_BUFFER_SIZE
     + size_of::<SpdmCertChainBuffer>() * SPDM_MAX_SLOT_NUMBER
     + size_of::<usize>() * 256; // for general stack case
 
-pub const EMU_STACK_SIZE: usize =
-    TRANSPORT_STACK_SIZE + DEVICE_IO_STACK_SIZE + SPDM_STACK_SIZE + EMU_FUNCTION_STACK_SIZE;
+#[allow(clippy::identity_op)]
+const ASYNC_RUNTIME_SIZE: usize = 1 * 1024 * 1024; // for executor dispatcher like tokio
+
+pub const EMU_STACK_SIZE: usize = TRANSPORT_STACK_SIZE
+    + DEVICE_IO_STACK_SIZE
+    + SPDM_STACK_SIZE
+    + EMU_FUNCTION_STACK_SIZE
+    + ASYNC_RUNTIME_SIZE;

@@ -24,11 +24,11 @@ impl ResponderContext {
     pub async fn handle_spdm_challenge(&mut self, bytes: &[u8]) -> SpdmResult {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
-        self.write_spdm_challenge_response(bytes, &mut writer);
+        self.write_spdm_challenge_response(bytes, &mut writer).await;
         self.send_message(writer.used_slice()).await
     }
 
-    pub fn write_spdm_challenge_response(&mut self, bytes: &[u8], writer: &mut Writer) {
+    pub async fn write_spdm_challenge_response(&mut self, bytes: &[u8], writer: &mut Writer<'_>) {
         if self.common.runtime_info.get_connection_state().get_u8()
             < SpdmConnectionState::SpdmConnectionNegotiated.get_u8()
         {
@@ -172,7 +172,8 @@ impl ResponderContext {
 
         let signature = self.generate_challenge_auth_signature();
         if signature.is_err() {
-            self.send_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0);
+            self.send_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0)
+                .await;
             return;
         }
         let signature = signature.unwrap();

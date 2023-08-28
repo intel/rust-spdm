@@ -247,7 +247,7 @@ fn master_secret_hkdf_expand_impl(
 
     let buffer = &mut [0; MAX_BIN_CONCAT_BUF_SIZE];
     let bin_str0 = SpdmKeySchedule::binconcat(
-        &SpdmKeySchedule::default(),
+        &SpdmKeySchedule,
         base_hash_algo.get_size(),
         spdm_version,
         BIN_STR0_LABEL,

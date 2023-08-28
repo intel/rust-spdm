@@ -31,7 +31,8 @@ impl ResponderContext {
     ) -> SpdmResult {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
-        self.write_spdm_measurement_response(session_id, bytes, &mut writer);
+        self.write_spdm_measurement_response(session_id, bytes, &mut writer)
+            .await;
         match session_id {
             None => self.send_message(writer.used_slice()).await,
             Some(session_id) => {
@@ -41,11 +42,11 @@ impl ResponderContext {
         }
     }
 
-    pub fn write_spdm_measurement_response(
+    pub async fn write_spdm_measurement_response(
         &mut self,
         session_id: Option<u32>,
         bytes: &[u8],
-        writer: &mut Writer,
+        writer: &mut Writer<'_>,
     ) {
         if self.common.runtime_info.get_connection_state().get_u8()
             < SpdmConnectionState::SpdmConnectionNegotiated.get_u8()
@@ -237,7 +238,8 @@ impl ResponderContext {
 
             let signature = self.generate_measurement_signature(session_id);
             if signature.is_err() {
-                self.send_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0);
+                self.send_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0)
+                    .await;
                 return;
             }
             let signature = signature.unwrap();

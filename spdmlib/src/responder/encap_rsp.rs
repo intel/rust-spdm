@@ -89,7 +89,8 @@ impl ResponderContext {
         self.encap_check_version_cap_state(
             SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest.get_u8(),
             &mut writer,
-        );
+        )
+        .await;
         self.write_encap_response_ack_response(bytes, &mut writer);
 
         self.send_secured_message(session_id, writer.used_slice(), false)
@@ -125,7 +126,11 @@ impl ResponderContext {
         }
     }
 
-    fn encap_check_version_cap_state(&mut self, request_response_code: u8, writer: &mut Writer) {
+    async fn encap_check_version_cap_state(
+        &mut self,
+        request_response_code: u8,
+        writer: &mut Writer<'_>,
+    ) {
         if self.common.negotiate_info.spdm_version_sel.get_u8()
             < SpdmVersion::SpdmVersion11.get_u8()
         {
@@ -133,6 +138,7 @@ impl ResponderContext {
                 SpdmErrorCode::SpdmErrorUnsupportedRequest,
                 request_response_code,
             )
+            .await
         }
 
         if !self

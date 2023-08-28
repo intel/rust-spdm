@@ -22,14 +22,19 @@ fn test_case0_send_spdm_error() {
         shared_buffer,
     ))));
     secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
-    let mut context = responder::ResponderContext::new(
-        socket_io_transport,
-        pcidoe_transport_encap,
-        config_info,
-        provision_info,
-    );
+    let future = async move {
+        let mut context = responder::ResponderContext::new(
+            socket_io_transport,
+            pcidoe_transport_encap,
+            config_info,
+            provision_info,
+        );
 
-    context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context
+            .send_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0)
+            .await
+    };
 
-    context.send_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0);
+    executor::block_on(future);
 }

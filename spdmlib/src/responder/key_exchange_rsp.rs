@@ -98,14 +98,9 @@ impl ResponderContext {
                 measurement_summary_hash = SpdmDigestStruct::default();
             }
 
-            if key_exchange_req.session_policy
+            self.common.negotiate_info.termination_policy_set = key_exchange_req.session_policy
                 & KEY_EXCHANGE_REQUESTER_SESSION_POLICY_TERMINATION_POLICY_MASK
-                == KEY_EXCHANGE_REQUESTER_SESSION_POLICY_TERMINATION_POLICY_VALUE
-            {
-                self.common.negotiate_info.termination_policy_set = true;
-            } else {
-                self.common.negotiate_info.termination_policy_set = false;
-            }
+                == KEY_EXCHANGE_REQUESTER_SESSION_POLICY_TERMINATION_POLICY_VALUE;
 
             if let Some(secured_message_version_list) = key_exchange_req
                 .opaque

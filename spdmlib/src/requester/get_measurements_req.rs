@@ -110,11 +110,8 @@ impl RequesterContext {
         send_buffer: &[u8],
         receive_buffer: &[u8],
     ) -> SpdmResult<u8> {
-        if measurement_attributes.contains(SpdmMeasurementAttributes::SIGNATURE_REQUESTED) {
-            self.common.runtime_info.need_measurement_signature = true;
-        } else {
-            self.common.runtime_info.need_measurement_signature = false;
-        }
+        self.common.runtime_info.need_measurement_signature =
+            measurement_attributes.contains(SpdmMeasurementAttributes::SIGNATURE_REQUESTED);
 
         let mut reader = Reader::init(receive_buffer);
         match SpdmMessageHeader::read(&mut reader) {

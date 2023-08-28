@@ -131,7 +131,7 @@ pub fn send_message(
     buffer_size
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

@@ -159,7 +159,7 @@ impl PartialEq for BytesMutStrubbed {
 
 impl PartialOrd for BytesMutStrubbed {
     fn partial_cmp(&self, other: &BytesMutStrubbed) -> Option<cmp::Ordering> {
-        self.bytes_mut.partial_cmp(&other.bytes_mut)
+        Some(self.cmp(other))
     }
 }
 

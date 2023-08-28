@@ -33,7 +33,7 @@ fn get_random(data: &mut [u8]) -> SpdmResult<usize> {
     Ok(data.len())
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

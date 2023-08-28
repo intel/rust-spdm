@@ -186,7 +186,7 @@ fn ecc_signature_bin_to_der(signature: &[u8], der_signature: &mut [u8]) -> SpdmR
     Ok(der_sign_size)
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

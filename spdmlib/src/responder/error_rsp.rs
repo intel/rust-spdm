@@ -30,6 +30,7 @@ impl ResponderContext {
         let _ = error.spdm_encode(&mut self.common, writer);
     }
 
+    #[allow(clippy::let_underscore_future)] // remove this after issue #54 is resolved
     pub fn send_spdm_error(&mut self, error_code: SpdmErrorCode, error_data: u8) {
         info!("send spdm version\n");
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];

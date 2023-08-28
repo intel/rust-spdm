@@ -170,10 +170,10 @@ impl Default for SpdmEncapsulatedResponseAckPayloadType {
     }
 }
 
-#[cfg(all(test))]
+#[cfg(test)]
 #[path = "mod_test.common.inc.rs"]
 mod testlib;
 
-#[cfg(all(test))]
+#[cfg(test)]
 #[path = "encapsulated_test.rs"]
 mod encapsulated_test;

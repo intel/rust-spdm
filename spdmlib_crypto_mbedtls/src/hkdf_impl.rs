@@ -83,7 +83,7 @@ fn hkdf_expand(
     Some(okm)
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use spdmlib::protocol::{SpdmBaseHashAlgo, SPDM_MAX_HASH_SIZE};

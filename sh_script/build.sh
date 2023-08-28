@@ -97,10 +97,10 @@ run_with_spdm_emu() {
     echo_command  ./spdm_responder_emu --trans PCI_DOE &
     popd
     sleep 5
-    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_RESPONDER_FEATURES"
+    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_REQUESTER_FEATURES"
     cleanup
     
-    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_REQUESTER_FEATURES" &
+    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_FEATURES" &
     sleep 5
     pushd test_key
     chmod +x ./spdm_requester_emu
@@ -115,10 +115,10 @@ run_with_spdm_emu_mut_auth() {
     echo_command  ./spdm_responder_emu --trans PCI_DOE --mut_auth DIGESTS --req_asym ECDSA_P384 --basic_mut_auth NO &
     popd
     sleep 5
-    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_RESPONDER_MUTAUTH_FEATURES"
+    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_REQUESTER_MUTAUTH_FEATURES"
     cleanup
     
-    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_REQUESTER_MUTAUTH_FEATURES" &
+    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_MUTAUTH_FEATURES" &
     sleep 5
     pushd test_key
     chmod +x ./spdm_requester_emu
@@ -141,18 +141,18 @@ run_basic_test() {
 
 run_rust_spdm_emu() {
     echo "Running requester and responder..."
-    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_REQUESTER_FEATURES" &
+    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_FEATURES" &
     sleep 5
-    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_RESPONDER_FEATURES"
+    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_REQUESTER_FEATURES"
     cleanup
 }
 
 run_rust_spdm_emu_mut_auth() {
     echo "Running requester and responder mutual authentication..."
     echo $RUN_REQUESTER_MUTAUTH_FEATURES
-    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_REQUESTER_MUTAUTH_FEATURES" &
+    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_MUTAUTH_FEATURES" &
     sleep 5
-    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_RESPONDER_MUTAUTH_FEATURES"
+    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_REQUESTER_MUTAUTH_FEATURES"
     cleanup
 }
 

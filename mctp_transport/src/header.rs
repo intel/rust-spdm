@@ -186,7 +186,7 @@ impl SpdmTransportEncap for MctpTransportEncap {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use spdmlib::config;
 

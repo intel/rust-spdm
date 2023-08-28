@@ -254,11 +254,11 @@ impl SpdmCodec for SpdmKeyExchangeResponsePayload {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "mod_test.common.inc.rs"]
 mod testlib;
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::common::opaque::MAX_SPDM_OPAQUE_SIZE;
@@ -569,6 +569,6 @@ mod tests {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "key_exchange_test.rs"]
 mod key_exchange_test;

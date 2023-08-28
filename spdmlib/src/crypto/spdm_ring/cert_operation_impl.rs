@@ -134,7 +134,7 @@ fn verify_cert_chain(cert_chain: &[u8]) -> SpdmResult {
         Err(SPDM_STATUS_INVALID_CERT)
     }
 }
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

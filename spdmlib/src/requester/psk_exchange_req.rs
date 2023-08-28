@@ -126,15 +126,10 @@ impl RequesterContext {
         send_buffer: &[u8],
         receive_buffer: &[u8],
     ) -> SpdmResult<u32> {
-        if (measurement_summary_hash_type
+        self.common.runtime_info.need_measurement_summary_hash = (measurement_summary_hash_type
             == SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeTcb)
             || (measurement_summary_hash_type
-                == SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeAll)
-        {
-            self.common.runtime_info.need_measurement_summary_hash = true;
-        } else {
-            self.common.runtime_info.need_measurement_summary_hash = false;
-        }
+                == SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeAll);
 
         let mut reader = Reader::init(receive_buffer);
         match SpdmMessageHeader::read(&mut reader) {

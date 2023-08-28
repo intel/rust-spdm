@@ -156,7 +156,7 @@ fn make_key<K: ring::aead::BoundKey<OneNonceSequence>>(
     Ok(K::new(key, nonce_sequence))
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::protocol::*;

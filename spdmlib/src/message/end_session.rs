@@ -84,11 +84,11 @@ impl SpdmCodec for SpdmEndSessionResponsePayload {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "mod_test.common.inc.rs"]
 mod testlib;
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::common::{SpdmConfigInfo, SpdmContext, SpdmProvisionInfo};
@@ -145,6 +145,6 @@ mod tests {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "end_session_test.rs"]
 mod end_session_test;

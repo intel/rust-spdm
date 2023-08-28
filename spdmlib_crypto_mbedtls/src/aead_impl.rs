@@ -121,7 +121,7 @@ fn decrypt(
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod test {
     use super::*;
     use spdmlib::{

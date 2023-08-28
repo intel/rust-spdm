@@ -49,7 +49,7 @@ fn hmac_verify(
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use crate::protocol::{SpdmFinishedKeyStruct, SPDM_MAX_HASH_SIZE};
 

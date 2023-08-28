@@ -57,11 +57,11 @@ impl SpdmCodec for SpdmHeartbeatResponsePayload {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "mod_test.common.inc.rs"]
 mod testlib;
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::common::{SpdmConfigInfo, SpdmContext, SpdmProvisionInfo};
@@ -94,6 +94,6 @@ mod tests {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "heartbeat_test.rs"]
 mod heartbeat_test;

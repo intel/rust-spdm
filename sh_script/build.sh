@@ -33,12 +33,12 @@ check() {
     set -x
     cargo check
     cargo fmt --all -- --check
-    cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
+    cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features -A clippy::bad_bit_mask -A clippy::derivable_impls
     
     if [ "${RUNNER_OS:-Linux}" == "Linux" ]; then
     pushd spdmlib_crypto_mbedtls
     cargo check
-    cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
+    cargo clippy -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features -A clippy::bad_bit_mask -A clippy::derivable_impls
     popd
     fi
     set +x

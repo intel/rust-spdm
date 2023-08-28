@@ -1516,7 +1516,7 @@ impl SpdmHkdfPseudoRandomKey {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use codec::{Codec, Reader, Writer};

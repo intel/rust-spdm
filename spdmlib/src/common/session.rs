@@ -191,7 +191,7 @@ impl SpdmSession {
         self.application_secret_backup = SpdmSessionAppliationSecret::default();
         self.transport_param = SpdmSessionTransportParam::default();
         self.runtime_info = SpdmSessionRuntimeInfo::default();
-        self.key_schedule = SpdmKeySchedule::default();
+        self.key_schedule = SpdmKeySchedule;
         self.heartbeat_period = 0;
         self.secure_spdm_version_sel = DMTF_SECURE_SPDM_VERSION_11;
         self.mut_auth_requested = SpdmKeyExchangeMutAuthAttributes::empty();
@@ -1065,7 +1065,7 @@ impl SpdmSession {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests_session {
     use super::*;
 

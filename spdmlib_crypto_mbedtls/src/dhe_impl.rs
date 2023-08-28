@@ -31,7 +31,7 @@ pub struct SpdmDheKeyExchangeP256(Pk);
 impl SpdmDheKeyExchangeP256 {
     fn generate_key_pair() -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange + Send>)> {
         let mut peer = SpdmDheExchangeStruct::default();
-        let mut rng = RdRand::default();
+        let mut rng = RdRand;
         let secp256r1 = EcGroup::new(EcGroupId::SecP256R1).ok()?;
         let pk = Pk::generate_ec(&mut rng, secp256r1.clone()).ok()?;
         let peer_key = pk.ec_public().ok()?.to_binary(&secp256r1, false).ok()?;
@@ -49,7 +49,7 @@ impl SpdmDheKeyExchange for SpdmDheKeyExchangeP256 {
         peer_pub_key: &SpdmDheExchangeStruct,
     ) -> Option<SpdmDheFinalKeyStruct> {
         let mut final_key = SpdmDheFinalKeyStruct::default();
-        let mut rng = RdRand::default();
+        let mut rng = RdRand;
         let secp256r1 = EcGroup::new(EcGroupId::SecP256R1).ok()?;
         let mut peer = Vec::new();
         peer.push(0x4u8);
@@ -70,7 +70,7 @@ pub struct SpdmDheKeyExchangeP384(Pk);
 impl SpdmDheKeyExchangeP384 {
     fn generate_key_pair() -> Option<(SpdmDheExchangeStruct, Box<dyn SpdmDheKeyExchange + Send>)> {
         let mut peer = SpdmDheExchangeStruct::default();
-        let mut rng = RdRand::default();
+        let mut rng = RdRand;
         let secp384r1 = EcGroup::new(EcGroupId::SecP384R1).ok()?;
         let pk = Pk::generate_ec(&mut rng, secp384r1.clone()).ok()?;
         let peer_key = pk.ec_public().ok()?.to_binary(&secp384r1, false).ok()?;
@@ -88,7 +88,7 @@ impl SpdmDheKeyExchange for SpdmDheKeyExchangeP384 {
         peer_pub_key: &SpdmDheExchangeStruct,
     ) -> Option<SpdmDheFinalKeyStruct> {
         let mut final_key = SpdmDheFinalKeyStruct::default();
-        let mut rng = RdRand::default();
+        let mut rng = RdRand;
         let secp384r1 = EcGroup::new(EcGroupId::SecP384R1).ok()?;
         let mut peer = Vec::new();
         peer.push(0x4u8);

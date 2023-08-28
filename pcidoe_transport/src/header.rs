@@ -185,7 +185,7 @@ impl SpdmTransportEncap for PciDoeTransportEncap {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests_header {
     use super::*;
 

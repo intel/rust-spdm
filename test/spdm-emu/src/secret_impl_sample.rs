@@ -249,7 +249,7 @@ fn master_secret_hkdf_expand_impl(
 
     let buffer = &mut [0; MAX_BIN_CONCAT_BUF_SIZE];
     let bin_str0 = SpdmKeySchedule::binconcat(
-        &SpdmKeySchedule::default(),
+        &SpdmKeySchedule,
         base_hash_algo.get_size(),
         spdm_version,
         BIN_STR0_LABEL,
@@ -276,7 +276,7 @@ fn master_secret_hkdf_expand_impl(
     crypto::hkdf::hkdf_expand(base_hash_algo, &mst_sec, info, base_hash_algo.get_size())
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::SECRET_MEASUREMENT_IMPL_INSTANCE;
     use codec::Codec;

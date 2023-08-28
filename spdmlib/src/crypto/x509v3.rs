@@ -313,7 +313,7 @@ fn object_identifiers_are_same(a: &[u8], b: &[u8]) -> bool {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
 

@@ -19,7 +19,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2022-11-21
+          toolchain: nightly-2023-08-28
           override: true
           components: clippy
 
@@ -27,7 +27,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
+          args: -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features -A clippy::bad_bit_mask -A clippy::derivable_impls
 
   rustfmt:
     name: Format
@@ -45,7 +45,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2022-11-21
+          toolchain: nightly-2023-08-28
           override: true
           components: rustfmt
       - name: Cache
@@ -78,7 +78,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2022-11-21
+          toolchain: nightly-2023-08-28
           override: true
           components: rustfmt, clippy
 
@@ -100,4 +100,4 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
-          args: -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features
+          args: -- -D warnings -A clippy::only-used-in-recursion -A clippy::result-large-err -A incomplete-features -A clippy::bad_bit_mask -A clippy::derivable_impls

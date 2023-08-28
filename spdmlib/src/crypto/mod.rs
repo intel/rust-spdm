@@ -92,7 +92,7 @@ pub mod hash {
             Some(SpdmHashCtx(ret))
         }
 
-        pub fn hash_ctx_update(ctx: &mut SpdmHashCtx, data: &[u8]) -> SpdmResult {
+        pub fn hash_ctx_update(ctx: &SpdmHashCtx, data: &[u8]) -> SpdmResult {
             use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
 
             (CRYPTO_HASH
@@ -135,7 +135,7 @@ pub mod hash {
         };
 
         // + ring +transcript
-        #[cfg(all(feature = "spdm-ring"))]
+        #[cfg(feature = "spdm-ring")]
         pub use crate::crypto::spdm_ring::hash_impl::DEFAULT;
     }
 
@@ -446,5 +446,5 @@ pub mod rand {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod crypto_tests;

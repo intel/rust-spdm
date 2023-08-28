@@ -140,15 +140,10 @@ impl RequesterContext {
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
         key_exchange_context: Box<dyn crypto::SpdmDheKeyExchange>,
     ) -> SpdmResult<u32> {
-        if (measurement_summary_hash_type
+        self.common.runtime_info.need_measurement_summary_hash = (measurement_summary_hash_type
             == SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeTcb)
             || (measurement_summary_hash_type
-                == SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeAll)
-        {
-            self.common.runtime_info.need_measurement_summary_hash = true;
-        } else {
-            self.common.runtime_info.need_measurement_summary_hash = false;
-        }
+                == SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeAll);
 
         let in_clear_text = self
             .common

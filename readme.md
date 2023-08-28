@@ -54,7 +54,7 @@ sh_script/pre-build.sh
 
 1. Install [RUST](https://www.rust-lang.org/)
 
-Please use nightly-2022-11-21.
+Please use nightly-2023-08-28.
 
 2. Install [NASM](https://www.nasm.us/)
 

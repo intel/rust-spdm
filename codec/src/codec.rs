@@ -280,7 +280,7 @@ impl Codec for u128 {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use crate::codec::Codec;
     use crate::codec::{Reader, Writer};

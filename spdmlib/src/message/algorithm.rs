@@ -602,11 +602,11 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "mod_test.common.inc.rs"]
 mod testlib;
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::common::{SpdmConfigInfo, SpdmContext, SpdmProvisionInfo};
@@ -921,6 +921,6 @@ mod tests {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "algorithm_test.rs"]
 mod algorithm_test;

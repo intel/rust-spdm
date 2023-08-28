@@ -150,11 +150,11 @@ impl SpdmCodec for SpdmChallengeAuthResponsePayload {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "mod_test.common.inc.rs"]
 mod testlib;
 
-#[cfg(all(test,))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::common::opaque::MAX_SPDM_OPAQUE_SIZE;
@@ -356,6 +356,6 @@ mod tests {
     }
 }
 
-#[cfg(all(test,))]
+#[cfg(test)]
 #[path = "challenge_test.rs"]
 mod challenge_test;

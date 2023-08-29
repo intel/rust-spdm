@@ -5,7 +5,7 @@
 use super::app_message_handler::dispatch_secured_app_message_cb;
 use crate::common::{session::SpdmSessionState, SpdmDeviceIo, SpdmTransportEncap};
 use crate::common::{SpdmConnectionState, ST1};
-use crate::config;
+use crate::config::{self, RECEIVER_BUFFER_SIZE};
 use crate::error::{SpdmResult, SPDM_STATUS_UNSUPPORTED_CAP};
 use crate::message::*;
 use crate::protocol::{SpdmRequestCapabilityFlags, SpdmResponseCapabilityFlags};
@@ -146,31 +146,25 @@ impl ResponderContext {
         &mut self,
         crypto_request: bool,
         auxiliary_app_data: &[u8],
-    ) -> Result<bool, (usize, [u8; config::RECEIVER_BUFFER_SIZE])> {
-        let mut receive_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
-        match self
-            .receive_message(&mut receive_buffer[..], crypto_request)
-            .await
-        {
+        raw_packet: &mut [u8; RECEIVER_BUFFER_SIZE],
+    ) -> Result<SpdmResult, usize> {
+        match self.receive_message(raw_packet, crypto_request).await {
             Ok((used, secured_message)) => {
                 if secured_message {
-                    let mut read = Reader::init(&receive_buffer[0..used]);
-                    let session_id = u32::read(&mut read).ok_or((used, receive_buffer))?;
+                    let mut read = Reader::init(&raw_packet[0..used]);
+                    let session_id = u32::read(&mut read).ok_or(used)?;
 
-                    let spdm_session = self
-                        .common
-                        .get_session_via_id(session_id)
-                        .ok_or((used, receive_buffer))?;
+                    let spdm_session = self.common.get_session_via_id(session_id).ok_or(used)?;
 
                     let mut app_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
 
                     let decode_size = spdm_session.decode_spdm_secured_message(
-                        &receive_buffer[..used],
+                        &raw_packet[..used],
                         &mut app_buffer,
                         true,
                     );
                     if decode_size.is_err() {
-                        return Err((used, receive_buffer));
+                        return Err(used);
                     }
                     let decode_size = decode_size.unwrap();
 
@@ -187,7 +181,7 @@ impl ResponderContext {
                             .await
                     };
                     match decap_result {
-                        Err(_) => Err((used, receive_buffer)),
+                        Err(_) => Err(used),
                         Ok((decode_size, is_app_message)) => {
                             if !is_app_message {
                                 Ok(self
@@ -195,8 +189,7 @@ impl ResponderContext {
                                         session_id,
                                         &spdm_buffer[0..decode_size],
                                     )
-                                    .await
-                                    .is_ok())
+                                    .await)
                             } else {
                                 Ok(self
                                     .dispatch_secured_app_message(
@@ -204,19 +197,15 @@ impl ResponderContext {
                                         &spdm_buffer[..decode_size],
                                         auxiliary_app_data,
                                     )
-                                    .await
-                                    .is_ok())
+                                    .await)
                             }
                         }
                     }
                 } else {
-                    Ok(self
-                        .dispatch_message(&receive_buffer[0..used])
-                        .await
-                        .is_ok())
+                    Ok(self.dispatch_message(&raw_packet[0..used]).await)
                 }
             }
-            Err(used) => Err((used, receive_buffer)),
+            Err(used) => Err(used),
         }
     }
 

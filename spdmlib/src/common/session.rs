@@ -6,6 +6,7 @@ use super::key_schedule::SpdmKeySchedule;
 use crate::config;
 use crate::crypto;
 use crate::error::SpdmResult;
+use crate::error::StatusCodeCrypto;
 use crate::error::SPDM_STATUS_BUFFER_TOO_SMALL;
 use crate::error::SPDM_STATUS_CRYPTO_ERROR;
 use crate::error::SPDM_STATUS_DECODE_AEAD_FAIL;
@@ -810,7 +811,7 @@ impl SpdmSession {
         secured_buffer: &mut [u8],
         is_requester: bool,
     ) -> SpdmResult<usize> {
-        match self.session_state {
+        let r = match self.session_state {
             SpdmSessionState::SpdmSessionNotStarted => Err(SPDM_STATUS_INVALID_STATE_LOCAL),
             SpdmSessionState::SpdmSessionHandshaking => {
                 if is_requester {
@@ -851,7 +852,17 @@ impl SpdmSession {
                 }
             }
             _ => panic!("unknown session state"),
+        };
+
+        if let Err(err) = r {
+            if err.status_code
+                == crate::error::StatusCode::CRYPTO(StatusCodeCrypto::SEQUENCE_NUMBER_OVERFLOW)
+            {
+                self.set_default();
+            }
         }
+
+        r
     }
 
     pub fn decode_spdm_secured_message(
@@ -860,7 +871,7 @@ impl SpdmSession {
         app_buffer: &mut [u8],
         is_requester: bool,
     ) -> SpdmResult<usize> {
-        match self.session_state {
+        let r = match self.session_state {
             SpdmSessionState::SpdmSessionNotStarted => Err(SPDM_STATUS_INVALID_STATE_LOCAL),
             SpdmSessionState::SpdmSessionHandshaking => {
                 if is_requester {
@@ -901,7 +912,17 @@ impl SpdmSession {
                 }
             }
             _ => Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+        };
+
+        if let Err(err) = r {
+            if err.status_code
+                == crate::error::StatusCode::CRYPTO(StatusCodeCrypto::SEQUENCE_NUMBER_OVERFLOW)
+            {
+                self.set_default();
+            }
         }
+
+        r
     }
 
     fn encode_msg(

@@ -351,7 +351,7 @@ fn test_case0_receive_secured_message() {
         let used = writer.used();
 
         let status = requester
-            .send_secured_message(session_id, &send_buffer[..used], false)
+            .send_message(Some(session_id), &send_buffer[..used], false)
             .await
             .is_ok();
         assert!(status);
@@ -359,7 +359,7 @@ fn test_case0_receive_secured_message() {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
 
         let status = requester
-            .receive_secured_message(session_id, &mut receive_buffer, false)
+            .receive_message(Some(session_id), &mut receive_buffer, false)
             .await
             .is_ok();
         assert!(status);

@@ -25,7 +25,7 @@ impl RequesterContext {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = self.encode_spdm_key_update_op(key_update_operation, tag, &mut send_buffer)?;
-        self.send_secured_message(session_id, &send_buffer[..used], false)
+        self.send_message(Some(session_id), &send_buffer[..used], false)
             .await?;
 
         // update key
@@ -41,7 +41,7 @@ impl RequesterContext {
         session.create_data_secret_update(spdm_version_sel, update_requester, update_responder)?;
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = self
-            .receive_secured_message(session_id, &mut receive_buffer, false)
+            .receive_message(Some(session_id), &mut receive_buffer, false)
             .await?;
 
         self.handle_spdm_key_update_op_response(

@@ -44,11 +44,14 @@ impl RequesterContext {
             &mut send_buffer,
         )?;
 
-        self.send_message(&send_buffer[..send_used]).await?;
+        self.send_message(None, &send_buffer[..send_used], false)
+            .await?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let receive_used = self.receive_message(&mut receive_buffer, false).await?;
+        let receive_used = self
+            .receive_message(None, &mut receive_buffer, false)
+            .await?;
         self.handle_spdm_psk_exchange_response(
             half_session_id,
             measurement_summary_hash_type,

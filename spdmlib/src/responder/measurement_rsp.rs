@@ -33,13 +33,8 @@ impl ResponderContext {
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_measurement_response(session_id, bytes, &mut writer)
             .await;
-        match session_id {
-            None => self.send_message(writer.used_slice()).await,
-            Some(session_id) => {
-                self.send_secured_message(session_id, writer.used_slice(), false)
-                    .await
-            }
-        }
+        self.send_message(session_id, writer.used_slice(), false)
+            .await
     }
 
     pub async fn write_spdm_measurement_response(

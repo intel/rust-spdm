@@ -28,7 +28,7 @@ impl ResponderContext {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_key_exchange_response(bytes, &mut writer)?;
-        self.send_message(writer.used_slice()).await
+        self.send_message(None, writer.used_slice(), false).await
     }
 
     pub fn write_spdm_key_exchange_response(

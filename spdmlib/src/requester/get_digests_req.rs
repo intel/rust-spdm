@@ -17,24 +17,14 @@ impl RequesterContext {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let send_used = self.encode_spdm_digest(&mut send_buffer)?;
-        match session_id {
-            Some(session_id) => {
-                self.send_secured_message(session_id, &send_buffer[..send_used], false)
-                    .await?;
-            }
-            None => {
-                self.send_message(&send_buffer[..send_used]).await?;
-            }
-        }
+
+        self.send_message(session_id, &send_buffer[..send_used], false)
+            .await?;
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = match session_id {
-            Some(session_id) => {
-                self.receive_secured_message(session_id, &mut receive_buffer, false)
-                    .await?
-            }
-            None => self.receive_message(&mut receive_buffer, false).await?,
-        };
+        let used = self
+            .receive_message(session_id, &mut receive_buffer, false)
+            .await?;
 
         self.handle_spdm_digest_response(
             session_id,

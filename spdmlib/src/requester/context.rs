@@ -72,47 +72,38 @@ impl RequesterContext {
         self.send_receive_spdm_end_session(session_id).await
     }
 
-    pub async fn send_message(&mut self, send_buffer: &[u8]) -> SpdmResult {
+    pub async fn send_message(
+        &mut self,
+        session_id: Option<u32>,
+        send_buffer: &[u8],
+        is_app_message: bool,
+    ) -> SpdmResult {
         if self.common.negotiate_info.rsp_data_transfer_size_sel != 0
             && send_buffer.len() > self.common.negotiate_info.rsp_data_transfer_size_sel as usize
         {
             return Err(SPDM_STATUS_SEND_FAIL);
         }
-        let mut transport_buffer = [0u8; config::SENDER_BUFFER_SIZE];
-        let used = self
-            .common
-            .encap(send_buffer, &mut transport_buffer)
-            .await?;
 
-        let mut device_io = self.common.device_io.lock();
-        let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
-
-        device_io.send(Arc::new(&transport_buffer[..used])).await
-    }
-
-    pub async fn send_secured_message(
-        &mut self,
-        session_id: u32,
-        send_buffer: &[u8],
-        is_app_message: bool,
-    ) -> SpdmResult {
-        if !is_app_message
-            && self.common.negotiate_info.rsp_data_transfer_size_sel != 0
-            && (send_buffer.len() > self.common.negotiate_info.rsp_data_transfer_size_sel as usize)
-        {
+        if is_app_message && session_id.is_none() {
             return Err(SPDM_STATUS_SEND_FAIL);
         }
+
         let mut transport_buffer = [0u8; config::SENDER_BUFFER_SIZE];
-        let used = self
-            .common
-            .encode_secured_message(
-                session_id,
-                send_buffer,
-                &mut transport_buffer,
-                true,
-                is_app_message,
-            )
-            .await?;
+        let used = if let Some(session_id) = session_id {
+            self.common
+                .encode_secured_message(
+                    session_id,
+                    send_buffer,
+                    &mut transport_buffer,
+                    true,
+                    is_app_message,
+                )
+                .await?
+        } else {
+            self.common
+                .encap(send_buffer, &mut transport_buffer)
+                .await?
+        };
 
         let mut device_io = self.common.device_io.lock();
         let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
@@ -122,6 +113,7 @@ impl RequesterContext {
 
     pub async fn receive_message(
         &mut self,
+        session_id: Option<u32>,
         receive_buffer: &mut [u8],
         crypto_request: bool,
     ) -> SpdmResult<usize> {
@@ -145,39 +137,14 @@ impl RequesterContext {
                 .map_err(|_| SPDM_STATUS_RECEIVE_FAIL)?
         };
 
-        self.common
-            .decap(&transport_buffer[..used], receive_buffer)
-            .await
-    }
-
-    pub async fn receive_secured_message(
-        &mut self,
-        session_id: u32,
-        receive_buffer: &mut [u8],
-        crypto_request: bool,
-    ) -> SpdmResult<usize> {
-        info!("receive_secured_message!\n");
-
-        let timeout: usize = if crypto_request {
-            2 << self.common.negotiate_info.rsp_ct_exponent_sel
-        } else {
-            ST1
-        };
-
-        let mut transport_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
-
-        let used = {
-            let mut device_io = self.common.device_io.lock();
-            let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
-
-            device_io
-                .receive(Arc::new(Mutex::new(&mut transport_buffer)), timeout)
+        if let Some(session_id) = session_id {
+            self.common
+                .decode_secured_message(session_id, &transport_buffer[..used], receive_buffer)
                 .await
-                .map_err(|_| SPDM_STATUS_RECEIVE_FAIL)?
-        };
-
-        self.common
-            .decode_secured_message(session_id, &transport_buffer[..used], receive_buffer)
-            .await
+        } else {
+            self.common
+                .decap(&transport_buffer[..used], receive_buffer)
+                .await
+        }
     }
 }

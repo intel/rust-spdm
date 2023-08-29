@@ -23,12 +23,8 @@ impl ResponderContext {
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_digest_response(session_id, bytes, &mut writer);
 
-        if let Some(session_id) = session_id {
-            self.send_secured_message(session_id, writer.used_slice(), false)
-                .await
-        } else {
-            self.send_message(writer.used_slice()).await
-        }
+        self.send_message(session_id, writer.used_slice(), false)
+            .await
     }
 
     fn write_spdm_digest_response(

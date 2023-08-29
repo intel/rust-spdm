@@ -19,10 +19,13 @@ impl RequesterContext {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let send_used = self.encode_spdm_algorithm(&mut send_buffer)?;
-        self.send_message(&send_buffer[..send_used]).await?;
+        self.send_message(None, &send_buffer[..send_used], false)
+            .await?;
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self.receive_message(&mut receive_buffer, false).await?;
+        let used = self
+            .receive_message(None, &mut receive_buffer, false)
+            .await?;
         self.handle_spdm_algorithm_response(0, &send_buffer[..send_used], &receive_buffer[..used])
     }
 

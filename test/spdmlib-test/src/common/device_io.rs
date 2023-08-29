@@ -91,7 +91,7 @@ impl SpdmDeviceIo for FakeSpdmDeviceIo {
             device_io.send(buffer).await;
         }
 
-        if responder.process_message(ST1, &[0]).await.is_err() {
+        if responder.process_message(false, &[0]).await.is_err() {
             return Err(SPDM_STATUS_ERROR_PEER);
         }
         Ok(())

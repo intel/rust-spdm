@@ -34,9 +34,9 @@ impl ResponderContext {
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_finish_response(session_id, bytes, &mut writer)?;
         if in_clear_text {
-            self.send_message(writer.used_slice()).await
+            self.send_message(None, writer.used_slice(), false).await
         } else {
-            self.send_secured_message(session_id, writer.used_slice(), false)
+            self.send_message(Some(session_id), writer.used_slice(), false)
                 .await
         }
     }

@@ -20,12 +20,12 @@ impl RequesterContext {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = self.encode_spdm_end_session(&mut send_buffer)?;
-        self.send_secured_message(session_id, &send_buffer[..used], false)
+        self.send_message(Some(session_id), &send_buffer[..used], false)
             .await?;
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = self
-            .receive_secured_message(session_id, &mut receive_buffer, false)
+            .receive_message(Some(session_id), &mut receive_buffer, false)
             .await?;
         self.handle_spdm_end_session_response(session_id, &receive_buffer[..used])
     }

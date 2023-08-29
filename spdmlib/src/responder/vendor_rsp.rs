@@ -16,13 +16,8 @@ impl ResponderContext {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut send_buffer);
         self.write_spdm_vendor_defined_response(session_id, bytes, &mut writer);
-        match session_id {
-            Some(session_id) => {
-                self.send_secured_message(session_id, writer.used_slice(), false)
-                    .await
-            }
-            None => self.send_message(writer.used_slice()).await,
-        }
+        self.send_message(session_id, writer.used_slice(), false)
+            .await
     }
 
     pub fn write_spdm_vendor_defined_response(

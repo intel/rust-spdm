@@ -161,7 +161,7 @@ fn test_case0_process_message() {
     );
     context.common.session[0].set_session_state(SpdmSessionState::SpdmSessionHandshaking);
 
-    let status = context.process_message(ST1, &[0]).is_err();
+    let status = context.process_message(false, &[0]).is_err();
     assert!(status);
 }
 #[test]

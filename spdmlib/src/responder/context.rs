@@ -3,16 +3,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::app_message_handler::dispatch_secured_app_message_cb;
-use crate::common::SpdmConnectionState;
 use crate::common::{session::SpdmSessionState, SpdmDeviceIo, SpdmTransportEncap};
+use crate::common::{SpdmConnectionState, ST1};
 use crate::config;
 use crate::error::{SpdmResult, SPDM_STATUS_UNSUPPORTED_CAP};
 use crate::message::*;
 use crate::protocol::{SpdmRequestCapabilityFlags, SpdmResponseCapabilityFlags};
-use async_recursion::async_recursion;
 use codec::{Codec, Reader, Writer};
 extern crate alloc;
-use alloc::boxed::Box;
 use core::ops::DerefMut;
 
 use alloc::sync::Arc;
@@ -39,135 +37,121 @@ impl ResponderContext {
         }
     }
 
-    #[async_recursion]
-    pub async fn send_message(&mut self, send_buffer: &[u8]) -> SpdmResult {
-        if self.common.negotiate_info.req_data_transfer_size_sel != 0
-            && (send_buffer.len() > self.common.negotiate_info.req_data_transfer_size_sel as usize)
-        {
-            let mut err_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-            let mut writer = Writer::init(&mut err_buffer);
-            self.write_spdm_error(SpdmErrorCode::SpdmErrorResponseTooLarge, 0, &mut writer);
-            return self.send_message(writer.used_slice()).await;
-        }
-        let mut transport_buffer = [0u8; config::SENDER_BUFFER_SIZE];
-        let used = self
-            .common
-            .encap(send_buffer, &mut transport_buffer)
-            .await?;
-        let result = {
-            let mut device_io = self.common.device_io.lock();
-            let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
-            device_io.send(Arc::new(&transport_buffer[..used])).await
-        };
-        if result.is_ok() {
-            let opcode = send_buffer[1];
-            if opcode == SpdmRequestResponseCode::SpdmResponseVersion.get_u8() {
-                self.common
-                    .runtime_info
-                    .set_connection_state(SpdmConnectionState::SpdmConnectionAfterVersion);
-            } else if opcode == SpdmRequestResponseCode::SpdmResponseCapabilities.get_u8() {
-                self.common
-                    .runtime_info
-                    .set_connection_state(SpdmConnectionState::SpdmConnectionAfterCapabilities);
-            } else if opcode == SpdmRequestResponseCode::SpdmResponseAlgorithms.get_u8() {
-                self.common
-                    .runtime_info
-                    .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
-            } else if opcode == SpdmRequestResponseCode::SpdmResponseDigests.get_u8() {
-                if self.common.runtime_info.get_connection_state().get_u8()
-                    < SpdmConnectionState::SpdmConnectionAfterDigest.get_u8()
-                {
-                    self.common
-                        .runtime_info
-                        .set_connection_state(SpdmConnectionState::SpdmConnectionAfterDigest);
-                }
-            } else if opcode == SpdmRequestResponseCode::SpdmResponseCertificate.get_u8() {
-                if self.common.runtime_info.get_connection_state().get_u8()
-                    < SpdmConnectionState::SpdmConnectionAfterCertificate.get_u8()
-                {
-                    self.common
-                        .runtime_info
-                        .set_connection_state(SpdmConnectionState::SpdmConnectionAfterCertificate);
-                }
-            } else if opcode == SpdmRequestResponseCode::SpdmResponseChallengeAuth.get_u8() {
-                self.common
-                    .runtime_info
-                    .set_connection_state(SpdmConnectionState::SpdmConnectionAuthenticated);
-            } else if opcode == SpdmRequestResponseCode::SpdmResponseFinishRsp.get_u8() {
-                let session = self
-                    .common
-                    .get_session_via_id(self.common.runtime_info.get_last_session_id().unwrap())
-                    .unwrap();
-                session.set_session_state(
-                    crate::common::session::SpdmSessionState::SpdmSessionEstablished,
-                );
-                self.common.runtime_info.set_last_session_id(None);
-            }
-        }
-        result
-    }
-
-    #[async_recursion]
-    pub async fn send_secured_message(
+    pub async fn send_message(
         &mut self,
-        session_id: u32,
+        session_id: Option<u32>,
         send_buffer: &[u8],
         is_app_message: bool,
     ) -> SpdmResult {
-        if !is_app_message
-            && self.common.negotiate_info.req_data_transfer_size_sel != 0
-            && send_buffer.len() > self.common.negotiate_info.req_data_transfer_size_sel as usize
+        let mut err_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut err_buffer);
+
+        let send_buffer = if self.common.negotiate_info.req_data_transfer_size_sel != 0
+            && (send_buffer.len() > self.common.negotiate_info.req_data_transfer_size_sel as usize)
         {
-            let mut err_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-            let mut writer = Writer::init(&mut err_buffer);
             self.write_spdm_error(SpdmErrorCode::SpdmErrorResponseTooLarge, 0, &mut writer);
-            return self
-                .send_secured_message(session_id, writer.used_slice(), is_app_message)
-                .await;
-        }
+            writer.used_slice()
+        } else if is_app_message && session_id.is_none() {
+            self.write_spdm_error(SpdmErrorCode::SpdmErrorSessionRequired, 0, &mut writer);
+            writer.used_slice()
+        } else {
+            send_buffer
+        };
 
         let mut transport_buffer = [0u8; config::SENDER_BUFFER_SIZE];
-        let used = self
-            .common
-            .encode_secured_message(
-                session_id,
-                send_buffer,
-                &mut transport_buffer,
-                false,
-                is_app_message,
-            )
-            .await?;
-        let result = {
+        let used = if let Some(session_id) = session_id {
+            self.common
+                .encode_secured_message(
+                    session_id,
+                    send_buffer,
+                    &mut transport_buffer,
+                    false,
+                    is_app_message,
+                )
+                .await?
+        } else {
+            self.common
+                .encap(send_buffer, &mut transport_buffer)
+                .await?
+        };
+
+        {
             let mut device_io = self.common.device_io.lock();
             let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
-            device_io.send(Arc::new(&transport_buffer[..used])).await
-        };
-        if result.is_ok() {
-            let opcode = send_buffer[1];
-            // change state after message is sent.
-            if opcode == SpdmRequestResponseCode::SpdmResponseEndSessionAck.get_u8() {
-                let session = self.common.get_session_via_id(session_id).unwrap();
-                let _ = session.teardown(session_id);
-            }
-            if opcode == SpdmRequestResponseCode::SpdmResponseFinishRsp.get_u8()
-                || opcode == SpdmRequestResponseCode::SpdmResponsePskFinishRsp.get_u8()
-            {
-                let session = self.common.get_session_via_id(session_id).unwrap();
-                session.set_session_state(
-                    crate::common::session::SpdmSessionState::SpdmSessionEstablished,
-                );
-            }
+            device_io.send(Arc::new(&transport_buffer[..used])).await?;
         }
-        result
+
+        let opcode = send_buffer[1];
+        if opcode == SpdmRequestResponseCode::SpdmResponseVersion.get_u8() {
+            self.common
+                .runtime_info
+                .set_connection_state(SpdmConnectionState::SpdmConnectionAfterVersion);
+        } else if opcode == SpdmRequestResponseCode::SpdmResponseCapabilities.get_u8() {
+            self.common
+                .runtime_info
+                .set_connection_state(SpdmConnectionState::SpdmConnectionAfterCapabilities);
+        } else if opcode == SpdmRequestResponseCode::SpdmResponseAlgorithms.get_u8() {
+            self.common
+                .runtime_info
+                .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
+        } else if opcode == SpdmRequestResponseCode::SpdmResponseDigests.get_u8() {
+            if self.common.runtime_info.get_connection_state().get_u8()
+                < SpdmConnectionState::SpdmConnectionAfterDigest.get_u8()
+            {
+                self.common
+                    .runtime_info
+                    .set_connection_state(SpdmConnectionState::SpdmConnectionAfterDigest);
+            }
+        } else if opcode == SpdmRequestResponseCode::SpdmResponseCertificate.get_u8() {
+            if self.common.runtime_info.get_connection_state().get_u8()
+                < SpdmConnectionState::SpdmConnectionAfterCertificate.get_u8()
+            {
+                self.common
+                    .runtime_info
+                    .set_connection_state(SpdmConnectionState::SpdmConnectionAfterCertificate);
+            }
+        } else if opcode == SpdmRequestResponseCode::SpdmResponseChallengeAuth.get_u8() {
+            self.common
+                .runtime_info
+                .set_connection_state(SpdmConnectionState::SpdmConnectionAuthenticated);
+        } else if opcode == SpdmRequestResponseCode::SpdmResponseFinishRsp.get_u8()
+            && session_id.is_none()
+        {
+            let session = self
+                .common
+                .get_session_via_id(self.common.runtime_info.get_last_session_id().unwrap())
+                .unwrap();
+            session.set_session_state(
+                crate::common::session::SpdmSessionState::SpdmSessionEstablished,
+            );
+            self.common.runtime_info.set_last_session_id(None);
+        } else if opcode == SpdmRequestResponseCode::SpdmResponseEndSessionAck.get_u8() {
+            let session = self.common.get_session_via_id(session_id.unwrap()).unwrap();
+            let _ = session.teardown(session_id.unwrap());
+        } else if (opcode == SpdmRequestResponseCode::SpdmResponseFinishRsp.get_u8()
+            || opcode == SpdmRequestResponseCode::SpdmResponsePskFinishRsp.get_u8())
+            && session_id.is_some()
+        {
+            #[allow(clippy::unnecessary_unwrap)]
+            let session = self.common.get_session_via_id(session_id.unwrap()).unwrap();
+            session.set_session_state(
+                crate::common::session::SpdmSessionState::SpdmSessionEstablished,
+            );
+        }
+
+        Ok(())
     }
 
     pub async fn process_message(
         &mut self,
-        timeout: usize,
+        crypto_request: bool,
         auxiliary_app_data: &[u8],
     ) -> Result<bool, (usize, [u8; config::RECEIVER_BUFFER_SIZE])> {
         let mut receive_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
-        match self.receive_message(&mut receive_buffer[..], timeout).await {
+        match self
+            .receive_message(&mut receive_buffer[..], crypto_request)
+            .await
+        {
             Ok((used, secured_message)) => {
                 if secured_message {
                     let mut read = Reader::init(&receive_buffer[0..used]);
@@ -243,9 +227,15 @@ impl ResponderContext {
     async fn receive_message(
         &mut self,
         receive_buffer: &mut [u8],
-        timeout: usize,
+        crypto_request: bool,
     ) -> Result<(usize, bool), usize> {
         info!("receive_message!\n");
+
+        let timeout: usize = if crypto_request {
+            2 << self.common.negotiate_info.req_ct_exponent_sel
+        } else {
+            ST1
+        };
 
         let mut transport_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
 
@@ -432,7 +422,7 @@ impl ResponderContext {
 
         let (rsp_app_buffer, size) =
             dispatch_secured_app_message_cb(self, session_id, bytes, auxiliary_app_data).unwrap();
-        self.send_secured_message(session_id, &rsp_app_buffer[..size], true)
+        self.send_message(Some(session_id), &rsp_app_buffer[..size], true)
             .await
     }
 

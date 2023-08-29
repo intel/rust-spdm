@@ -62,9 +62,10 @@ impl RequesterContext {
         }
         let send_used = res.unwrap();
         let res = if in_clear_text {
-            self.send_message(&send_buffer[..send_used]).await
+            self.send_message(None, &send_buffer[..send_used], false)
+                .await
         } else {
-            self.send_secured_message(session_id, &send_buffer[..send_used], false)
+            self.send_message(Some(session_id), &send_buffer[..send_used], false)
                 .await
         };
         if res.is_err() {
@@ -78,9 +79,9 @@ impl RequesterContext {
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let res = if in_clear_text {
-            self.receive_message(&mut receive_buffer, false).await
+            self.receive_message(None, &mut receive_buffer, false).await
         } else {
-            self.receive_secured_message(session_id, &mut receive_buffer, false)
+            self.receive_message(Some(session_id), &mut receive_buffer, false)
                 .await
         };
         if res.is_err() {

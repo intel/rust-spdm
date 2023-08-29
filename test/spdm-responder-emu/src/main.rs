@@ -14,7 +14,6 @@ use std::u32;
 
 use codec::{Codec, Reader, Writer};
 use common::SpdmTransportEncap;
-use common::ST1;
 use mctp_transport::MctpTransportEncap;
 use pcidoe_transport::{
     PciDoeDataObjectType, PciDoeMessageHeader, PciDoeTransportEncap, PciDoeVendorId,
@@ -267,7 +266,7 @@ async fn handle_message(
     loop {
         // if failed, receieved message can't be processed. then the message will need caller to deal.
         // now caller need to deal with message in context.
-        let res = context.process_message(ST1, &[0]).await;
+        let res = context.process_message(false, &[0]).await;
         match res {
             Ok(spdm_result) => {
                 if spdm_result {

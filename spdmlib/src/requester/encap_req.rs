@@ -95,14 +95,14 @@ impl RequesterContext {
         };
         let _ = get_encap_request.spdm_encode(&mut self.common, &mut writer)?;
 
-        self.send_secured_message(session_id, writer.mut_used_slice(), false)
+        self.send_message(Some(session_id), writer.mut_used_slice(), false)
             .await
     }
 
     pub async fn receive_encapsulated_request(&mut self, session_id: u32) -> SpdmResult {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let _ = self
-            .receive_secured_message(session_id, &mut receive_buffer, false)
+            .receive_message(Some(session_id), &mut receive_buffer, false)
             .await?;
         let mut reader = Reader::init(&receive_buffer);
 
@@ -129,7 +129,7 @@ impl RequesterContext {
     pub async fn receive_encapsulated_response_ack(&mut self, session_id: u32) -> SpdmResult<bool> {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let size = self
-            .receive_secured_message(session_id, &mut receive_buffer, false)
+            .receive_message(Some(session_id), &mut receive_buffer, false)
             .await?;
         let mut reader = Reader::init(&receive_buffer);
 
@@ -220,7 +220,7 @@ impl RequesterContext {
             ),
         }
 
-        self.send_secured_message(session_id, writer.used_slice(), false)
+        self.send_message(Some(session_id), writer.used_slice(), false)
             .await
     }
 }

@@ -33,10 +33,11 @@ impl ResponderContext {
         self.encap_check_version_cap_state(
             SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest.get_u8(),
             &mut writer,
-        );
+        )
+        .await;
         self.write_encap_request_response(bytes, &mut writer);
 
-        self.send_secured_message(session_id, writer.used_slice(), false)
+        self.send_message(Some(session_id), writer.used_slice(), false)
             .await
     }
 
@@ -93,7 +94,7 @@ impl ResponderContext {
         .await;
         self.write_encap_response_ack_response(bytes, &mut writer);
 
-        self.send_secured_message(session_id, writer.used_slice(), false)
+        self.send_message(Some(session_id), writer.used_slice(), false)
             .await
     }
 

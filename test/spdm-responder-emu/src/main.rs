@@ -8,6 +8,7 @@ use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use spdmlib::common::SpdmOpaqueSupport;
 use spdmlib::common::{DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11};
+use spdmlib::config::RECEIVER_BUFFER_SIZE;
 
 use std::net::{TcpListener, TcpStream};
 use std::u32;
@@ -23,6 +24,7 @@ use spdm_emu::socket_io_transport::SocketIoTransport;
 use spdm_emu::spdm_emu::*;
 use spdm_emu::{secret_impl_sample::*, EMU_STACK_SIZE};
 use spdmlib::{common, config, protocol::*, responder};
+use zeroize::Zeroize;
 
 use spin::Mutex;
 extern crate alloc;
@@ -32,7 +34,7 @@ use core::ops::DerefMut;
 async fn process_socket_message(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
-    buffer: Arc<[u8]>,
+    buffer: &[u8],
 ) -> bool {
     if buffer.len() < SOCKET_HEADER_LEN {
         return false;
@@ -109,33 +111,28 @@ fn emu_main() {
         let stream = Arc::new(Mutex::new(stream));
         println!("new connection!");
         let mut need_continue;
+        let mut raw_packet = [0u8; RECEIVER_BUFFER_SIZE];
         loop {
-            let res = rt.block_on(handle_message(
+            let sz = rt.block_on(handle_message(
                 stream.clone(),
                 if USE_PCIDOE {
                     pcidoe_transport_encap.clone()
                 } else {
                     mctp_transport_encap.clone()
                 },
+                &mut raw_packet,
             ));
 
-            match res {
-                Ok(_spdm_result) => {
-                    need_continue = true;
-                }
-                Err((_used, buffer)) => {
-                    let buffer = Arc::new(buffer);
-                    need_continue = rt.block_on(process_socket_message(
-                        stream.clone(),
-                        if USE_PCIDOE {
-                            pcidoe_transport_encap.clone()
-                        } else {
-                            mctp_transport_encap.clone()
-                        },
-                        buffer,
-                    ));
-                }
-            }
+            need_continue = rt.block_on(process_socket_message(
+                stream.clone(),
+                if USE_PCIDOE {
+                    pcidoe_transport_encap.clone()
+                } else {
+                    mctp_transport_encap.clone()
+                },
+                &raw_packet[..sz],
+            ));
+
             if !need_continue {
                 // TBD: return or break??
                 return;
@@ -147,7 +144,8 @@ fn emu_main() {
 async fn handle_message(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
-) -> Result<bool, (usize, [u8; config::RECEIVER_BUFFER_SIZE])> {
+    raw_packet: &mut [u8; RECEIVER_BUFFER_SIZE],
+) -> usize {
     println!("handle_message!");
     let socket_io_transport = SocketIoTransport::new(stream);
     let socket_io_transport = Arc::new(Mutex::new(socket_io_transport));
@@ -264,20 +262,15 @@ async fn handle_message(
         provision_info,
     );
     loop {
-        // if failed, receieved message can't be processed. then the message will need caller to deal.
-        // now caller need to deal with message in context.
-        let res = context.process_message(false, &[0]).await;
+        raw_packet.zeroize();
+        let res = context.process_message(false, &[0], raw_packet).await;
         match res {
-            Ok(spdm_result) => {
-                if spdm_result {
-                    continue;
-                } else {
-                    // send unknown spdm command
-                    return Ok(false);
-                }
-            }
-            Err((used, buffer)) => {
-                return Err((used, buffer));
+            Ok(spdm_result) => match spdm_result {
+                Ok(_) => continue,
+                Err(status) => panic!("process_message failed with {:?}", status),
+            },
+            Err(used) => {
+                return used; // not spdm cmd, let caller to handle the received buffer
             }
         }
     }
@@ -354,9 +347,9 @@ pub async fn send_pci_discovery(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
     transport_type: u32,
-    buffer: Arc<[u8]>,
+    buffer: &[u8],
 ) -> bool {
-    let mut reader = Reader::init(&buffer);
+    let mut reader = Reader::init(buffer);
     let mut unknown_message = false;
     match PciDoeMessageHeader::read(&mut reader) {
         Some(pcidoe_header) => {

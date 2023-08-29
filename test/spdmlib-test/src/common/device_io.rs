@@ -6,6 +6,7 @@
 
 use async_trait::async_trait;
 use spdmlib::common::{SpdmDeviceIo, ST1};
+use spdmlib::config::RECEIVER_BUFFER_SIZE;
 use spdmlib::error::{SpdmResult, SPDM_STATUS_ERROR_PEER};
 use spdmlib::responder;
 use std::cell::RefCell;
@@ -91,7 +92,13 @@ impl SpdmDeviceIo for FakeSpdmDeviceIo {
             device_io.send(buffer).await;
         }
 
-        if responder.process_message(false, &[0]).await.is_err() {
+        let mut raw_packet = [0u8; RECEIVER_BUFFER_SIZE];
+
+        if responder
+            .process_message(false, &[0], &mut raw_packet)
+            .await
+            .is_err()
+        {
             return Err(SPDM_STATUS_ERROR_PEER);
         }
         Ok(())

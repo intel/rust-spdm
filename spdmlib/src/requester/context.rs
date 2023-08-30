@@ -53,9 +53,25 @@ impl RequesterContext {
             #[cfg(not(feature = "mut-auth"))]
             let req_slot_id: Option<u8> = None;
             #[cfg(feature = "mut-auth")]
-            self.session_based_mutual_authenticate(session_id).await?;
-            #[cfg(feature = "mut-auth")]
-            let req_slot_id = Some(self.common.runtime_info.get_local_used_cert_chain_slot_id());
+            let req_slot_id = {
+                if self
+                    .common
+                    .negotiate_info
+                    .rsp_capabilities_sel
+                    .contains(SpdmResponseCapabilityFlags::MUT_AUTH_CAP)
+                    && self
+                        .common
+                        .negotiate_info
+                        .req_capabilities_sel
+                        .contains(SpdmRequestCapabilityFlags::MUT_AUTH_CAP)
+                {
+                    self.session_based_mutual_authenticate(session_id).await?;
+                    Some(self.common.runtime_info.get_local_used_cert_chain_slot_id())
+                } else {
+                    None
+                }
+            };
+
             self.send_receive_spdm_finish(req_slot_id, session_id)
                 .await?;
             Ok(session_id)

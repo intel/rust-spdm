@@ -820,7 +820,9 @@ impl SpdmSession {
                         secured_buffer,
                         &self.handshake_secret.request_direction,
                     );
-                    self.handshake_secret.request_direction.sequence_number += 1;
+                    if r.is_ok() {
+                        self.handshake_secret.request_direction.sequence_number += 1
+                    };
                     r
                 } else {
                     let r = self.encode_msg(
@@ -828,7 +830,9 @@ impl SpdmSession {
                         secured_buffer,
                         &self.handshake_secret.response_direction,
                     );
-                    self.handshake_secret.response_direction.sequence_number += 1;
+                    if r.is_ok() {
+                        self.handshake_secret.response_direction.sequence_number += 1
+                    };
                     r
                 }
             }
@@ -839,7 +843,9 @@ impl SpdmSession {
                         secured_buffer,
                         &self.application_secret.request_direction,
                     );
-                    self.application_secret.request_direction.sequence_number += 1;
+                    if r.is_ok() {
+                        self.application_secret.request_direction.sequence_number += 1
+                    };
                     r
                 } else {
                     let r = self.encode_msg(
@@ -847,7 +853,9 @@ impl SpdmSession {
                         secured_buffer,
                         &self.application_secret.response_direction,
                     );
-                    self.application_secret.response_direction.sequence_number += 1;
+                    if r.is_ok() {
+                        self.application_secret.response_direction.sequence_number += 1
+                    };
                     r
                 }
             }
@@ -880,7 +888,9 @@ impl SpdmSession {
                         app_buffer,
                         &self.handshake_secret.request_direction,
                     );
-                    self.handshake_secret.request_direction.sequence_number += 1;
+                    if r.is_ok() {
+                        self.handshake_secret.request_direction.sequence_number += 1
+                    };
                     r
                 } else {
                     let r = self.decode_msg(
@@ -888,7 +898,9 @@ impl SpdmSession {
                         app_buffer,
                         &self.handshake_secret.response_direction,
                     );
-                    self.handshake_secret.response_direction.sequence_number += 1;
+                    if r.is_ok() {
+                        self.handshake_secret.response_direction.sequence_number += 1
+                    };
                     r
                 }
             }
@@ -899,7 +911,9 @@ impl SpdmSession {
                         app_buffer,
                         &self.application_secret.request_direction,
                     );
-                    self.application_secret.request_direction.sequence_number += 1;
+                    if r.is_ok() {
+                        self.application_secret.request_direction.sequence_number += 1
+                    };
                     r
                 } else {
                     let r = self.decode_msg(
@@ -907,7 +921,9 @@ impl SpdmSession {
                         app_buffer,
                         &self.application_secret.response_direction,
                     );
-                    self.application_secret.response_direction.sequence_number += 1;
+                    if r.is_ok() {
+                        self.application_secret.response_direction.sequence_number += 1
+                    };
                     r
                 }
             }

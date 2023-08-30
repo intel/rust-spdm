@@ -1107,6 +1107,279 @@ mod tests_session {
     use super::*;
 
     #[test]
+    fn test_case0_sequence_number_overflow() {
+        let mut session = SpdmSession::default();
+        let session_id = 0xFFFFFFFDu32;
+        let send_buffer = [100u8; config::SENDER_BUFFER_SIZE - 0x40];
+        let mut encoded_send_buffer = [0u8; config::SENDER_BUFFER_SIZE];
+
+        session.setup(session_id).unwrap();
+        session.set_crypto_param(
+            SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+            SpdmDheAlgo::SECP_384_R1,
+            SpdmAeadAlgo::AES_256_GCM,
+            SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        );
+        session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionHandshaking);
+        println!("session.session_id::{:?}", session.session_id);
+        assert!(session
+            .set_dhe_secret(
+                SpdmVersion::SpdmVersion12,
+                SpdmDheFinalKeyStruct {
+                    data_size: 5,
+                    data: Box::new([100u8; SPDM_MAX_DHE_KEY_SIZE])
+                }
+            )
+            .is_ok());
+        assert!(session
+            .generate_handshake_secret(
+                SpdmVersion::SpdmVersion12,
+                &SpdmDigestStruct {
+                    data_size: 5,
+                    data: Box::new([100u8; SPDM_MAX_HASH_SIZE])
+                }
+            )
+            .is_ok());
+
+        assert!(session
+            .generate_data_secret(
+                SpdmVersion::SpdmVersion12,
+                &SpdmDigestStruct {
+                    data_size: 5,
+                    data: Box::new([101u8; SPDM_MAX_HASH_SIZE])
+                }
+            )
+            .is_ok());
+
+        session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionEstablished);
+
+        assert_eq!(session.get_session_id(), 0xFFFFFFFD);
+        session.set_request_direction_sequence_number(0xFFFFFFFFFFFFFFFFu64);
+        session.set_response_direction_sequence_number(0xFFFFFFFFFFFFFFFFu64);
+
+        let r = session.encode_spdm_secured_message(&send_buffer, &mut encoded_send_buffer, true);
+        assert_eq!(session.get_session_id(), INVALID_SESSION_ID);
+        assert_eq!(
+            session.get_session_state(),
+            crate::common::session::SpdmSessionState::SpdmSessionNotStarted
+        );
+        assert!(r.is_err());
+
+        if let Err(status) = r {
+            assert_eq!(
+                status.status_code,
+                crate::error::StatusCode::CRYPTO(StatusCodeCrypto::SEQUENCE_NUMBER_OVERFLOW)
+            )
+        }
+    }
+
+    #[test]
+    fn test_case1_sequence_number_overflow() {
+        let mut session = SpdmSession::default();
+        let session_id = 0xFFFFFFFDu32;
+        let send_buffer = [100u8; config::SENDER_BUFFER_SIZE - 0x40];
+        let mut encoded_send_buffer = [0u8; config::SENDER_BUFFER_SIZE];
+
+        session.setup(session_id).unwrap();
+        session.set_crypto_param(
+            SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+            SpdmDheAlgo::SECP_384_R1,
+            SpdmAeadAlgo::AES_256_GCM,
+            SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        );
+        session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionHandshaking);
+        println!("session.session_id::{:?}", session.session_id);
+        assert!(session
+            .set_dhe_secret(
+                SpdmVersion::SpdmVersion12,
+                SpdmDheFinalKeyStruct {
+                    data_size: 5,
+                    data: Box::new([100u8; SPDM_MAX_DHE_KEY_SIZE])
+                }
+            )
+            .is_ok());
+        assert!(session
+            .generate_handshake_secret(
+                SpdmVersion::SpdmVersion12,
+                &SpdmDigestStruct {
+                    data_size: 5,
+                    data: Box::new([100u8; SPDM_MAX_HASH_SIZE])
+                }
+            )
+            .is_ok());
+
+        assert!(session
+            .generate_data_secret(
+                SpdmVersion::SpdmVersion12,
+                &SpdmDigestStruct {
+                    data_size: 5,
+                    data: Box::new([101u8; SPDM_MAX_HASH_SIZE])
+                }
+            )
+            .is_ok());
+
+        session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionEstablished);
+
+        assert_eq!(session.get_session_id(), 0xFFFFFFFD);
+        session.set_request_direction_sequence_number(0xFFFFFFFFFFFFFFFFu64);
+        session.set_response_direction_sequence_number(0xFFFFFFFFFFFFFFFFu64);
+
+        let r = session.encode_spdm_secured_message(&send_buffer, &mut encoded_send_buffer, false);
+        assert_eq!(session.get_session_id(), INVALID_SESSION_ID);
+        assert_eq!(
+            session.get_session_state(),
+            crate::common::session::SpdmSessionState::SpdmSessionNotStarted
+        );
+        assert!(r.is_err());
+
+        if let Err(status) = r {
+            assert_eq!(
+                status.status_code,
+                crate::error::StatusCode::CRYPTO(StatusCodeCrypto::SEQUENCE_NUMBER_OVERFLOW)
+            )
+        }
+    }
+
+    #[test]
+    fn test_case2_sequence_number_overflow() {
+        let mut session = SpdmSession::default();
+        let session_id = 0xFFFFFFFDu32;
+        let receive_buffer = [100u8; config::RECEIVER_BUFFER_SIZE];
+        let mut decoded_receive_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
+
+        session.setup(session_id).unwrap();
+        session.set_crypto_param(
+            SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+            SpdmDheAlgo::SECP_384_R1,
+            SpdmAeadAlgo::AES_256_GCM,
+            SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        );
+        session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionHandshaking);
+        println!("session.session_id::{:?}", session.session_id);
+        assert!(session
+            .set_dhe_secret(
+                SpdmVersion::SpdmVersion12,
+                SpdmDheFinalKeyStruct {
+                    data_size: 5,
+                    data: Box::new([100u8; SPDM_MAX_DHE_KEY_SIZE])
+                }
+            )
+            .is_ok());
+        assert!(session
+            .generate_handshake_secret(
+                SpdmVersion::SpdmVersion12,
+                &SpdmDigestStruct {
+                    data_size: 5,
+                    data: Box::new([100u8; SPDM_MAX_HASH_SIZE])
+                }
+            )
+            .is_ok());
+
+        assert!(session
+            .generate_data_secret(
+                SpdmVersion::SpdmVersion12,
+                &SpdmDigestStruct {
+                    data_size: 5,
+                    data: Box::new([101u8; SPDM_MAX_HASH_SIZE])
+                }
+            )
+            .is_ok());
+
+        session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionEstablished);
+
+        assert_eq!(session.get_session_id(), 0xFFFFFFFD);
+        session.set_request_direction_sequence_number(0xFFFFFFFFFFFFFFFFu64);
+        session.set_response_direction_sequence_number(0xFFFFFFFFFFFFFFFFu64);
+
+        let r =
+            session.decode_spdm_secured_message(&receive_buffer, &mut decoded_receive_buffer, true);
+        assert_eq!(session.get_session_id(), INVALID_SESSION_ID);
+        assert_eq!(
+            session.get_session_state(),
+            crate::common::session::SpdmSessionState::SpdmSessionNotStarted
+        );
+        assert!(r.is_err());
+
+        if let Err(status) = r {
+            assert_eq!(
+                status.status_code,
+                crate::error::StatusCode::CRYPTO(StatusCodeCrypto::SEQUENCE_NUMBER_OVERFLOW)
+            )
+        }
+    }
+
+    #[test]
+    fn test_case3_sequence_number_overflow() {
+        let mut session = SpdmSession::default();
+        let session_id = 0xFFFFFFFDu32;
+        let receive_buffer = [100u8; config::RECEIVER_BUFFER_SIZE];
+        let mut decoded_receive_buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
+
+        session.setup(session_id).unwrap();
+        session.set_crypto_param(
+            SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+            SpdmDheAlgo::SECP_384_R1,
+            SpdmAeadAlgo::AES_256_GCM,
+            SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        );
+        session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionHandshaking);
+        println!("session.session_id::{:?}", session.session_id);
+        assert!(session
+            .set_dhe_secret(
+                SpdmVersion::SpdmVersion12,
+                SpdmDheFinalKeyStruct {
+                    data_size: 5,
+                    data: Box::new([100u8; SPDM_MAX_DHE_KEY_SIZE])
+                }
+            )
+            .is_ok());
+        assert!(session
+            .generate_handshake_secret(
+                SpdmVersion::SpdmVersion12,
+                &SpdmDigestStruct {
+                    data_size: 5,
+                    data: Box::new([100u8; SPDM_MAX_HASH_SIZE])
+                }
+            )
+            .is_ok());
+
+        assert!(session
+            .generate_data_secret(
+                SpdmVersion::SpdmVersion12,
+                &SpdmDigestStruct {
+                    data_size: 5,
+                    data: Box::new([101u8; SPDM_MAX_HASH_SIZE])
+                }
+            )
+            .is_ok());
+
+        session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionEstablished);
+
+        assert_eq!(session.get_session_id(), 0xFFFFFFFD);
+        session.set_request_direction_sequence_number(0xFFFFFFFFFFFFFFFFu64);
+        session.set_response_direction_sequence_number(0xFFFFFFFFFFFFFFFFu64);
+
+        let r = session.decode_spdm_secured_message(
+            &receive_buffer,
+            &mut decoded_receive_buffer,
+            false,
+        );
+        assert_eq!(session.get_session_id(), INVALID_SESSION_ID);
+        assert_eq!(
+            session.get_session_state(),
+            crate::common::session::SpdmSessionState::SpdmSessionNotStarted
+        );
+        assert!(r.is_err());
+
+        if let Err(status) = r {
+            assert_eq!(
+                status.status_code,
+                crate::error::StatusCode::CRYPTO(StatusCodeCrypto::SEQUENCE_NUMBER_OVERFLOW)
+            )
+        }
+    }
+
+    #[test]
     fn test_case0_activate_data_secret_update() {
         let mut session = SpdmSession::default();
         let status = session

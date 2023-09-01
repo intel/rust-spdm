@@ -17,28 +17,15 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 impl ResponderContext {
-    pub async fn handle_spdm_finish(&mut self, session_id: u32, bytes: &[u8]) -> SpdmResult {
-        let in_clear_text = self
-            .common
-            .negotiate_info
-            .req_capabilities_sel
-            .contains(SpdmRequestCapabilityFlags::HANDSHAKE_IN_THE_CLEAR_CAP)
-            && self
-                .common
-                .negotiate_info
-                .rsp_capabilities_sel
-                .contains(SpdmResponseCapabilityFlags::HANDSHAKE_IN_THE_CLEAR_CAP);
-        info!("in_clear_text {:?}\n", in_clear_text);
+    pub fn handle_spdm_finish<'a>(
+        &mut self,
+        session_id: u32,
+        bytes: &[u8],
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
+        let r = self.write_spdm_finish_response(session_id, bytes, writer);
 
-        let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut send_buffer);
-        self.write_spdm_finish_response(session_id, bytes, &mut writer)?;
-        if in_clear_text {
-            self.send_message(None, writer.used_slice(), false).await
-        } else {
-            self.send_message(Some(session_id), writer.used_slice(), false)
-                .await
-        }
+        (r, Some(writer.used_slice()))
     }
 
     // Return true on success, false otherwise.

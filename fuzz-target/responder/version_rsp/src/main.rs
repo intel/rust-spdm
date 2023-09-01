@@ -27,7 +27,16 @@ async fn fuzz_handle_spdm_version(data: Arc<Vec<u8>>) {
         provision_info,
     );
 
-    context.handle_spdm_version(&data).await.unwrap();
+    let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+    let mut writer = codec::Writer::init(&mut response_buffer);
+    let (status, send_buffer) = context.handle_spdm_version(&data, &mut writer);
+    assert!(status.is_ok());
+    assert!(send_buffer.is_some());
+    assert!(context
+        .send_message(None, send_buffer.unwrap(), false)
+        .await
+        .is_ok());
+
     let mut req_buf = [0u8; 1024];
     let mut socket_io_transport = socket_io_transport.lock();
     let socket_io_transport = socket_io_transport.deref_mut();

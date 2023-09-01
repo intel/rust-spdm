@@ -10,7 +10,7 @@ use codec::{Codec, Writer};
 use spdmlib::common::opaque;
 use spdmlib::common::opaque::*;
 use spdmlib::common::SpdmCodec;
-use spdmlib::config::{MAX_SPDM_PSK_CONTEXT_SIZE, MAX_SPDM_PSK_HINT_SIZE};
+use spdmlib::config::{MAX_SPDM_MSG_SIZE, MAX_SPDM_PSK_CONTEXT_SIZE, MAX_SPDM_PSK_HINT_SIZE};
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::{responder, secret};
@@ -75,7 +75,9 @@ fn test_case0_handle_spdm_psk_exchange() {
         let bytes = &mut [0u8; 1024];
         bytes.copy_from_slice(&spdm_message_header[0..]);
         bytes[2..].copy_from_slice(&challenge[0..1022]);
-        context.handle_spdm_psk_exchange(bytes).await;
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_psk_exchange(bytes, &mut writer);
     };
     executor::block_on(future);
 }

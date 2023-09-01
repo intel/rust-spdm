@@ -6,6 +6,8 @@ use crate::common::device_io::{FakeSpdmDeviceIoReceve, SharedBuffer};
 use crate::common::secret_callback::*;
 use crate::common::transport::PciDoeTransportEncap;
 use crate::common::util::create_info;
+use codec::Writer;
+use spdmlib::config::MAX_SPDM_MSG_SIZE;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::{responder, secret};
@@ -31,9 +33,9 @@ fn test_case0_send_spdm_error() {
         );
 
         context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
-        context
-            .send_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0)
-            .await
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        context.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, &mut writer);
     };
 
     executor::block_on(future);

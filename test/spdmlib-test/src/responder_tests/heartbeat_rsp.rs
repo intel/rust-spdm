@@ -8,6 +8,7 @@ use crate::common::transport::PciDoeTransportEncap;
 use crate::common::util::create_info;
 use codec::{Codec, Writer};
 use spdmlib::common::session::{SpdmSession, SpdmSessionState};
+use spdmlib::config::MAX_SPDM_MSG_SIZE;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::{responder, secret};
@@ -79,11 +80,9 @@ fn test_case0_handle_spdm_heartbeat() {
             request_response_code: SpdmRequestResponseCode::SpdmRequestChallenge,
         };
         assert!(value.encode(&mut writer).is_ok());
-
-        assert!(context
-            .handle_spdm_heartbeat(session_id, bytes)
-            .await
-            .is_ok());
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_heartbeat(session_id, bytes, &mut writer);
     };
     executor::block_on(future);
 }

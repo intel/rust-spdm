@@ -32,31 +32,21 @@ impl ResponderContext {
                 ),
             }),
         };
+        writer.clear();
         let _ = error.spdm_encode(&mut self.common, writer);
-    }
-
-    pub async fn send_spdm_error(&mut self, error_code: SpdmErrorCode, error_data: u8) {
-        info!("send spdm version\n");
-        let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut send_buffer);
-        self.write_spdm_error(error_code, error_data, &mut writer);
-        let _ = self.send_message(None, writer.used_slice(), false).await;
     }
 }
 
 impl ResponderContext {
-    pub async fn handle_error_request(
+    pub fn handle_error_request<'a>(
         &mut self,
         error_code: SpdmErrorCode,
-        session_id: Option<u32>,
         bytes: &[u8],
-    ) -> SpdmResult {
-        let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut send_buffer);
-        self.write_error_response(error_code, bytes, &mut writer);
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
+        self.write_error_response(error_code, bytes, writer);
 
-        self.send_message(session_id, writer.used_slice(), false)
-            .await
+        (Ok(()), Some(writer.used_slice()))
     }
 
     pub fn write_error_response(

@@ -71,7 +71,9 @@ fn test_case0_handle_spdm_psk_finish() {
         let bytes = &mut [0u8; 1024];
         bytes.copy_from_slice(&spdm_message_header[0..]);
         bytes[2..].copy_from_slice(&psk_finish[0..1022]);
-        context.handle_spdm_psk_finish(4294901758, bytes).await;
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_psk_finish(4294901758, bytes, &mut writer);
     };
     executor::block_on(future);
 }

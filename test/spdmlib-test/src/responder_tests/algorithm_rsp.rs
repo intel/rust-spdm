@@ -9,6 +9,7 @@ use crate::common::util::create_info;
 use codec::{Codec, Reader, Writer};
 use log::debug;
 use spdmlib::common::*;
+use spdmlib::config::MAX_SPDM_MSG_SIZE;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::{responder, secret};
@@ -87,7 +88,9 @@ fn test_case0_handle_spdm_algorithm() {
         bytes.copy_from_slice(&spdm_message_header[0..]);
         bytes[2..].copy_from_slice(&negotiate_algorithms[0..1022]);
 
-        context.handle_spdm_algorithm(bytes).await;
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        context.handle_spdm_algorithm(bytes, &mut writer);
 
         let data = context.common.runtime_info.message_a.as_ref();
         let u8_slice = &mut [0u8; 2048];

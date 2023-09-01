@@ -55,7 +55,9 @@ async fn fuzz_handle_spdm_psk_exchange(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_psk_exchange(&data).await.is_ok();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_psk_exchange(&data, &mut writer);
     }
 
     // TCD:
@@ -96,7 +98,9 @@ async fn fuzz_handle_spdm_psk_exchange(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_psk_exchange(&data).await.is_ok();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_psk_exchange(&data, &mut writer);
     }
 
     // TCD:
@@ -141,7 +145,10 @@ async fn fuzz_handle_spdm_psk_exchange(data: Arc<Vec<u8>>) {
             context.common.session[i] = SpdmSession::new();
             context.common.session[i].setup(4294836221).unwrap();
         }
-        let _ = context.handle_spdm_psk_exchange(&data).await.is_ok();
+
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_psk_exchange(&data, &mut writer);
     }
     // TCD:
     // - id: 0
@@ -182,7 +189,9 @@ async fn fuzz_handle_spdm_psk_exchange(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_psk_exchange(&data).await.is_ok();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_psk_exchange(&data, &mut writer);
     }
 }
 fn main() {

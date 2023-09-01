@@ -58,7 +58,10 @@ async fn fuzz_handle_spdm_measurement(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        context.handle_spdm_measurement(None, &data).await.unwrap();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_measurement(None, &data, &mut writer);
+        assert!(status.is_ok());
     }
     // TCD:
     // - id: 0
@@ -111,9 +114,11 @@ async fn fuzz_handle_spdm_measurement(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        context
-            .handle_spdm_measurement(Some(4294836221), &data)
-            .await;
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) =
+            context.handle_spdm_measurement(Some(4294836221), &data, &mut writer);
+        assert!(status.is_ok());
     }
 }
 

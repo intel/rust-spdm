@@ -53,7 +53,10 @@ async fn fuzz_handle_spdm_challenge(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_challenge(&data).await.is_ok();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_challenge(&data, &mut writer);
+        assert!(status.is_ok());
     }
     // TCD:
     // - id: 0
@@ -96,7 +99,10 @@ async fn fuzz_handle_spdm_challenge(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_challenge(&data).await.is_ok();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_challenge(&data, &mut writer);
+        assert!(status.is_ok());
     }
 }
 

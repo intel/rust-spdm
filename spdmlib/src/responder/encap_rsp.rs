@@ -6,10 +6,10 @@ use codec::{Codec, Reader, Writer};
 
 use crate::{
     common::{SpdmCodec, SpdmConnectionState},
-    config,
     error::{
         SpdmResult, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_INVALID_MSG_FIELD,
-        SPDM_STATUS_INVALID_MSG_SIZE, SPDM_STATUS_NOT_READY_PEER, SPDM_STATUS_UNSUPPORTED_CAP,
+        SPDM_STATUS_INVALID_MSG_SIZE, SPDM_STATUS_INVALID_STATE_LOCAL, SPDM_STATUS_NOT_READY_PEER,
+        SPDM_STATUS_UNSUPPORTED_CAP,
     },
     message::{
         SpdmDeliverEncapsulatedResponsePayload, SpdmEncapsulatedRequestPayload,
@@ -22,23 +22,20 @@ use crate::{
 use super::ResponderContext;
 
 impl ResponderContext {
-    pub async fn handle_get_encapsulated_request(
+    pub fn handle_get_encapsulated_request<'a>(
         &mut self,
-        session_id: u32,
         bytes: &[u8],
-    ) -> SpdmResult {
-        let mut encapsulated_request = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut encapsulated_request);
-
-        self.encap_check_version_cap_state(
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
+        if let Err(err) = self.encap_check_version_cap_state(
             SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest.get_u8(),
-            &mut writer,
-        )
-        .await;
-        self.write_encap_request_response(bytes, &mut writer);
-
-        self.send_message(Some(session_id), writer.used_slice(), false)
-            .await
+            writer,
+        ) {
+            (Err(err), Some(writer.used_slice()))
+        } else {
+            self.write_encap_request_response(bytes, writer);
+            (Ok(()), Some(writer.used_slice()))
+        }
     }
 
     fn write_encap_request_response(&mut self, bytes: &[u8], writer: &mut Writer) {
@@ -79,23 +76,20 @@ impl ResponderContext {
         }
     }
 
-    pub async fn handle_deliver_encapsulated_reponse(
+    pub fn handle_deliver_encapsulated_reponse<'a>(
         &mut self,
-        session_id: u32,
         bytes: &[u8],
-    ) -> SpdmResult {
-        let mut encap_response_ack = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut encap_response_ack);
-
-        self.encap_check_version_cap_state(
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
+        if let Err(err) = self.encap_check_version_cap_state(
             SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest.get_u8(),
-            &mut writer,
-        )
-        .await;
-        self.write_encap_response_ack_response(bytes, &mut writer);
-
-        self.send_message(Some(session_id), writer.used_slice(), false)
-            .await
+            writer,
+        ) {
+            (Err(err), Some(writer.used_slice()))
+        } else {
+            self.write_encap_response_ack_response(bytes, writer);
+            (Ok(()), Some(writer.used_slice()))
+        }
     }
 
     fn write_encap_response_ack_response(&mut self, bytes: &[u8], writer: &mut Writer) {
@@ -127,19 +121,20 @@ impl ResponderContext {
         }
     }
 
-    async fn encap_check_version_cap_state(
+    fn encap_check_version_cap_state(
         &mut self,
         request_response_code: u8,
         writer: &mut Writer<'_>,
-    ) {
+    ) -> SpdmResult {
         if self.common.negotiate_info.spdm_version_sel.get_u8()
             < SpdmVersion::SpdmVersion11.get_u8()
         {
-            self.send_spdm_error(
+            self.write_spdm_error(
                 SpdmErrorCode::SpdmErrorUnsupportedRequest,
                 request_response_code,
-            )
-            .await
+                writer,
+            );
+            return Err(SPDM_STATUS_INVALID_STATE_LOCAL);
         }
 
         if !self
@@ -158,14 +153,17 @@ impl ResponderContext {
                 request_response_code,
                 writer,
             );
-            return;
+            return Err(SPDM_STATUS_UNSUPPORTED_CAP);
         }
 
         if self.common.runtime_info.get_connection_state().get_u8()
             < SpdmConnectionState::SpdmConnectionAfterCertificate.get_u8()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnexpectedRequest, 0, writer);
+            return Err(SPDM_STATUS_INVALID_STATE_LOCAL);
         }
+
+        Ok(())
     }
 
     fn process_encapsulated_response(

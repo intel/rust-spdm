@@ -89,13 +89,17 @@ fn test_case0_handle_spdm_finish() {
         let bytes = &mut [0u8; 1024];
         bytes.copy_from_slice(&spdm_message_header[0..]);
         bytes[2..].copy_from_slice(&finish_slic[0..1022]);
-        context.handle_spdm_finish(4294901758, bytes).await;
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_finish(4294901758, bytes, &mut writer);
     };
     executor::block_on(future);
 }
 #[test]
 #[cfg(feature = "hashed-transcript-data")]
 fn test_case1_handle_spdm_finish() {
+    use spdmlib::config::MAX_SPDM_MSG_SIZE;
+
     let (config_info, provision_info) = create_info();
     let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
     let shared_buffer = SharedBuffer::new();
@@ -167,5 +171,7 @@ fn test_case1_handle_spdm_finish() {
     let bytes = &mut [0u8; 1024];
     bytes.copy_from_slice(&spdm_message_header[0..]);
     bytes[2..].copy_from_slice(&finish_slic[0..1022]);
-    context.handle_spdm_finish(4294901758, bytes);
+    let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+    let mut writer = Writer::init(&mut response_buffer);
+    let (status, send_buffer) = context.handle_spdm_finish(4294901758, bytes, &mut writer);
 }

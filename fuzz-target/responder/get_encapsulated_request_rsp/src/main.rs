@@ -51,10 +51,10 @@ async fn fuzz_handle_get_encapsulated_request(data: Arc<Vec<u8>>) {
 
         context.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
 
-        let _ = context
-            .handle_get_encapsulated_request(4294836221, &data)
-            .await
-            .is_err();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_get_encapsulated_request(&data, &mut writer);
+        // assert!(status.is_ok());
     }
 }
 

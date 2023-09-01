@@ -56,8 +56,14 @@ fn test_handle_get_encapsulated_request() {
             .spdm_encode(&mut context.common, &mut writer)
             .is_ok());
 
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_get_encapsulated_request(request, &mut writer);
+        assert!(status.is_ok());
+        assert!(send_buffer.is_some());
+
         assert!(context
-            .handle_get_encapsulated_request(SESSION_ID, writer.used_slice())
+            .send_message(Some(SESSION_ID), send_buffer.unwrap(), false)
             .await
             .is_ok());
 
@@ -136,8 +142,15 @@ fn test_handle_deliver_encapsulated_reponse_digest() {
 
         assert!(write_spdm_get_digest_response(&mut context, &mut writer).is_ok());
 
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) =
+            context.handle_deliver_encapsulated_reponse(request, &mut writer);
+        assert!(status.is_ok());
+        assert!(send_buffer.is_some());
+
         assert!(context
-            .handle_deliver_encapsulated_reponse(SESSION_ID, request)
+            .send_message(Some(SESSION_ID), send_buffer.unwrap(), false)
             .await
             .is_ok());
 
@@ -221,8 +234,15 @@ fn test_handle_deliver_encapsulated_reponse_cert() {
 
         assert!(write_spdm_get_certificate_response(&mut context, &mut writer).is_ok());
 
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) =
+            context.handle_deliver_encapsulated_reponse(request, &mut writer);
+        assert!(status.is_ok());
+        assert!(send_buffer.is_some());
+
         assert!(context
-            .handle_deliver_encapsulated_reponse(SESSION_ID, request)
+            .send_message(Some(SESSION_ID), send_buffer.unwrap(), false)
             .await
             .is_ok());
 

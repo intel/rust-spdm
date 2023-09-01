@@ -24,11 +24,14 @@ use alloc::boxed::Box;
 use core::ops::DerefMut;
 
 impl ResponderContext {
-    pub async fn handle_spdm_key_exchange(&mut self, bytes: &[u8]) -> SpdmResult {
-        let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut send_buffer);
-        self.write_spdm_key_exchange_response(bytes, &mut writer)?;
-        self.send_message(None, writer.used_slice(), false).await
+    pub fn handle_spdm_key_exchange<'a>(
+        &mut self,
+        bytes: &[u8],
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
+        let r = self.write_spdm_key_exchange_response(bytes, writer);
+
+        (r, Some(writer.used_slice()))
     }
 
     pub fn write_spdm_key_exchange_response(

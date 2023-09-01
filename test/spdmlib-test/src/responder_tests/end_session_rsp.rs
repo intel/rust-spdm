@@ -9,6 +9,7 @@ use crate::common::util::create_info;
 use codec::{Codec, Writer};
 use spdmlib::common::session::{SpdmSession, SpdmSessionState};
 use spdmlib::common::SpdmCodec;
+use spdmlib::config::MAX_SPDM_MSG_SIZE;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::{responder, secret};
@@ -92,10 +93,10 @@ fn test_case0_handle_spdm_end_session() {
         let bytes = &mut [0u8; 1024];
         bytes.copy_from_slice(&spdm_message_header[0..]);
         bytes[2..].copy_from_slice(&session_request[0..1022]);
-        assert!(context
-            .handle_spdm_end_session(session_id, bytes)
-            .await
-            .is_ok());
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_end_session(session_id, bytes, &mut writer);
+        assert!(status.is_ok());
     };
     executor::block_on(future);
 }

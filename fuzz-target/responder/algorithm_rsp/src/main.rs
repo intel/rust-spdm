@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+use fuzzlib::config::MAX_SPDM_MSG_SIZE;
 use fuzzlib::{spdmlib::protocol::SpdmVersion, *};
 use spdmlib::common::SpdmConnectionState;
 use spin::Mutex;
@@ -33,7 +34,10 @@ async fn fuzz_handle_spdm_algorithm(data: Arc<Vec<u8>>) {
         .runtime_info
         .set_connection_state(SpdmConnectionState::SpdmConnectionAfterCapabilities);
 
-    context.handle_spdm_algorithm(&data).await.unwrap();
+    let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+    let mut writer = codec::Writer::init(&mut response_buffer);
+    let (status, send_buffer) = context.handle_spdm_algorithm(&data, &mut writer);
+    assert!(status.is_ok());
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]

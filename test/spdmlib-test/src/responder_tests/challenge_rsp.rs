@@ -22,6 +22,8 @@ use alloc::sync::Arc;
 #[test]
 #[cfg(feature = "hashed-transcript-data")]
 fn test_case0_handle_spdm_challenge() {
+    use spdmlib::config::MAX_SPDM_MSG_SIZE;
+
     let future = async {
         let (config_info, provision_info) = create_info();
         let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
@@ -82,7 +84,10 @@ fn test_case0_handle_spdm_challenge() {
         let bytes = &mut [0u8; 4 + SPDM_NONCE_SIZE];
         bytes[0..2].copy_from_slice(&spdm_message_header[0..]);
         bytes[2..4 + SPDM_NONCE_SIZE].copy_from_slice(&challenge[0..2 + SPDM_NONCE_SIZE]);
-        context.handle_spdm_challenge(bytes).await;
+
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        context.handle_spdm_challenge(bytes, &mut writer);
 
         #[cfg(not(feature = "hashed-transcript-data"))]
         {

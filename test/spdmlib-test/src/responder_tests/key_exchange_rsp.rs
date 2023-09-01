@@ -88,7 +88,9 @@ fn test_case0_handle_spdm_key_exchange() {
         bytes.copy_from_slice(&spdm_message_header[0..]);
         bytes[2..].copy_from_slice(&key_exchange[0..1022]);
 
-        context.handle_spdm_key_exchange(bytes).await;
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_key_exchange(bytes, &mut writer);
     };
     executor::block_on(future);
 }

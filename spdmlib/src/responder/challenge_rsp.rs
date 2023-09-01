@@ -11,24 +11,26 @@ use crate::common::SpdmCodec;
 use crate::common::SpdmConnectionState;
 use crate::crypto;
 use crate::error::SpdmResult;
-use crate::message::*;
-use crate::protocol::*;
-use crate::responder::*;
-extern crate alloc;
 #[cfg(feature = "hashed-transcript-data")]
 use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
 use crate::error::{SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_CRYPTO_ERROR};
+use crate::message::*;
+use crate::protocol::*;
+use crate::responder::*;
 use crate::secret;
 
 impl ResponderContext {
-    pub async fn handle_spdm_challenge(&mut self, bytes: &[u8]) -> SpdmResult {
-        let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut send_buffer);
-        self.write_spdm_challenge_response(bytes, &mut writer).await;
-        self.send_message(None, writer.used_slice(), false).await
+    pub fn handle_spdm_challenge<'a>(
+        &mut self,
+        bytes: &[u8],
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
+        self.write_spdm_challenge_response(bytes, writer);
+
+        (Ok(()), Some(writer.used_slice()))
     }
 
-    pub async fn write_spdm_challenge_response(&mut self, bytes: &[u8], writer: &mut Writer<'_>) {
+    pub fn write_spdm_challenge_response(&mut self, bytes: &[u8], writer: &mut Writer<'_>) {
         if self.common.runtime_info.get_connection_state().get_u8()
             < SpdmConnectionState::SpdmConnectionNegotiated.get_u8()
         {
@@ -172,8 +174,7 @@ impl ResponderContext {
 
         let signature = self.generate_challenge_auth_signature();
         if signature.is_err() {
-            self.send_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0)
-                .await;
+            self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
             return;
         }
         let signature = signature.unwrap();

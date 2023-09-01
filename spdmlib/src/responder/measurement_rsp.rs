@@ -24,20 +24,18 @@ use crate::responder::*;
 use crate::secret;
 
 impl ResponderContext {
-    pub async fn handle_spdm_measurement(
+    pub fn handle_spdm_measurement<'a>(
         &mut self,
         session_id: Option<u32>,
         bytes: &[u8],
-    ) -> SpdmResult {
-        let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut send_buffer);
-        self.write_spdm_measurement_response(session_id, bytes, &mut writer)
-            .await;
-        self.send_message(session_id, writer.used_slice(), false)
-            .await
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
+        self.write_spdm_measurement_response(session_id, bytes, writer);
+
+        (Ok(()), Some(writer.used_slice()))
     }
 
-    pub async fn write_spdm_measurement_response(
+    pub fn write_spdm_measurement_response(
         &mut self,
         session_id: Option<u32>,
         bytes: &[u8],
@@ -233,8 +231,7 @@ impl ResponderContext {
 
             let signature = self.generate_measurement_signature(session_id);
             if signature.is_err() {
-                self.send_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0)
-                    .await;
+                self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
                 return;
             }
             let signature = signature.unwrap();

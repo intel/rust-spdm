@@ -8,6 +8,7 @@ use crate::common::transport::PciDoeTransportEncap;
 use crate::common::util::create_info;
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::*;
+use spdmlib::config::MAX_SPDM_MSG_SIZE;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::{responder, secret};
@@ -56,7 +57,10 @@ fn test_case0_handle_spdm_capability() {
         let bytes = &mut [0u8; 1024];
         bytes.copy_from_slice(&spdm_message_header[0..]);
         bytes[2..].copy_from_slice(&capabilities[0..1022]);
-        context.handle_spdm_capability(bytes).await;
+
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        context.handle_spdm_capability(bytes, &mut writer);
 
         let rsp_capabilities = SpdmResponseCapabilityFlags::CERT_CAP
             | SpdmResponseCapabilityFlags::CHAL_CAP

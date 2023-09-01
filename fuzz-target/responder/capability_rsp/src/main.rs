@@ -33,7 +33,10 @@ async fn fuzz_handle_spdm_capability(data: Arc<Vec<u8>>) {
         .runtime_info
         .set_connection_state(SpdmConnectionState::SpdmConnectionAfterVersion);
 
-    context.handle_spdm_capability(&data).await.unwrap();
+    let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+    let mut writer = codec::Writer::init(&mut response_buffer);
+    let (status, send_buffer) = context.handle_spdm_capability(&data, &mut writer);
+    assert!(status.is_ok());
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]

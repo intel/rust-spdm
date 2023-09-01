@@ -34,7 +34,7 @@ async fn fuzz_handle_spdm_key_exchange(data: Arc<Vec<u8>>) {
             config_info,
             provision_info,
         );
-        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
         context.common.negotiate_info.opaque_data_support = SpdmOpaqueSupport::OPAQUE_DATA_FMT1;
         context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
         context.common.negotiate_info.base_asym_sel = SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
@@ -59,7 +59,9 @@ async fn fuzz_handle_spdm_key_exchange(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_key_exchange(&data).await.is_ok();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_key_exchange(&data, &mut writer);
     }
     // TCD:
     // - id: 0
@@ -110,7 +112,9 @@ async fn fuzz_handle_spdm_key_exchange(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_key_exchange(&data).await.is_ok();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_key_exchange(&data, &mut writer);
     }
     // TCD:
     // - id: 0
@@ -132,7 +136,7 @@ async fn fuzz_handle_spdm_key_exchange(data: Arc<Vec<u8>>) {
             config_info,
             provision_info,
         );
-        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
         context.common.negotiate_info.opaque_data_support = SpdmOpaqueSupport::OPAQUE_DATA_FMT1;
         context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
         context.common.negotiate_info.base_asym_sel = SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
@@ -160,7 +164,9 @@ async fn fuzz_handle_spdm_key_exchange(data: Arc<Vec<u8>>) {
             .runtime_info
             .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let _ = context.handle_spdm_key_exchange(&data).await.is_ok();
+        let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
+        let mut writer = codec::Writer::init(&mut response_buffer);
+        let (status, send_buffer) = context.handle_spdm_key_exchange(&data, &mut writer);
     }
 }
 

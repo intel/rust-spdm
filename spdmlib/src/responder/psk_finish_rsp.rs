@@ -12,12 +12,15 @@ use crate::message::*;
 use crate::responder::*;
 
 impl ResponderContext {
-    pub async fn handle_spdm_psk_finish(&mut self, session_id: u32, bytes: &[u8]) -> SpdmResult {
-        let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let mut writer = Writer::init(&mut send_buffer);
-        self.write_spdm_psk_finish_response(session_id, bytes, &mut writer)?;
-        self.send_message(Some(session_id), writer.used_slice(), false)
-            .await
+    pub fn handle_spdm_psk_finish<'a>(
+        &mut self,
+        session_id: u32,
+        bytes: &[u8],
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
+        let r = self.write_spdm_psk_finish_response(session_id, bytes, writer);
+
+        (r, Some(writer.used_slice()))
     }
 
     // Return true on success, false otherwise

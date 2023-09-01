@@ -8,6 +8,7 @@ use crate::common::transport::PciDoeTransportEncap;
 use crate::common::util::create_info;
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::*;
+use spdmlib::config::MAX_SPDM_MSG_SIZE;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::{responder, secret};
@@ -43,7 +44,9 @@ fn test_case0_handle_spdm_version() {
         };
         assert!(value.encode(&mut writer).is_ok());
 
-        context.handle_spdm_version(bytes).await;
+        let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+        let mut writer = Writer::init(&mut response_buffer);
+        context.handle_spdm_version(bytes, &mut writer);
 
         let data = context.common.runtime_info.message_a.as_ref();
         let u8_slice = &mut [0u8; 1024];

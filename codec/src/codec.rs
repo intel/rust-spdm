@@ -65,6 +65,10 @@ impl<'a> Writer<'a> {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.offs = 0;
+    }
+
     pub fn extend_from_slice(&mut self, value: &[u8]) -> Option<usize> {
         if self.left() < value.len() {
             return None;

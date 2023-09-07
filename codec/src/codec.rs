@@ -284,6 +284,20 @@ impl Codec for u128 {
     }
 }
 
+impl<T: Codec + Copy, const N: usize> Codec for [T; N] {
+    fn encode(&self, bytes: &mut Writer) -> Result<usize, EncodeErr> {
+        let used = bytes.used();
+        for d in self.as_ref() {
+            let _ = d.encode(bytes)?;
+        }
+        Ok(bytes.used() - used)
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some([T::read(reader)?; N])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::codec::Codec;
@@ -398,5 +412,15 @@ mod tests {
             offs: 4,
         };
         assert_eq!(reader.sub(4).is_none(), true);
+    }
+
+    #[test]
+    fn test_case0_array() {
+        let u8_slice = &mut [0x0u8; 2];
+        let value = [0x5au8; 2];
+        let writer = &mut Writer::init(u8_slice);
+        value.encode(writer).unwrap();
+        let reader = &mut Reader::init(u8_slice);
+        assert_eq!(value, <[u8; 2]>::read(reader).unwrap());
     }
 }

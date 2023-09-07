@@ -7,6 +7,8 @@ use crate::common::secret_callback::*;
 use crate::common::transport::PciDoeTransportEncap;
 use crate::common::util::{create_info, get_rsp_cert_chain_buff};
 use spdmlib::common::SpdmConnectionState;
+use spdmlib::config::MAX_SPDM_MSG_SIZE;
+use spdmlib::error::{SpdmResult, SPDM_STATUS_INVALID_MSG_FIELD};
 use spdmlib::message::{SpdmMeasurementAttributes, SpdmMeasurementOperation};
 use spdmlib::protocol::*;
 use spdmlib::requester::RequesterContext;
@@ -160,4 +162,199 @@ fn test_case0_send_receive_spdm_measurement() {
         assert!(status);
     };
     executor::block_on(future);
+}
+
+#[test]
+fn test_handle_spdm_measurement_record_response() {
+    struct Tc<'a> {
+        name: &'a str,
+        request_slot_id: u8,
+        attributes: SpdmMeasurementAttributes,
+        operation: SpdmMeasurementOperation,
+        receive_buffer: Box<[u8]>,
+        expected_result: SpdmResult<u8>,
+    }
+    let fixed_block: &[u8] = &[
+        0xFE, 0x01, 0x33, 0x00, 0x01, 0x30, 0x00, 0x90, 0x6D, 0x9F, 0xE9, 0x2A, 0x5E, 0x0A, 0xD7,
+        0xE0, 0x20, 0x84, 0x21, 0x27, 0xF7, 0x97, 0x0B, 0x7D, 0x2A, 0xDF, 0xF3, 0xA9, 0x11, 0x06,
+        0x92, 0x7B, 0x59, 0x2C, 0xF1, 0x57, 0x63, 0x3D, 0x86, 0xD0, 0xBE, 0x6A, 0xB7, 0x8F, 0x5D,
+        0x39, 0x8E, 0x53, 0xF7, 0x05, 0x64, 0x3C, 0xCB, 0xFB, 0x78,
+    ];
+    let tt: [Tc; 8] = [
+        Tc {
+            name: "requested total number and success",
+            request_slot_id: 0u8,
+            attributes: SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
+            operation: SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
+            receive_buffer: (|| -> Box<[u8]> {
+                let mut v = vec![0x12, 0x60, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00];
+                v.extend_from_slice(&[0xFF; 32]); // Nonce
+                v.extend_from_slice(&[0x10, 0x00]); // OpaqueDataLength
+                v.extend_from_slice(&[0x02; 16]); // OpaqueData
+                v.into_boxed_slice()
+            })(),
+            expected_result: Ok(5),
+        },
+        Tc {
+            name: "requested total number but attached record",
+            request_slot_id: 0u8,
+            attributes: SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
+            operation: SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
+            receive_buffer: (|| -> Box<[u8]> {
+                let mut v = vec![0x12, 0x60, 0x01, 0x00, 0x01, 0x37, 0x00, 0x00];
+                v.extend_from_slice(fixed_block); // MeasurementRecordData
+                v.extend_from_slice(&[0xFF; 32]);
+                v.extend_from_slice(&[0x10, 0x00]);
+                v.extend_from_slice(&[0x02; 16]);
+                v.into_boxed_slice()
+            })(),
+            expected_result: Ok(1), // should expect Err(SPDM_STATUS_INVALID_MSG_FIELD)
+        },
+        Tc {
+            name: "requested certain index (0x05) but returned mismatch (0xFE)",
+            request_slot_id: 0u8,
+            attributes: SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
+            operation: SpdmMeasurementOperation::Unknown(0x05),
+            receive_buffer: (|| -> Box<[u8]> {
+                let mut v = vec![0x12, 0x60, 0x01, 0x00, 0x01, 0x37, 0x00, 0x00];
+                v.extend_from_slice(fixed_block);
+                v.extend_from_slice(&[0xFF; 32]);
+                v.extend_from_slice(&[0x10, 0x00]);
+                v.extend_from_slice(&[0x02; 16]);
+                v.into_boxed_slice()
+            })(),
+            expected_result: Ok(1), // should expect Err?
+        },
+        Tc {
+            name: "requested certain index but returned many",
+            request_slot_id: 0u8,
+            attributes: SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
+            operation: SpdmMeasurementOperation::Unknown(0x05),
+            receive_buffer: (|| -> Box<[u8]> {
+                let mut v = vec![0x12, 0x60, 0x00, 0x00, 0x02, 0x6E, 0x00, 0x00];
+                v.extend_from_slice(fixed_block);
+                v.extend_from_slice(fixed_block);
+                v.extend_from_slice(&[0xFF; 32]);
+                v.extend_from_slice(&[0x10, 0x00]);
+                v.extend_from_slice(&[0x02; 16]);
+                v.into_boxed_slice()
+            })(),
+            expected_result: Err(SPDM_STATUS_INVALID_MSG_FIELD),
+        },
+        Tc {
+            name: "requested certain index and success",
+            request_slot_id: 0u8,
+            attributes: SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
+            operation: SpdmMeasurementOperation::Unknown(0xFF),
+            receive_buffer: (|| -> Box<[u8]> {
+                let mut v = vec![0x12, 0x60, 0x01, 0x00, 0x01, 0x37, 0x00, 0x00];
+                v.extend_from_slice(fixed_block);
+                v.extend_from_slice(&[0xFF; 32]);
+                v.extend_from_slice(&[0x10, 0x00]);
+                v.extend_from_slice(&[0x02; 16]);
+                v.into_boxed_slice()
+            })(),
+            expected_result: Ok(1),
+        },
+        Tc {
+            name: "request all without signature and success",
+            request_slot_id: 0u8,
+            attributes: SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
+            operation: SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+            receive_buffer: (|| -> Box<[u8]> {
+                let mut v = vec![0x12, 0x60, 0x01, 0x00, 0x01, 0x37, 0x00, 0x00];
+                v.extend_from_slice(fixed_block);
+                v.extend_from_slice(&[0xFF; 32]);
+                v.extend_from_slice(&[0x10, 0x00]);
+                v.extend_from_slice(&[0x02; 16]);
+                v.into_boxed_slice()
+            })(),
+            expected_result: Ok(1),
+        },
+        Tc {
+            name: "request all and no measurements returned",
+            request_slot_id: 0u8,
+            attributes: SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
+            operation: SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+            receive_buffer: (|| -> Box<[u8]> {
+                let mut v = vec![0x12, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+                v.extend_from_slice(&[0xFF; 32]);
+                v.extend_from_slice(&[0x10, 0x00]);
+                v.extend_from_slice(&[0x02; 16]);
+                v.into_boxed_slice()
+            })(),
+            expected_result: Ok(0),
+        },
+        Tc {
+            name: "request all but returned blocks have the same index",
+            request_slot_id: 0u8,
+            attributes: SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+            operation: SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+            receive_buffer: (|| -> Box<[u8]> {
+                let mut v = vec![0x12, 0x60, 0x00, 0x00, 0x02, 0x6E, 0x00, 0x00];
+                v.extend_from_slice(fixed_block);
+                v.extend_from_slice(fixed_block);
+                v.extend_from_slice(&[0xFF; 32]);
+                v.extend_from_slice(&[0x10, 0x00]);
+                v.extend_from_slice(&[0x02; 16]);
+                v.extend_from_slice(&[0xFF; 96]); // Signature
+                v.into_boxed_slice()
+            })(),
+            expected_result: Err(SPDM_STATUS_INVALID_MSG_FIELD),
+        },
+    ];
+    for tc in tt {
+        executor::add_task(async move {
+            let (req_config_info, req_provision_info) = create_info();
+            let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
+            let device_io = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(
+                SharedBuffer::new(),
+            ))));
+            let mut requester = RequesterContext::new(
+                device_io,
+                pcidoe_transport_encap,
+                req_config_info,
+                req_provision_info,
+            );
+            requester.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+            requester.common.negotiate_info.req_ct_exponent_sel = 0;
+            requester.common.negotiate_info.req_capabilities_sel =
+                SpdmRequestCapabilityFlags::CERT_CAP;
+            requester.common.negotiate_info.rsp_ct_exponent_sel = 0;
+            requester.common.negotiate_info.rsp_capabilities_sel =
+                SpdmResponseCapabilityFlags::CERT_CAP;
+            requester
+                .common
+                .negotiate_info
+                .measurement_specification_sel = SpdmMeasurementSpecification::DMTF;
+            requester.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+            requester.common.negotiate_info.base_asym_sel =
+                SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
+            requester.common.negotiate_info.measurement_hash_sel =
+                SpdmMeasurementHashAlgo::TPM_ALG_SHA_384;
+            requester.common.peer_info.peer_cert_chain[0] = Some(get_rsp_cert_chain_buff());
+            requester.common.reset_runtime_info();
+
+            let session_id = None;
+            let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+            let send_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+            let result = requester.handle_spdm_measurement_record_response(
+                session_id,
+                tc.request_slot_id,
+                tc.attributes,
+                tc.operation,
+                &mut spdm_measurement_record_structure,
+                &send_buffer,
+                &*tc.receive_buffer,
+            );
+            assert!(
+                result == tc.expected_result,
+                "tc '{}' expect {:?} got {:?}",
+                tc.name,
+                tc.expected_result,
+                result
+            );
+        })
+    }
+    executor::poll_tasks();
 }

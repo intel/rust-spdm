@@ -2,6 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 use core::{fmt::Debug, mem};
 
 /// Read from a byte slice.
@@ -133,6 +136,34 @@ pub trait Codec: Debug + Sized {
     fn read_bytes(bytes: &[u8]) -> Option<Self> {
         let mut rd = Reader::init(bytes);
         Self::read(&mut rd)
+    }
+
+    #[cfg(feature = "alloc")]
+    /// Read count T's and returns Vec<T>
+    /// count: the number of T wants to read.
+    fn read_vec<T: Codec>(reader: &mut Reader, count: usize) -> Option<alloc::vec::Vec<T>> {
+        let mut data = alloc::vec::Vec::new();
+        for _ in 0..count {
+            let t = T::read(reader)?;
+            data.push(t)
+        }
+        Some(data)
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl<T: Codec + Copy> Codec for alloc::vec::Vec<T> {
+    fn encode(&self, bytes: &mut Writer) -> Result<usize, EncodeErr> {
+        let used = bytes.used();
+        for t in self.iter() {
+            let _ = t.encode(bytes)?;
+        }
+        Ok(bytes.used() - used)
+    }
+
+    fn read(_reader: &mut Reader) -> Option<Self> {
+        // Not support can't known the length
+        panic!("Should not call this API for reading vec. Use read_vec instead.")
     }
 }
 

@@ -5,7 +5,7 @@
 use crate::common::device_io::{FakeSpdmDeviceIoReceve, SharedBuffer};
 use crate::common::secret_callback::SECRET_ASYM_IMPL_INSTANCE;
 use crate::common::transport::PciDoeTransportEncap;
-use crate::common::util::create_info;
+use crate::common::util::{create_info, TestSpdmMessage};
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::*;
 use spdmlib::config::MAX_SPDM_MSG_SIZE;
@@ -83,4 +83,38 @@ fn test_case0_handle_spdm_version() {
         }
     };
     executor::block_on(future);
+}
+
+pub fn construct_version_positive() -> (TestSpdmMessage, TestSpdmMessage) {
+    use crate::protocol;
+    let get_version_msg = TestSpdmMessage {
+        message: protocol::Message::GET_VERSION(protocol::version::GET_VERSION {
+            SPDMVersion: 0x10,
+            RequestResponseCode: 0x84,
+            Param1: 0,
+            Param2: 0,
+        }),
+        secure: 0,
+    };
+    let (config_info, provision_info) = create_info();
+    let version_msg = TestSpdmMessage {
+        message: protocol::Message::VERSION(protocol::version::VERSION {
+            SPDMVersion: 0x10,
+            RequestResponseCode: 0x04,
+            Param1: 0,
+            Param2: 0,
+            Reserved: 0,
+            VersionNumberEntryCount: config_info.spdm_version.len() as u8,
+            VersionNumberEntry: {
+                let mut versions = Vec::new();
+                for v in config_info.spdm_version {
+                    let version = (v.get_u8() as u16) << 8;
+                    versions.push(version)
+                }
+                versions
+            },
+        }),
+        secure: 0,
+    };
+    (get_version_msg, version_msg)
 }

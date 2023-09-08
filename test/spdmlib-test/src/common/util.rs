@@ -4,24 +4,29 @@
 
 #![allow(unused)]
 
+use super::device_io::TestSpdmDeviceIo;
 use super::USE_ECDSA;
-use crate::common::device_io::MySpdmDeviceIo;
+use crate::common::device_io::{MySpdmDeviceIo, TestTransportEncap};
 use crate::common::secret_callback::SECRET_ASYM_IMPL_INSTANCE;
 use crate::common::transport::PciDoeTransportEncap;
-use codec::{Reader, Writer};
+use codec::{Codec, Reader, Writer};
 use spdmlib::common::{
     SpdmCodec, SpdmConfigInfo, SpdmContext, SpdmDeviceIo, SpdmOpaqueSupport, SpdmProvisionInfo,
-    SpdmTransportEncap, DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11,
+    SpdmTransportEncap, DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11, ST1,
 };
-use spdmlib::config;
+use spdmlib::config::MAX_SPDM_MSG_SIZE;
 use spdmlib::crypto;
 use spdmlib::message::SpdmMessage;
 use spdmlib::protocol::*;
+use spdmlib::{config, responder};
+use std::fs::File;
+use std::io::Read;
 use std::path::PathBuf;
 
 use spin::Mutex;
 extern crate alloc;
 use alloc::boxed::Box;
+use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use core::ops::DerefMut;
 
@@ -394,4 +399,117 @@ pub fn get_rsp_cert_chain_buff() -> SpdmCertChainBuffer {
             .expect("Must provide hash algo");
     SpdmCertChainBuffer::new(cert_chain, root_cert_hash.as_ref())
         .expect("Create format certificate chain failed.")
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TestSpdmMessage {
+    pub message: crate::protocol::Message,
+    pub secure: u8, // secure message
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct TestCase {
+    pub input: Vec<TestSpdmMessage>,
+    pub expected: Vec<TestSpdmMessage>,
+}
+
+impl TestCase {
+    pub fn config() -> (SpdmConfigInfo, SpdmProvisionInfo) {
+        create_info()
+    }
+
+    pub fn input_to_vec(&self, cb: fn(secure: u8, bufer: &[u8]) -> VecDeque<u8>) -> VecDeque<u8> {
+        let mut ret = VecDeque::new();
+        for data in &self.input {
+            let mut buffer = vec![0u8; MAX_SPDM_MSG_SIZE];
+            let writer = &mut Writer::init(&mut buffer[..]);
+            let len = data
+                .message
+                .encode(writer)
+                .expect("Error to encode input message");
+            ret.extend((cb)(data.secure, &buffer[..len]).iter())
+        }
+        ret
+    }
+    pub fn expected_to_vec(
+        &self,
+        cb: fn(secure: u8, bufer: &[u8]) -> VecDeque<u8>,
+    ) -> VecDeque<u8> {
+        let mut ret = VecDeque::new();
+        for data in &self.expected {
+            let mut buffer = vec![0u8; MAX_SPDM_MSG_SIZE];
+            let writer = &mut Writer::init(&mut buffer[..]);
+            let len = data
+                .message
+                .encode(writer)
+                .expect("Error to encode input message");
+            ret.extend((cb)(data.secure, &buffer[..len]).iter())
+        }
+        ret
+    }
+
+    pub fn get_certificate_chain_buffer(
+        hash_algo: SpdmBaseHashAlgo,
+        cert_chain: &[u8],
+    ) -> SpdmCertChainBuffer {
+        let (root_cert_begin, root_cert_end) =
+            crypto::cert_operation::get_cert_from_cert_chain(cert_chain, 0)
+                .expect("Get provisioned root cert failed");
+
+        let root_cert_hash =
+            crypto::hash::hash_all(hash_algo, &cert_chain[root_cert_begin..root_cert_end])
+                .expect("Must provide hash algo");
+        SpdmCertChainBuffer::new(cert_chain, root_cert_hash.as_ref())
+            .expect("Create format certificate chain failed.")
+    }
+}
+
+pub struct ResponderRunner;
+impl ResponderRunner {
+    pub fn run(case: TestCase, cb: fn(secure: u8, bufer: &[u8]) -> VecDeque<u8>) -> bool {
+        use super::secret_callback::FAKE_SECRET_ASYM_IMPL_INSTANCE;
+        use crate::common::crypto_callback::{FAKE_AEAD, FAKE_ASYM_VERIFY, FAKE_RAND};
+        spdmlib::crypto::aead::register(FAKE_AEAD.clone());
+        spdmlib::crypto::rand::register(FAKE_RAND.clone());
+        spdmlib::crypto::asym_verify::register(FAKE_ASYM_VERIFY.clone());
+        spdmlib::secret::asym_sign::register(FAKE_SECRET_ASYM_IMPL_INSTANCE.clone());
+
+        let mut output = Arc::new(Mutex::new(VecDeque::<u8>::new()));
+        let mut rx = Arc::new(Mutex::new(case.input_to_vec(cb)));
+        let mut output_ref = Arc::clone(&output);
+        log::debug!("intput  : {:02x?}", rx.lock().make_contiguous());
+        let future = async {
+            let mut device_io = TestSpdmDeviceIo::new(rx, output_ref);
+            let mut transport_encap = TestTransportEncap;
+            let (config_info, provision_info) = TestCase::config();
+            let mut context = responder::ResponderContext::new(
+                Arc::new(Mutex::new(device_io)),
+                Arc::new(Mutex::new(transport_encap)),
+                config_info,
+                provision_info,
+            );
+            let raw_packet = &mut [0u8; spdmlib::config::RECEIVER_BUFFER_SIZE];
+            loop {
+                let result = context.process_message(false, &[0], raw_packet).await;
+                match result {
+                    Err(nread) => {
+                        if nread == 0 {
+                            break;
+                        }
+                    }
+                    Ok(_) => continue,
+                }
+            }
+        };
+        executor::block_on(future);
+        // Check Result
+        // output and case.expected
+        let mut expected = case.expected_to_vec(cb);
+        let mut output = output.lock();
+        let output = output.make_contiguous();
+        let expected = expected.make_contiguous();
+        log::debug!("output  : {:02x?}\n", output);
+        log::debug!("expected: {:02x?}\n", expected);
+        output == expected
+    }
 }

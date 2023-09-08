@@ -26,6 +26,9 @@ pub static SECRET_PSK_IMPL_INSTANCE: SpdmSecretPsk = SpdmSecretPsk {
 
 pub static SECRET_ASYM_IMPL_INSTANCE: SpdmSecretAsymSign =
     SpdmSecretAsymSign { sign_cb: asym_sign };
+pub static FAKE_SECRET_ASYM_IMPL_INSTANCE: SpdmSecretAsymSign = SpdmSecretAsymSign {
+    sign_cb: fake_asym_sign,
+};
 
 #[allow(clippy::field_reassign_with_default)]
 fn measurement_collection_impl(
@@ -316,4 +319,28 @@ fn sign_ecdsa_asym_algo(
         data_size: signature.len() as u16,
         data: full_signature,
     })
+}
+
+fn fake_asym_sign(
+    base_hash_algo: SpdmBaseHashAlgo,
+    base_asym_algo: SpdmBaseAsymAlgo,
+    data: &[u8],
+) -> Option<SpdmSignatureStruct> {
+    match (base_hash_algo, base_asym_algo) {
+        (SpdmBaseHashAlgo::TPM_ALG_SHA_256, SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P256) => {
+            Some(SpdmSignatureStruct {
+                data_size: 64,
+                data: [0x5a; SPDM_MAX_ASYM_KEY_SIZE],
+            })
+        }
+        (SpdmBaseHashAlgo::TPM_ALG_SHA_384, SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384) => {
+            Some(SpdmSignatureStruct {
+                data_size: 96,
+                data: [0x5a; SPDM_MAX_ASYM_KEY_SIZE],
+            })
+        }
+        _ => {
+            panic!();
+        }
+    }
 }

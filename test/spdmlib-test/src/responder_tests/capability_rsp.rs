@@ -5,7 +5,7 @@
 use crate::common::device_io::{FakeSpdmDeviceIoReceve, SharedBuffer};
 use crate::common::secret_callback::SECRET_ASYM_IMPL_INSTANCE;
 use crate::common::transport::PciDoeTransportEncap;
-use crate::common::util::create_info;
+use crate::common::util::{create_info, TestSpdmMessage};
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::*;
 use spdmlib::config::MAX_SPDM_MSG_SIZE;
@@ -110,4 +110,41 @@ fn test_case0_handle_spdm_capability() {
         }
     };
     executor::block_on(future);
+}
+
+pub fn consturct_capability_positive() -> (TestSpdmMessage, TestSpdmMessage) {
+    use crate::protocol;
+    let (config_info, provision_info) = create_info();
+    let get_capabilities_msg = TestSpdmMessage {
+        message: protocol::Message::GET_CAPABILITIES(protocol::capability::GET_CAPABILITIES {
+            SPDMVersion: 0x12,
+            RequestResponseCode: 0xE1,
+            Param1: 0,
+            Param2: 0,
+            _Reserved: 0,
+            CTExponent: config_info.req_ct_exponent,
+            _Reserved2: 0,
+            Flags: config_info.req_capabilities.bits(),
+            DataTransferSize: config_info.data_transfer_size,
+            MaxSPDMmsgSize: config_info.max_spdm_msg_size,
+        }),
+        secure: 0,
+    };
+
+    let capabilities_msg = TestSpdmMessage {
+        message: protocol::Message::CAPABILITIES(protocol::capability::CAPABILITIES {
+            SPDMVersion: 0x12,
+            RequestResponseCode: 0x61,
+            Param1: 0,
+            Param2: 0,
+            _Reserved: 0,
+            CTExponent: config_info.rsp_ct_exponent,
+            _Reserved2: 0,
+            Flags: config_info.rsp_capabilities.bits(),
+            DataTransferSize: config_info.data_transfer_size,
+            MaxSPDMmsgSize: config_info.max_spdm_msg_size,
+        }),
+        secure: 0,
+    };
+    (get_capabilities_msg, capabilities_msg)
 }

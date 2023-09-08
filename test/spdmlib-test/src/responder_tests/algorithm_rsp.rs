@@ -5,7 +5,7 @@
 use crate::common::device_io::{FakeSpdmDeviceIoReceve, SharedBuffer};
 use crate::common::secret_callback::SECRET_ASYM_IMPL_INSTANCE;
 use crate::common::transport::PciDoeTransportEncap;
-use crate::common::util::create_info;
+use crate::common::util::{create_info, TestSpdmMessage};
 use codec::{Codec, Reader, Writer};
 use log::debug;
 use spdmlib::common::*;
@@ -218,4 +218,66 @@ fn test_case0_handle_spdm_algorithm() {
     };
 
     executor::block_on(future);
+}
+
+pub fn consturct_algorithm_positive() -> (TestSpdmMessage, TestSpdmMessage) {
+    use crate::protocol;
+    let (config_info, provision_info) = create_info();
+    let negotiate_algorithm_msg = TestSpdmMessage {
+        message: protocol::Message::NEGOTIATE_ALGORITHMS(
+            protocol::algorithm::NEGOTIATE_ALGORITHMS {
+                SPDMVersion: 0x12,
+                RequestResponseCode: 0xE3,
+                Param1: 4,
+                Param2: 0,
+                Length: 48,
+                MeasurementSpecification: config_info.measurement_specification.bits(),
+                OtherParamsSupport: config_info.opaque_support.bits(),
+                BaseAsymAlgo: config_info.base_asym_algo.bits(),
+                BaseHashAlgo: config_info.base_hash_algo.bits(),
+                _Reserved1: [0u8; 12],
+                ExtAsymCount: 0,
+                ExtHashCount: 0,
+                _Reserved2: [0u8; 2],
+                ExtAsym: Vec::new(),
+                Exthash: Vec::new(),
+                AlgStruct: vec![
+                    [0x02, 0x20, 0x10, 0x00],
+                    [0x03, 0x20, 0x02, 0x00],
+                    [0x04, 0x20, 0x02, 0x00],
+                    [0x05, 0x20, 0x01, 0x00],
+                ],
+            },
+        ),
+        secure: 0,
+    };
+
+    let algorithm_msg = TestSpdmMessage {
+        message: protocol::Message::ALGORITHMS(protocol::algorithm::ALGORITHMS {
+            SPDMVersion: 0x12,
+            RequestResponseCode: 0x63,
+            Param1: 4,
+            Param2: 0,
+            Length: 52,
+            MeasurementSpecification: config_info.measurement_specification.bits(),
+            OtherParamsSupport: config_info.opaque_support.bits(),
+            MeasurementHashAlgo: config_info.measurement_hash_algo.bits(),
+            BaseAsymAlgo: config_info.base_asym_algo.bits(),
+            BaseHashAlgo: config_info.base_hash_algo.bits(),
+            _Reserved1: [0u8; 12],
+            ExtAsymCount: 0,
+            ExtHashCount: 0,
+            _Reserved2: [0u8; 2],
+            ExtAsym: Vec::new(),
+            Exthash: Vec::new(),
+            AlgStruct: vec![
+                [0x02, 0x20, 0x10, 0x00],
+                [0x03, 0x20, 0x02, 0x00],
+                [0x04, 0x20, 0x02, 0x00],
+                [0x05, 0x20, 0x01, 0x00],
+            ],
+        }),
+        secure: 0,
+    };
+    (negotiate_algorithm_msg, algorithm_msg)
 }

@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 pub mod common;
+pub mod protocol;
 
 #[cfg(test)]
 mod test_client_server;

@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 spdmlib = { path = "../../spdmlib", default-features = false, features=["spdm-ring"] }
-codec = { path = "../../codec" }
+codec = { path = "../../codec", features = ["alloc"] }
 log = "0.4.13"
 ring = { version = "0.16.20" }
 bytes = { version="1", default-features=false }

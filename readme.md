@@ -122,7 +122,7 @@ The following list shows the supported combinations for both spdm-requester-emu 
 | spdm-ring                                                               | ring          | No                             | use ring as crypto library with hashed-transcript-data disabled    |
 | spdm-ring,hashed-transcript-data                                        | ring          | Yes                            | use ring as crypto library with hashed-transcript-data enabled     |
 | spdm-mbedtls                                                            | mbedtls       | No                             | use mbedtls as crypto library with hashed-transcript-data disabled |
-| spdm-mbedtls,hashed-transcript-data,spdm-mbedtls-hashed-transcript-data | mbedtls       | Yes                            | use mbedtls as crypto library with hashed-transcript-data          |
+| spdm-mbedtls,hashed-transcript-data | mbedtls       | Yes                            | use mbedtls as crypto library with hashed-transcript-data          |
 
 For example, run the emulator with spdm-ring enabled and without hashed-transcript-data enabled.  
 Open one command windows and run:
@@ -133,7 +133,7 @@ cargo run -p spdm-responder-emu --no-default-features --features "spdm-ring"
 run the emulator with spdm-mbedtls enabled and with hashed-transcript-data enabled.  
 Open another command windows and run:
 ```
-cargo run -p spdm-requester-emu --no-default-features --features "spdm-mbedtls,hashed-transcript-data,spdm-mbedtls-hashed-transcript-data"
+cargo run -p spdm-requester-emu --no-default-features --features "spdm-mbedtls,hashed-transcript-data"
 ```
 
 NOTE: In order to run the emu without hashed-transcript-data, please change `max_cert_chain_data_size` in `spdmlib/etc/config.json` from `4096` to `3500`.

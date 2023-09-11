@@ -126,9 +126,7 @@ impl ResponderContext {
         request_response_code: u8,
         writer: &mut Writer<'_>,
     ) -> SpdmResult {
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            < SpdmVersion::SpdmVersion11.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel < SpdmVersion::SpdmVersion11 {
             self.write_spdm_error(
                 SpdmErrorCode::SpdmErrorUnsupportedRequest,
                 request_response_code,

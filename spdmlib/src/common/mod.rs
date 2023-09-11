@@ -422,7 +422,7 @@ impl SpdmContext {
                             return Err(SPDM_STATUS_CRYPTO_ERROR);
                         }
 
-                        if spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8() {
+                        if spdm_version_sel >= SpdmVersion::SpdmVersion12 {
                             crypto::hash::hash_ctx_update(
                                 session.runtime_info.digest_context_l1l2.as_mut().unwrap(),
                                 message_a.as_ref(),
@@ -443,9 +443,7 @@ impl SpdmContext {
                             return Err(SPDM_STATUS_CRYPTO_ERROR);
                         }
 
-                        if self.negotiate_info.spdm_version_sel.get_u8()
-                            >= SpdmVersion::SpdmVersion12.get_u8()
-                        {
+                        if self.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
                             crypto::hash::hash_ctx_update(
                                 self.runtime_info.digest_context_l1l2.as_mut().unwrap(),
                                 self.runtime_info.message_a.as_ref(),

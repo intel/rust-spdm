@@ -108,7 +108,7 @@ pub fn construct_version_positive() -> (TestSpdmMessage, TestSpdmMessage) {
             VersionNumberEntry: {
                 let mut versions = Vec::new();
                 for v in config_info.spdm_version {
-                    let version = (v.get_u8() as u16) << 8;
+                    let version = (u8::from(v) as u16) << 8;
                     versions.push(version)
                 }
                 versions

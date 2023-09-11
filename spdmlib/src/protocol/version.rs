@@ -2,21 +2,61 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use codec::enum_builder;
-use codec::{Codec, Reader, Writer};
+use codec::{Codec, EncodeErr};
+use core::convert::TryFrom;
 
-enum_builder! {
-    @U8
-    EnumName: SpdmVersion;
-    EnumVal{
-        SpdmVersion10 => 0x10,
-        SpdmVersion11 => 0x11,
-        SpdmVersion12 => 0x12
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum SpdmVersion {
+    SpdmVersion10,
+    SpdmVersion11,
+    SpdmVersion12,
+}
+
+impl Default for SpdmVersion {
+    fn default() -> Self {
+        Self::SpdmVersion10
     }
 }
-impl Default for SpdmVersion {
-    fn default() -> SpdmVersion {
-        SpdmVersion::Unknown(0)
+
+impl TryFrom<u8> for SpdmVersion {
+    type Error = ();
+    fn try_from(untrusted_spdm_version: u8) -> Result<Self, <Self as TryFrom<u8>>::Error> {
+        if untrusted_spdm_version == 0x10 {
+            Ok(SpdmVersion::SpdmVersion10)
+        } else if untrusted_spdm_version == 0x11 {
+            Ok(SpdmVersion::SpdmVersion11)
+        } else if untrusted_spdm_version == 0x12 {
+            Ok(SpdmVersion::SpdmVersion12)
+        } else {
+            Err(())
+        }
+    }
+}
+
+impl From<SpdmVersion> for u8 {
+    fn from(spdm_version: SpdmVersion) -> Self {
+        match spdm_version {
+            SpdmVersion::SpdmVersion10 => 0x10,
+            SpdmVersion::SpdmVersion11 => 0x11,
+            SpdmVersion::SpdmVersion12 => 0x12,
+        }
+    }
+}
+
+impl From<&SpdmVersion> for u8 {
+    fn from(spdm_version: &SpdmVersion) -> Self {
+        u8::from(*spdm_version)
+    }
+}
+
+impl Codec for SpdmVersion {
+    fn encode(&self, bytes: &mut codec::Writer<'_>) -> Result<usize, EncodeErr> {
+        u8::from(self).encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader<'_>) -> Option<Self> {
+        let spdm_version = u8::read(r)?;
+        Self::try_from(spdm_version).ok()
     }
 }
 

@@ -272,7 +272,7 @@ impl SpdmCodec for SecuredMessageGeneralOpaqueDataHeader {
         bytes: &mut Writer,
     ) -> Result<usize, SpdmStatus> {
         let mut cnt = 0usize;
-        if context.negotiate_info.spdm_version_sel.get_u8() < SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel < SpdmVersion::SpdmVersion12 {
             cnt += DMTF_SPEC_ID
                 .encode(bytes)
                 .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
@@ -302,7 +302,7 @@ impl SpdmCodec for SecuredMessageGeneralOpaqueDataHeader {
     ) -> Option<SecuredMessageGeneralOpaqueDataHeader> {
         let total_elements: u8;
 
-        if context.negotiate_info.spdm_version_sel.get_u8() < SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel < SpdmVersion::SpdmVersion12 {
             let spec_id = u32::read(r)?;
             if spec_id != DMTF_SPEC_ID {
                 return None;

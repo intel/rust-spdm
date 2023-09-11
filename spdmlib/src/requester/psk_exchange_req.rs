@@ -74,9 +74,7 @@ impl RequesterContext {
         crypto::rand::get_random(&mut psk_context)?;
 
         let mut opaque;
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            < SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel < SpdmVersion::SpdmVersion12 {
             opaque = SpdmOpaqueStruct {
                 data_size: crate::common::opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0277
                     .len() as u16,

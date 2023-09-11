@@ -29,7 +29,7 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
     ) -> Result<usize, SpdmStatus> {
         let mut cnt = 0usize;
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             cnt += self
                 .alg_struct_count
                 .encode(bytes)
@@ -41,7 +41,7 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
         cnt += 0u8.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // param2
 
         let mut length: u16 = 32;
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             let alg_fixed_count = 2u8;
             length += ((2 + alg_fixed_count) * self.alg_struct_count) as u16;
         }
@@ -52,7 +52,7 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
             .encode(bytes)
             .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             cnt += self
                 .other_params_support
                 .encode(bytes)
@@ -79,7 +79,7 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
 
         cnt += 0u16.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // reserved3
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             for algo in self.alg_struct.iter().take(self.alg_struct_count as usize) {
                 cnt += algo.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
             }
@@ -92,7 +92,7 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
         r: &mut Reader,
     ) -> Option<SpdmNegotiateAlgorithmsRequestPayload> {
         let mut alg_struct_count = 0;
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             alg_struct_count = u8::read(r)?; // param1
             if alg_struct_count > 4 {
                 return None;
@@ -105,14 +105,13 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
         let length = u16::read(r)?;
         let measurement_specification = SpdmMeasurementSpecification::read(r)?;
 
-        let other_params_support = if context.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
-            SpdmOpaqueSupport::read(r)?
-        } else {
-            u8::read(r)?;
-            SpdmOpaqueSupport::default()
-        };
+        let other_params_support =
+            if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
+                SpdmOpaqueSupport::read(r)?
+            } else {
+                u8::read(r)?;
+                SpdmOpaqueSupport::default()
+            };
 
         let base_asym_algo = SpdmBaseAsymAlgo::read(r)?;
         let base_hash_algo = SpdmBaseHashAlgo::read(r)?;
@@ -134,7 +133,7 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
         u16::read(r)?; // reserved3
 
         let mut alg_struct = gen_array_clone(SpdmAlgStruct::default(), 4);
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             let mut dhe_present = false;
             let mut aead_present = false;
             let mut req_asym_present = false;
@@ -183,7 +182,7 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
         // check length
         //
         let mut calc_length: u16 = 32;
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             let alg_fixed_count = 2u8;
             calc_length += ((2 + alg_fixed_count) * alg_struct_count) as u16;
         }
@@ -222,7 +221,7 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
     ) -> Result<usize, SpdmStatus> {
         let mut cnt = 0usize;
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             cnt += self
                 .alg_struct_count
                 .encode(bytes)
@@ -234,7 +233,7 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
         cnt += 0u8.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // param2
 
         let mut length: u16 = 36;
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             let alg_fixed_count = 2u8;
             length += ((2 + alg_fixed_count) * self.alg_struct_count) as u16;
         }
@@ -245,7 +244,7 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
             .encode(bytes)
             .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             cnt += self
                 .other_params_selection
                 .encode(bytes)
@@ -276,7 +275,7 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
 
         cnt += 0u16.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // reserved3
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             for algo in self.alg_struct.iter().take(self.alg_struct_count as usize) {
                 cnt += algo.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
             }
@@ -289,7 +288,7 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
         r: &mut Reader,
     ) -> Option<SpdmAlgorithmsResponsePayload> {
         let mut alg_struct_count = 0;
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             alg_struct_count = u8::read(r)?; // param1
             if alg_struct_count > 4 {
                 return None;
@@ -318,18 +317,17 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
             return None;
         }
 
-        let other_params_selection = if context.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
-            SpdmOpaqueSupport::read(r)?
-        } else {
-            u8::read(r)?;
-            SpdmOpaqueSupport::default()
-        };
+        let other_params_selection =
+            if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
+                SpdmOpaqueSupport::read(r)?
+            } else {
+                u8::read(r)?;
+                SpdmOpaqueSupport::default()
+            };
         if !other_params_selection.is_no_more_than_one_selected() {
             return None;
         }
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8()
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12
             && (context
                 .negotiate_info
                 .rsp_capabilities_sel
@@ -451,7 +449,7 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
         u16::read(r)?; // reserved3
 
         let mut alg_struct = gen_array_clone(SpdmAlgStruct::default(), 4);
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             let mut dhe_present = false;
             let mut aead_present = false;
             let mut req_asym_present = false;
@@ -581,7 +579,7 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
         }
 
         let mut calc_length: u16 = 36;
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             let alg_fixed_count = 2u8;
             calc_length += ((2 + alg_fixed_count) * alg_struct_count) as u16;
         }

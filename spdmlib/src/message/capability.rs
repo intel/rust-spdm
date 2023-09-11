@@ -27,7 +27,7 @@ impl SpdmCodec for SpdmGetCapabilitiesRequestPayload {
         cnt += 0u8.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // param1
         cnt += 0u8.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // param2
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             cnt += 0u8.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // reserved
             cnt += self
                 .ct_exponent
@@ -40,7 +40,7 @@ impl SpdmCodec for SpdmGetCapabilitiesRequestPayload {
                 .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
         }
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             cnt += self
                 .data_transfer_size
                 .encode(bytes)
@@ -62,7 +62,7 @@ impl SpdmCodec for SpdmGetCapabilitiesRequestPayload {
 
         let mut ct_exponent = 0;
         let mut flags = SpdmRequestCapabilityFlags::default();
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             u8::read(r)?; // reserved
             ct_exponent = u8::read(r)?;
             u16::read(r)?; // reserved2
@@ -111,8 +111,7 @@ impl SpdmCodec for SpdmGetCapabilitiesRequestPayload {
                 return None;
             }
 
-            if context.negotiate_info.spdm_version_sel.get_u8()
-                == SpdmVersion::SpdmVersion11.get_u8()
+            if context.negotiate_info.spdm_version_sel == SpdmVersion::SpdmVersion11
                 && flags.contains(SpdmRequestCapabilityFlags::MUT_AUTH_CAP)
                 && !flags.contains(SpdmRequestCapabilityFlags::ENCAP_CAP)
             {
@@ -122,7 +121,7 @@ impl SpdmCodec for SpdmGetCapabilitiesRequestPayload {
 
         let mut data_transfer_size = 0;
         let mut max_spdm_msg_size = 0;
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             data_transfer_size = u32::read(r)?;
             max_spdm_msg_size = u32::read(r)?;
             if data_transfer_size < 42 || max_spdm_msg_size < data_transfer_size {
@@ -171,7 +170,7 @@ impl SpdmCodec for SpdmCapabilitiesResponsePayload {
             .encode(bytes)
             .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             cnt += self
                 .data_transfer_size
                 .encode(bytes)
@@ -209,7 +208,7 @@ impl SpdmCodec for SpdmCapabilitiesResponsePayload {
         {
             return None;
         }
-        if context.negotiate_info.spdm_version_sel.get_u8() < SpdmVersion::SpdmVersion11.get_u8() {
+        if context.negotiate_info.spdm_version_sel < SpdmVersion::SpdmVersion11 {
             if !flags.contains(SpdmResponseCapabilityFlags::MEAS_CAP_SIG) {
                 if flags.contains(SpdmResponseCapabilityFlags::CERT_CAP)
                     != flags.contains(SpdmResponseCapabilityFlags::CHAL_CAP)
@@ -269,13 +268,13 @@ impl SpdmCodec for SpdmCapabilitiesResponsePayload {
                 return None;
             }
         }
-        if context.negotiate_info.spdm_version_sel.get_u8() == SpdmVersion::SpdmVersion11.get_u8()
+        if context.negotiate_info.spdm_version_sel == SpdmVersion::SpdmVersion11
             && flags.contains(SpdmResponseCapabilityFlags::MUT_AUTH_CAP)
             && !flags.contains(SpdmResponseCapabilityFlags::ENCAP_CAP)
         {
             return None;
         }
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             if !flags.contains(SpdmResponseCapabilityFlags::CERT_CAP)
                 && (flags.contains(SpdmResponseCapabilityFlags::ALIAS_CERT_CAP)
                     || flags.contains(SpdmResponseCapabilityFlags::SET_CERT_CAP))
@@ -295,7 +294,7 @@ impl SpdmCodec for SpdmCapabilitiesResponsePayload {
             }
         }
 
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8() {
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             let data_transfer_size = u32::read(r)?;
             let max_spdm_msg_size = u32::read(r)?;
             if data_transfer_size < 42 || max_spdm_msg_size < data_transfer_size {

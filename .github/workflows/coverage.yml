@@ -112,8 +112,8 @@ jobs:
           RUSTFLAGS: "-C instrument-coverage"
           CC_x86_64_unknown_none: clang
           AR_x86_64_unknown_none: llvm-ar
-          RUN_REQUESTER_FEATURES: "spdm-mbedtls,hashed-transcript-data,spdm-mbedtls-hashed-transcript-data"
-          RUN_RESPONDER_FEATURES: "spdm-mbedtls,hashed-transcript-data,spdm-mbedtls-hashed-transcript-data"
+          RUN_REQUESTER_FEATURES: "spdm-mbedtls,hashed-transcript-data"
+          RUN_RESPONDER_FEATURES: "spdm-mbedtls,hashed-transcript-data"
         run: |
           ./sh_script/build.sh -r
 

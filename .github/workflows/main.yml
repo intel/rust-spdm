@@ -25,14 +25,14 @@ jobs:
             "spdm-ring",
             "spdm-ring,hashed-transcript-data",
             "spdm-mbedtls",
-            "spdm-mbedtls,hashed-transcript-data,spdm-mbedtls-hashed-transcript-data",
+            "spdm-mbedtls,hashed-transcript-data",
           ]
         run_responder_features:
           [
             "spdm-ring",
             "spdm-ring,hashed-transcript-data",
             "spdm-mbedtls",
-            "spdm-mbedtls,hashed-transcript-data,spdm-mbedtls-hashed-transcript-data",
+            "spdm-mbedtls,hashed-transcript-data",
           ]
         include:
           - runs-on: windows-latest

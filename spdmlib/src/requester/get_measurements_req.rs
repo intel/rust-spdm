@@ -118,8 +118,8 @@ impl RequesterContext {
                         if let Some(measurements) = measurements {
                             debug!("!!! measurements : {:02x?}\n", measurements);
 
-                            if self.common.negotiate_info.spdm_version_sel.get_u8()
-                                >= SpdmVersion::SpdmVersion12.get_u8()
+                            if self.common.negotiate_info.spdm_version_sel
+                                >= SpdmVersion::SpdmVersion12
                             {
                                 self.common.runtime_info.content_changed =
                                     measurements.content_changed;
@@ -270,9 +270,7 @@ impl RequesterContext {
                 .data_size as usize)];
 
         let mut message_sign = ManagedBuffer12Sign::default();
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message_sign.reset_message();
             message_sign
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)
@@ -309,9 +307,7 @@ impl RequesterContext {
     ) -> SpdmResult {
         let mut message_l1l2 = ManagedBufferL1L2::default();
 
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             let message_a = self.common.runtime_info.message_a.clone();
             message_l1l2
                 .append_message(message_a.as_ref())
@@ -361,9 +357,7 @@ impl RequesterContext {
                 .ok_or(SPDM_STATUS_INVALID_PARAMETER)?
                 .data_size as usize)];
 
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message_l1l2.reset_message();
             message_l1l2
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)

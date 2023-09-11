@@ -177,9 +177,7 @@ impl RequesterContext {
 
         let mut message_sign = ManagedBuffer12Sign::default();
 
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message_sign.reset_message();
             message_sign
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)
@@ -247,9 +245,7 @@ impl RequesterContext {
                 .ok_or(SPDM_STATUS_INVALID_PARAMETER)?
                 .data_size as usize)];
 
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message_m1m2.reset_message();
             message_m1m2
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)

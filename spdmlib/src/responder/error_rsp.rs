@@ -5,7 +5,6 @@
 use crate::common::SpdmCodec;
 use crate::error::SpdmResult;
 use crate::message::*;
-use crate::protocol::SpdmVersion;
 use crate::responder::*;
 
 impl ResponderContext {
@@ -17,11 +16,7 @@ impl ResponderContext {
     ) {
         let error = SpdmMessage {
             header: SpdmMessageHeader {
-                version: if self.common.negotiate_info.spdm_version_sel.get_u8() == 0 {
-                    SpdmVersion::SpdmVersion10
-                } else {
-                    self.common.negotiate_info.spdm_version_sel
-                },
+                version: self.common.negotiate_info.spdm_version_sel,
                 request_response_code: SpdmRequestResponseCode::SpdmResponseError,
             },
             payload: SpdmMessagePayload::SpdmErrorResponse(SpdmErrorResponsePayload {

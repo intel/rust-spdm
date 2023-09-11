@@ -18,7 +18,7 @@ fn test_key_update_struct() {
 
     // 1. Validate KeyUpdate request length is 4.
     let u8_slice = &mut [
-        SpdmVersion::SpdmVersion11.get_u8(),
+        u8::from(SpdmVersion::SpdmVersion11),
         SpdmRequestResponseCode::SpdmRequestKeyUpdate.get_u8(),
         SpdmKeyUpdateOperation::SpdmUpdateSingleKey.get_u8(),
         0u8,
@@ -30,7 +30,7 @@ fn test_key_update_struct() {
 
     // 2. Validate KEY_UPDATE_ACK response length is 4.
     let u8_slice = &mut [
-        SpdmVersion::SpdmVersion11.get_u8(),
+        u8::from(SpdmVersion::SpdmVersion11),
         SpdmRequestResponseCode::SpdmResponseKeyUpdateAck.get_u8(),
         SpdmKeyUpdateOperation::SpdmUpdateSingleKey.get_u8(),
         0u8,
@@ -42,7 +42,7 @@ fn test_key_update_struct() {
 
     // 3. Validate KEY_UPDATE operations equal to reserved value. Expactation, fail.
     let u8_slice = &mut [
-        SpdmVersion::SpdmVersion11.get_u8(),
+        u8::from(SpdmVersion::SpdmVersion11),
         SpdmRequestResponseCode::SpdmRequestKeyUpdate.get_u8(),
         SpdmKeyUpdateOperation::SpdmUpdateSingleKey.get_u8(),
         0u8,
@@ -54,7 +54,7 @@ fn test_key_update_struct() {
 
     // 4. Validate KEY_UPDATE_ACK KEY_UPDATE operations equal to reserved value. Expectation, fail
     let u8_slice = &mut [
-        SpdmVersion::SpdmVersion11.get_u8(),
+        u8::from(SpdmVersion::SpdmVersion11),
         SpdmRequestResponseCode::SpdmResponseKeyUpdateAck.get_u8(),
         SpdmKeyUpdateOperation::SpdmUpdateSingleKey.get_u8(),
         0u8,

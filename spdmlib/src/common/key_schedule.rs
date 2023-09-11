@@ -433,8 +433,8 @@ impl SpdmKeySchedule {
 
         let mut version = [0u8; 8];
         version.copy_from_slice(SPDM_VERSION_VALUE);
-        version[SPDM_VERSION_VALUE_MAJOR_INDEX] = (spdm_version.get_u8() >> 4) + b'0';
-        version[SPDM_VERSION_VALUE_MINOR_INDEX] = (spdm_version.get_u8() & 0x0F) + b'0';
+        version[SPDM_VERSION_VALUE_MAJOR_INDEX] = (u8::from(spdm_version) >> 4) + b'0';
+        version[SPDM_VERSION_VALUE_MINOR_INDEX] = (u8::from(spdm_version) & 0x0F) + b'0';
 
         let mut writer = Writer::init(buffer);
         length.encode(&mut writer).ok()?;

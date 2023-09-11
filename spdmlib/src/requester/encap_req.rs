@@ -31,9 +31,7 @@ impl RequesterContext {
         session_id: u32,
         mut_auth_requested: SpdmKeyExchangeMutAuthAttributes,
     ) -> SpdmResult {
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            < SpdmVersion::SpdmVersion11.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel < SpdmVersion::SpdmVersion11 {
             return Err(SPDM_STATUS_UNSUPPORTED_CAP);
         }
 

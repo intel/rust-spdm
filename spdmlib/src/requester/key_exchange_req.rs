@@ -87,9 +87,7 @@ impl RequesterContext {
         debug!("!!! exchange data : {:02x?}\n", exchange);
 
         let mut opaque;
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            < SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel < SpdmVersion::SpdmVersion12 {
             opaque = SpdmOpaqueStruct {
                 data_size: crate::common::opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0277
                     .len() as u16,
@@ -450,9 +448,7 @@ impl RequesterContext {
                 .data_size as usize)];
 
         let mut message_sign = ManagedBuffer12Sign::default();
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message_sign.reset_message();
             message_sign
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)
@@ -516,9 +512,7 @@ impl RequesterContext {
             None,
         )?;
 
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message.reset_message();
             message
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)

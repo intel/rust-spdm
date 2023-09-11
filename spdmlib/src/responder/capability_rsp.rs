@@ -34,7 +34,7 @@ impl ResponderContext {
             request_response_code: _,
         }) = message_header
         {
-            if version.get_u8() < SpdmVersion::SpdmVersion10.get_u8() {
+            if version < SpdmVersion::SpdmVersion10 {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
                 return;
             }
@@ -61,9 +61,7 @@ impl ResponderContext {
             self.common.negotiate_info.rsp_capabilities_sel =
                 self.common.config_info.rsp_capabilities;
 
-            if self.common.negotiate_info.spdm_version_sel.get_u8()
-                >= SpdmVersion::SpdmVersion12.get_u8()
-            {
+            if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
                 self.common.negotiate_info.req_data_transfer_size_sel =
                     get_capabilities.data_transfer_size;
                 self.common.negotiate_info.req_max_spdm_msg_size_sel =

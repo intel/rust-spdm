@@ -52,7 +52,7 @@ impl ResponderContext {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
                 return Err(SPDM_STATUS_INVALID_MSG_FIELD);
             }
-            if message_header.version.get_u8() < SpdmVersion::SpdmVersion11.get_u8() {
+            if message_header.version < SpdmVersion::SpdmVersion11 {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorUnsupportedRequest, 0, writer);
                 return Err(SPDM_STATUS_INVALID_MSG_FIELD);
             }
@@ -121,8 +121,8 @@ impl ResponderContext {
                             .get_secure_spdm_version()
                             == local_version
                         {
-                            if self.common.negotiate_info.spdm_version_sel.get_u8()
-                                < SpdmVersion::SpdmVersion12.get_u8()
+                            if self.common.negotiate_info.spdm_version_sel
+                                < SpdmVersion::SpdmVersion12
                             {
                                 return_opaque.data_size =
                                     crate::common::opaque::RSP_DMTF_OPAQUE_DATA_VERSION_SELECTION_DSP0277
@@ -459,9 +459,7 @@ impl ResponderContext {
         debug!("message_hash - {:02x?}", transcript_hash.as_ref());
 
         let mut message_sign = ManagedBuffer12Sign::default();
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message_sign.reset_message();
             message_sign
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)
@@ -508,9 +506,7 @@ impl ResponderContext {
             &session.runtime_info.message_k,
             None,
         )?;
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message.reset_message();
             message
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)

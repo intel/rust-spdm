@@ -82,9 +82,7 @@ impl SpdmCodec for SpdmGetMeasurementsRequestPayload {
                 .nonce
                 .encode(bytes)
                 .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
-            if context.negotiate_info.spdm_version_sel.get_u8()
-                >= SpdmVersion::SpdmVersion11.get_u8()
-            {
+            if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
                 cnt += self
                     .slot_id
                     .encode(bytes)
@@ -108,9 +106,7 @@ impl SpdmCodec for SpdmGetMeasurementsRequestPayload {
             };
         let slot_id =
             if measurement_attributes.contains(SpdmMeasurementAttributes::SIGNATURE_REQUESTED) {
-                if context.negotiate_info.spdm_version_sel.get_u8()
-                    >= SpdmVersion::SpdmVersion11.get_u8()
-                {
+                if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
                     u8::read(r)?
                 } else {
                     0
@@ -157,14 +153,13 @@ impl SpdmCodec for SpdmMeasurementsResponsePayload {
                 .encode(bytes)
                 .map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // param1
         }
-        if context.negotiate_info.spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8()
+        if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12
             && context.runtime_info.need_measurement_signature
         {
             cnt += (self.slot_id | self.content_changed.bits())
                 .encode(bytes)
                 .map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // param2
-        } else if context.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion11.get_u8()
+        } else if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11
             && context.runtime_info.need_measurement_signature
         {
             cnt += self

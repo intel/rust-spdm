@@ -164,13 +164,12 @@ impl ResponderContext {
             SpdmMeasurementRecordStructure::default()
         };
 
-        let content_changed = if runtime_content_change_support
-            && (spdm_version_sel.get_u8() >= SpdmVersion::SpdmVersion12.get_u8())
-        {
-            content_changed
-        } else {
-            SpdmMeasurementContentChanged::NOT_SUPPORTED
-        };
+        let content_changed =
+            if runtime_content_change_support && (spdm_version_sel >= SpdmVersion::SpdmVersion12) {
+                content_changed
+            } else {
+                SpdmMeasurementContentChanged::NOT_SUPPORTED
+            };
 
         let mut nonce = [0u8; SPDM_NONCE_SIZE];
         let res = crypto::rand::get_random(&mut nonce);
@@ -280,9 +279,7 @@ impl ResponderContext {
 
         let mut message_sign = ManagedBuffer12Sign::default();
 
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message_sign.reset_message();
             message_sign
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)
@@ -315,9 +312,7 @@ impl ResponderContext {
         session_id: Option<u32>,
     ) -> SpdmResult<SpdmSignatureStruct> {
         let mut message_l1l2 = ManagedBufferL1L2::default();
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             let message_a = self.common.runtime_info.message_a.clone();
             message_l1l2
                 .append_message(message_a.as_ref())
@@ -352,9 +347,7 @@ impl ResponderContext {
 
         debug!("message_l1l2_hash - {:02x?}", message_l1l2_hash.as_ref());
 
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             message_l1l2.reset_message();
             message_l1l2
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)

@@ -59,10 +59,9 @@ impl RequesterContext {
                             mut versions,
                         } = version;
 
-                        versions
-                            .sort_unstable_by(|a, b| b.version.get_u8().cmp(&a.version.get_u8()));
+                        versions.sort_unstable_by(|a, b| b.version.cmp(&a.version));
 
-                        self.common.negotiate_info.spdm_version_sel = SpdmVersion::Unknown(0);
+                        let mut negotiate_version: Option<SpdmVersion> = None;
 
                         for spdm_version_struct in
                             versions.iter().take(version_number_entry_count as usize)
@@ -73,26 +72,23 @@ impl RequesterContext {
                                 .spdm_version
                                 .contains(&spdm_version_struct.version)
                             {
-                                self.common.negotiate_info.spdm_version_sel =
-                                    spdm_version_struct.version;
+                                negotiate_version = Some(spdm_version_struct.version);
                                 break;
                             }
                         }
 
-                        match self.common.negotiate_info.spdm_version_sel {
-                            SpdmVersion::Unknown(_) => {
-                                debug!(
-                                    "Version negotiation failed! with given version list: {:?}",
-                                    versions
-                                );
-                                return Err(SPDM_STATUS_NEGOTIATION_FAIL);
-                            }
-                            _ => {
-                                debug!(
-                                    "Version negotiated: {:?}",
-                                    self.common.negotiate_info.spdm_version_sel
-                                );
-                            }
+                        if let Some(negotiate_version) = negotiate_version {
+                            self.common.negotiate_info.spdm_version_sel = negotiate_version;
+                            debug!(
+                                "Version negotiated: {:?}",
+                                self.common.negotiate_info.spdm_version_sel
+                            );
+                        } else {
+                            debug!(
+                                "Version negotiation failed! with given version list: {:?}",
+                                versions
+                            );
+                            return Err(SPDM_STATUS_NEGOTIATION_FAIL);
                         }
 
                         // clear cache data

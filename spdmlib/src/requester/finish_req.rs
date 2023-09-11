@@ -326,9 +326,7 @@ impl RequesterContext {
             .calc_req_transcript_hash(false, slot_id, true, session)?;
 
         let mut transcript_sign = ManagedBuffer12Sign::default();
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             transcript_sign.reset_message();
             transcript_sign
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)
@@ -365,9 +363,7 @@ impl RequesterContext {
         debug!("transcript_hash - {:02x?}", transcript_hash.as_ref());
 
         let mut transcript_sign = ManagedBuffer12Sign::default();
-        if self.common.negotiate_info.spdm_version_sel.get_u8()
-            >= SpdmVersion::SpdmVersion12.get_u8()
-        {
+        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12 {
             transcript_sign.reset_message();
             transcript_sign
                 .append_message(&SPDM_VERSION_1_2_SIGNING_PREFIX_CONTEXT)

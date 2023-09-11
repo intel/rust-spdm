@@ -74,8 +74,8 @@ impl RequesterContext {
                                 capabilities.ct_exponent;
                             self.common.negotiate_info.rsp_capabilities_sel = capabilities.flags;
 
-                            if self.common.negotiate_info.spdm_version_sel.get_u8()
-                                >= SpdmVersion::SpdmVersion12.get_u8()
+                            if self.common.negotiate_info.spdm_version_sel
+                                >= SpdmVersion::SpdmVersion12
                             {
                                 self.common.negotiate_info.req_data_transfer_size_sel =
                                     self.common.config_info.data_transfer_size;

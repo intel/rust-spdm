@@ -89,6 +89,26 @@ RUN_RESPONDER_FEATURES=${RUN_RESPONDER_FEATURES:-spdm-ring,hashed-transcript-dat
 RUN_REQUESTER_MUTAUTH_FEATURES="${RUN_REQUESTER_FEATURES},mut-auth"
 RUN_RESPONDER_MUTAUTH_FEATURES="${RUN_RESPONDER_FEATURES},mut-auth"
 
+run_spdm_emu_with_check() {
+    # Workaround for https://github.com/DMTF/spdm-emu/issues/265
+    # The check logic port from https://github.com/DMTF/spdm-emu/blob/07c0a838bcc1c6207c656ac75885c0603e344b6f/.github/workflows/build_CI.yml#L129C1-L137C13
+    filename=requester.log
+    set -x
+    "$@"  > $filename
+    sleep 5
+    minsize=160000
+    if [ `stat -c%s "$filename"` -lt $minsize ] ||
+        ! grep "libspdm_stop_session - (nil)" $filename;
+    then
+        echo "requester run fail"
+        cat -n "$filename"
+        echo "$filename size is `stat -c%s "$filename"`"
+        cleanup
+        exit 1
+    fi
+    set +x
+}
+
 run_with_spdm_emu() {
     echo "Running with spdm-emu..."
     pushd test_key
@@ -103,7 +123,7 @@ run_with_spdm_emu() {
     sleep 5
     pushd test_key
     chmod +x ./spdm_requester_emu
-    echo_command  ./spdm_requester_emu --trans PCI_DOE --exe_conn DIGEST,CERT,CHAL,MEAS --exe_session KEY_EX,PSK,KEY_UPDATE,HEARTBEAT,MEAS,DIGEST,CERT
+    run_spdm_emu_with_check  ./spdm_requester_emu --trans PCI_DOE --exe_conn DIGEST,CERT,CHAL,MEAS --exe_session KEY_EX,PSK,KEY_UPDATE,HEARTBEAT,MEAS,DIGEST,CERT
     popd
 }
 
@@ -121,7 +141,7 @@ run_with_spdm_emu_mut_auth() {
     sleep 5
     pushd test_key
     chmod +x ./spdm_requester_emu
-    echo_command  ./spdm_requester_emu --trans PCI_DOE --req_asym ECDSA_P384 --exe_conn DIGEST,CERT,CHAL,MEAS --exe_session KEY_EX,PSK,KEY_UPDATE,HEARTBEAT,MEAS,DIGEST,CERT
+    run_spdm_emu_with_check  ./spdm_requester_emu --trans PCI_DOE --req_asym ECDSA_P384 --exe_conn DIGEST,CERT,CHAL,MEAS --exe_session KEY_EX,PSK,KEY_UPDATE,HEARTBEAT,MEAS,DIGEST,CERT
     popd
 }
 

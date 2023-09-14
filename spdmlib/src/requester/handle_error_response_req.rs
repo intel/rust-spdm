@@ -78,7 +78,7 @@ impl RequesterContext {
                 } else {
                     return Err(SPDM_STATUS_INVALID_PARAMETER);
                 };
-                let _ = session.teardown(sid);
+                session.teardown();
             }
             Err(SPDM_STATUS_SESSION_MSG_ERROR)
         } else {

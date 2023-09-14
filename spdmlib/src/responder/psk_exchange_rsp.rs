@@ -319,7 +319,7 @@ impl ResponderContext {
         let hmac = session.generate_hmac_with_response_finished_key(transcript_hash.as_ref());
         if hmac.is_err() {
             let session = self.common.get_session_via_id(session_id).unwrap();
-            let _ = session.teardown(session_id);
+            session.teardown();
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
             return Err(SPDM_STATUS_CRYPTO_ERROR);
         }
@@ -332,7 +332,7 @@ impl ResponderContext {
             .is_err()
         {
             let session = self.common.get_session_via_id(session_id).unwrap();
-            let _ = session.teardown(session_id);
+            session.teardown();
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
             return Err(SPDM_STATUS_CRYPTO_ERROR);
         }

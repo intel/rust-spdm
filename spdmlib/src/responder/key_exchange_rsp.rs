@@ -253,7 +253,7 @@ impl ResponderContext {
         session.set_mut_auth_requested(mut_auth_req);
         session.set_transport_param(sequence_number_count, max_random_count);
         if session.set_dhe_secret(spdm_version_sel, final_key).is_err() {
-            let _ = session.teardown(session_id);
+            session.teardown();
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
             return Err(SPDM_STATUS_CRYPTO_ERROR);
         }
@@ -401,7 +401,7 @@ impl ResponderContext {
 
             let hmac = session.generate_hmac_with_response_finished_key(transcript_hash.as_ref());
             if hmac.is_err() {
-                let _ = session.teardown(session_id);
+                session.teardown();
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
                 return Err(SPDM_STATUS_CRYPTO_ERROR);
             }
@@ -414,7 +414,7 @@ impl ResponderContext {
                 .is_err()
             {
                 let session = self.common.get_session_via_id(session_id).unwrap();
-                let _ = session.teardown(session_id);
+                session.teardown();
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
                 return Err(SPDM_STATUS_CRYPTO_ERROR);
             }

@@ -127,7 +127,7 @@ impl ResponderContext {
             self.common.runtime_info.set_last_session_id(None);
         } else if opcode == SpdmRequestResponseCode::SpdmResponseEndSessionAck.get_u8() {
             let session = self.common.get_session_via_id(session_id.unwrap()).unwrap();
-            let _ = session.teardown(session_id.unwrap());
+            session.teardown();
         } else if (opcode == SpdmRequestResponseCode::SpdmResponseFinishRsp.get_u8()
             || opcode == SpdmRequestResponseCode::SpdmResponsePskFinishRsp.get_u8())
             && session_id.is_some()

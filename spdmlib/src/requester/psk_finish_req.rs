@@ -28,11 +28,10 @@ impl RequesterContext {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let res = self.encode_spdm_psk_finish(session_id, &mut send_buffer);
         if res.is_err() {
-            let _ = self
-                .common
+            self.common
                 .get_session_via_id(session_id)
                 .unwrap()
-                .teardown(session_id);
+                .teardown();
             return Err(res.err().unwrap());
         }
         let send_used = res.unwrap();
@@ -40,11 +39,10 @@ impl RequesterContext {
             .send_message(Some(session_id), &send_buffer[..send_used], false)
             .await;
         if res.is_err() {
-            let _ = self
-                .common
+            self.common
                 .get_session_via_id(session_id)
                 .unwrap()
-                .teardown(session_id);
+                .teardown();
             return res;
         }
 
@@ -53,18 +51,17 @@ impl RequesterContext {
             .receive_message(Some(session_id), &mut receive_buffer, false)
             .await;
         if res.is_err() {
-            let _ = self
-                .common
+            self.common
                 .get_session_via_id(session_id)
                 .unwrap()
-                .teardown(session_id);
+                .teardown();
             return Err(res.err().unwrap());
         }
         let receive_used = res.unwrap();
         let res = self.handle_spdm_psk_finish_response(session_id, &receive_buffer[..receive_used]);
         if res.is_err() {
             if let Some(session) = self.common.get_session_via_id(session_id) {
-                let _ = session.teardown(session_id);
+                session.teardown();
             }
         }
         res

@@ -69,7 +69,7 @@ impl RequesterContext {
                                 } else {
                                     return Err(SPDM_STATUS_INVALID_PARAMETER);
                                 };
-                            session.teardown(session_id)?;
+                            session.teardown();
 
                             Ok(())
                         } else {

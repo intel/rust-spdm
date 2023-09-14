@@ -53,11 +53,10 @@ impl RequesterContext {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let res = self.encode_spdm_finish(session_id, req_slot_id, &mut send_buffer);
         if res.is_err() {
-            let _ = self
-                .common
+            self.common
                 .get_session_via_id(session_id)
                 .unwrap()
-                .teardown(session_id);
+                .teardown();
             return Err(res.err().unwrap());
         }
         let send_used = res.unwrap();
@@ -69,11 +68,10 @@ impl RequesterContext {
                 .await
         };
         if res.is_err() {
-            let _ = self
-                .common
+            self.common
                 .get_session_via_id(session_id)
                 .unwrap()
-                .teardown(session_id);
+                .teardown();
             return res;
         }
 
@@ -85,11 +83,10 @@ impl RequesterContext {
                 .await
         };
         if res.is_err() {
-            let _ = self
-                .common
+            self.common
                 .get_session_via_id(session_id)
                 .unwrap()
-                .teardown(session_id);
+                .teardown();
             return Err(res.err().unwrap());
         }
         let receive_used = res.unwrap();
@@ -100,7 +97,7 @@ impl RequesterContext {
         );
         if res.is_err() {
             if let Some(session) = self.common.get_session_via_id(session_id) {
-                let _ = session.teardown(session_id);
+                session.teardown();
             }
         }
         res

@@ -216,13 +216,8 @@ impl SpdmSession {
         }
     }
 
-    pub fn teardown(&mut self, session_id: u32) -> SpdmResult {
-        if self.session_id == session_id {
-            self.set_default();
-            Ok(())
-        } else {
-            panic!("teardown session owned by other!");
-        }
+    pub fn teardown(&mut self) {
+        self.set_default()
     }
 
     pub fn set_use_psk(&mut self, use_psk: bool) {
@@ -1500,11 +1495,10 @@ mod tests_session {
         let _ = session.setup(session_id).is_err();
     }
     #[test]
-    #[should_panic]
     fn test_case0_teardown() {
         let mut session = SpdmSession::default();
-        session.session_id = 0xffffu32;
-        let session_id = 4294901758u32;
-        let _ = session.teardown(session_id).is_err();
+        session.session_id = 0x0f0f0f0fu32;
+        session.teardown();
+        assert!(session.session_id != 0x0f0f0f0fu32);
     }
 }

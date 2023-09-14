@@ -258,7 +258,7 @@ impl RequesterContext {
                             {
                                 error!("verify_hmac_with_response_finished_key fail");
                                 let session = self.common.get_session_via_id(session_id).unwrap();
-                                let _ = session.teardown(session_id);
+                                session.teardown();
                                 return Err(SPDM_STATUS_VERIF_FAIL);
                             } else {
                                 info!("verify_hmac_with_response_finished_key pass");
@@ -274,7 +274,7 @@ impl RequesterContext {
                                     .common
                                     .get_session_via_id(session_id)
                                     .ok_or(SPDM_STATUS_INVALID_PARAMETER)?;
-                                let _ = session.teardown(session_id);
+                                session.teardown();
                                 return Err(SPDM_STATUS_BUFFER_FULL);
                             }
 

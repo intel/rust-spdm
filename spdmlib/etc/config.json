@@ -11,6 +11,7 @@
         "max_psk_context_size": 64,
         "max_psk_hint_size": 32
     },
+    "max_opaque_list_elements_count": 3,
     "max_session_count": 4,
     "transport_config": {
         "sender_buffer_size": 4160,

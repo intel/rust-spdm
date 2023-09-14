@@ -14,6 +14,7 @@ struct SpdmConfig {
     cert_config: SpdmCertConfig,
     measurement_config: SpdmMeasurementConfig,
     psk_config: SpdmPskConfig,
+    max_opaque_list_elements_count: usize,
     max_session_count: usize,
     transport_config: SpdmBufferConfig,
     max_spdm_msg_size: usize,
@@ -107,6 +108,9 @@ pub const MAX_SPDM_PSK_CONTEXT_SIZE: usize = {psk_ctx_sz};
 /// This is used in SpdmPskExchangeRequestPayload / SpdmPskExchangeResponsePayload
 pub const MAX_SPDM_PSK_HINT_SIZE: usize = {psk_hint_sz};
 
+/// This is used in Key exchange opaque data
+pub const MAX_OPAQUE_LIST_ELEMENTS_COUNT: usize = {max_opaque_list_elements_cnt};
+
 /// This is used in SpdmContext
 pub const MAX_SPDM_SESSION_COUNT: usize = {session_cnt};
 
@@ -178,6 +182,7 @@ fn main() {
         meas_val_len = spdm_config.measurement_config.max_measurement_val_len,
         psk_ctx_sz = spdm_config.psk_config.max_psk_context_size,
         psk_hint_sz = spdm_config.psk_config.max_psk_hint_size,
+        max_opaque_list_elements_cnt = spdm_config.max_opaque_list_elements_count,
         session_cnt = spdm_config.max_session_count,
         snd_buf_sz = spdm_config.transport_config.sender_buffer_size,
         rcv_buf_sz = spdm_config.transport_config.receiver_buffer_size,

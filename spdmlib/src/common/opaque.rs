@@ -9,13 +9,13 @@ use crate::{
     message::MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN,
 };
 use codec::{Codec, Reader, Writer};
+use config::MAX_OPAQUE_LIST_ELEMENTS_COUNT;
 
 /// This is used in SpdmOpaqueStruct <- SpdmChallengeAuthResponsePayload / SpdmMeasurementsResponsePayload
 /// It should be 1024 according to SPDM spec.
 pub const MAX_SPDM_OPAQUE_SIZE: usize = 1024;
 
 pub const MAX_SECURE_SPDM_VERSION_COUNT: usize = 0x02;
-pub const MAX_OPAQUE_LIST_ELEMENTS_COUNT: usize = 3;
 
 pub const DMTF_SPEC_ID: u32 = 0x444D546;
 pub const DMTF_OPAQUE_VERSION: u8 = 0x01;

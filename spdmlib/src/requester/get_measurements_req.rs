@@ -113,68 +113,72 @@ impl RequesterContext {
                         let measurements = SpdmMeasurementsResponsePayload::spdm_read(
                             &mut self.common,
                             &mut reader,
-                        );
+                        )
+                        .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
+                        if measurement_operation
+                            == SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber
+                            && measurements.measurement_record.number_of_blocks != 0
+                        {
+                            error!("measurement_operation == SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber &&
+                            measurements.measurement_record.number_of_blocks != 0");
+                            return Err(SPDM_STATUS_INVALID_MSG_FIELD);
+                        }
+
                         let used = reader.used();
-                        if let Some(measurements) = measurements {
-                            debug!("!!! measurements : {:02x?}\n", measurements);
 
-                            if self.common.negotiate_info.spdm_version_sel
-                                >= SpdmVersion::SpdmVersion12
-                            {
-                                self.common.runtime_info.content_changed =
-                                    measurements.content_changed;
-                            }
+                        debug!("!!! measurements : {:02x?}\n", measurements);
 
-                            let base_asym_size =
-                                self.common.negotiate_info.base_asym_sel.get_size() as usize;
-                            let temp_used = used
-                                - if self.common.runtime_info.need_measurement_signature {
-                                    base_asym_size
-                                } else {
-                                    0
-                                };
+                        if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12
+                        {
+                            self.common.runtime_info.content_changed = measurements.content_changed;
+                        }
 
-                            self.common.append_message_m(session_id, send_buffer)?;
-                            self.common
-                                .append_message_m(session_id, &receive_buffer[..temp_used])?;
-
-                            // verify signature
-                            if measurement_attributes
-                                .contains(SpdmMeasurementAttributes::SIGNATURE_REQUESTED)
-                            {
-                                if self
-                                    .verify_measurement_signature(
-                                        slot_id,
-                                        session_id,
-                                        &measurements.signature,
-                                    )
-                                    .is_err()
-                                {
-                                    error!("verify_measurement_signature fail");
-                                    self.common.reset_message_m(session_id);
-                                    return Err(SPDM_STATUS_VERIF_FAIL);
-                                } else {
-                                    self.common.reset_message_m(session_id);
-                                    info!("verify_measurement_signature pass");
-                                }
-                            }
-
-                            *spdm_measurement_record_structure = SpdmMeasurementRecordStructure {
-                                ..measurements.measurement_record
+                        let base_asym_size =
+                            self.common.negotiate_info.base_asym_sel.get_size() as usize;
+                        let temp_used = used
+                            - if self.common.runtime_info.need_measurement_signature {
+                                base_asym_size
+                            } else {
+                                0
                             };
 
-                            match measurement_operation {
-                                SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber => {
-                                    Ok(measurements.number_of_measurement)
-                                }
-                                SpdmMeasurementOperation::SpdmMeasurementRequestAll => {
-                                    Ok(measurements.measurement_record.number_of_blocks)
-                                }
-                                _ => Ok(measurements.measurement_record.number_of_blocks),
+                        self.common.append_message_m(session_id, send_buffer)?;
+                        self.common
+                            .append_message_m(session_id, &receive_buffer[..temp_used])?;
+
+                        // verify signature
+                        if measurement_attributes
+                            .contains(SpdmMeasurementAttributes::SIGNATURE_REQUESTED)
+                        {
+                            if self
+                                .verify_measurement_signature(
+                                    slot_id,
+                                    session_id,
+                                    &measurements.signature,
+                                )
+                                .is_err()
+                            {
+                                error!("verify_measurement_signature fail");
+                                self.common.reset_message_m(session_id);
+                                return Err(SPDM_STATUS_VERIF_FAIL);
+                            } else {
+                                self.common.reset_message_m(session_id);
+                                info!("verify_measurement_signature pass");
                             }
-                        } else {
-                            error!("!!! measurements : fail !!!\n");
-                            Err(SPDM_STATUS_INVALID_MSG_FIELD)
+                        }
+
+                        *spdm_measurement_record_structure = SpdmMeasurementRecordStructure {
+                            ..measurements.measurement_record
+                        };
+
+                        match measurement_operation {
+                            SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber => {
+                                Ok(measurements.number_of_measurement)
+                            }
+                            SpdmMeasurementOperation::SpdmMeasurementRequestAll => {
+                                Ok(measurements.measurement_record.number_of_blocks)
+                            }
+                            _ => Ok(measurements.measurement_record.number_of_blocks),
                         }
                     }
                     SpdmRequestResponseCode::SpdmResponseError => {

@@ -208,7 +208,7 @@ fn test_handle_spdm_measurement_record_response() {
                 v.extend_from_slice(&[0x02; 16]);
                 v.into_boxed_slice()
             })(),
-            expected_result: Ok(1), // should expect Err(SPDM_STATUS_INVALID_MSG_FIELD)
+            expected_result: Err(SPDM_STATUS_INVALID_MSG_FIELD),
         },
         Tc {
             name: "requested certain index (0x05) but returned mismatch (0xFE)",

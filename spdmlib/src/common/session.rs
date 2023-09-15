@@ -127,7 +127,7 @@ pub struct SpdmSession {
     key_schedule: SpdmKeySchedule,
     slot_id: u8,
     pub heartbeat_period: u8, // valid only when HEARTBEAT cap set
-    pub secure_spdm_version_sel: u8,
+    pub secure_spdm_version_sel: SecuredMessageVersion,
 }
 
 impl Default for SpdmSession {
@@ -152,7 +152,7 @@ impl SpdmSession {
             key_schedule: SpdmKeySchedule::new(),
             slot_id: 0,
             heartbeat_period: 0,
-            secure_spdm_version_sel: DMTF_SECURE_SPDM_VERSION_11,
+            secure_spdm_version_sel: SecuredMessageVersion::default(),
             mut_auth_requested: SpdmKeyExchangeMutAuthAttributes::default(),
         }
     }
@@ -194,7 +194,7 @@ impl SpdmSession {
         self.runtime_info = SpdmSessionRuntimeInfo::default();
         self.key_schedule = SpdmKeySchedule;
         self.heartbeat_period = 0;
-        self.secure_spdm_version_sel = DMTF_SECURE_SPDM_VERSION_11;
+        self.secure_spdm_version_sel = SecuredMessageVersion::default();
         self.mut_auth_requested = SpdmKeyExchangeMutAuthAttributes::empty();
     }
 

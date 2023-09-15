@@ -6,8 +6,7 @@
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
-use spdmlib::common::SpdmOpaqueSupport;
-use spdmlib::common::{DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11};
+use spdmlib::common::{SecuredMessageVersion, SpdmOpaqueSupport};
 use spdmlib::config::RECEIVER_BUFFER_SIZE;
 
 use std::net::{TcpListener, TcpStream};
@@ -15,6 +14,7 @@ use std::u32;
 
 use codec::{Codec, Reader, Writer};
 use common::SpdmTransportEncap;
+use core::convert::TryFrom;
 use mctp_transport::MctpTransportEncap;
 use pcidoe_transport::{
     PciDoeDataObjectType, PciDoeMessageHeader, PciDoeTransportEncap, PciDoeVendorId,
@@ -196,7 +196,10 @@ async fn handle_message(
         data_transfer_size: config::MAX_SPDM_MSG_SIZE as u32,
         max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
         heartbeat_period: config::HEARTBEAT_PERIOD,
-        secure_spdm_version: [DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11],
+        secure_spdm_version: [
+            SecuredMessageVersion::try_from(0x10u8).unwrap(),
+            SecuredMessageVersion::try_from(0x11u8).unwrap(),
+        ],
         ..Default::default()
     };
 

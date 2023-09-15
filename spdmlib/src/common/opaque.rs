@@ -10,6 +10,7 @@ use crate::{
 };
 use codec::{Codec, Reader, Writer};
 use config::MAX_OPAQUE_LIST_ELEMENTS_COUNT;
+use core::convert::TryFrom;
 
 /// This is used in SpdmOpaqueStruct <- SpdmChallengeAuthResponsePayload / SpdmMeasurementsResponsePayload
 /// It should be 1024 according to SPDM spec.
@@ -17,7 +18,7 @@ pub const MAX_SPDM_OPAQUE_SIZE: usize = 1024;
 
 pub const MAX_SECURE_SPDM_VERSION_COUNT: usize = 0x02;
 
-pub const DMTF_SPEC_ID: u32 = 0x444D546;
+pub const DMTF_SPEC_ID: u32 = 0x444D5446;
 pub const DMTF_OPAQUE_VERSION: u8 = 0x01;
 pub const SM_DATA_VERSION: u8 = 0x01;
 pub const DMTF_ID: u8 = 0x00;
@@ -28,14 +29,6 @@ pub const SUPPORTED_VERSION_LIST_SM_DATA_ID: u8 = 0x01;
 
 pub const DMTF_SECURE_SPDM_VERSION_10: u8 = 0x10;
 pub const DMTF_SECURE_SPDM_VERSION_11: u8 = 0x11;
-
-pub const DMTF_SUPPORTED_SECURE_SPDM_VERSION_LIST: [SecuredMessageVersion;
-    MAX_SECURE_SPDM_VERSION_COUNT] = [
-    SecuredMessageVersion::from_secure_spdm_version(DMTF_SECURE_SPDM_VERSION_10),
-    SecuredMessageVersion::from_secure_spdm_version(DMTF_SECURE_SPDM_VERSION_11),
-];
-pub const DMTF_SECURE_SPDM_VERSION_SELECTION: SecuredMessageVersion =
-    SecuredMessageVersion::from_secure_spdm_version(DMTF_SECURE_SPDM_VERSION_10);
 
 pub const REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0277: [u8; 20] = [
     0x46,
@@ -113,12 +106,23 @@ pub const RSP_DMTF_OPAQUE_DATA_VERSION_SELECTION_DSP0274_FMT1: [u8; 12] = [
     DMTF_SECURE_SPDM_VERSION_11,
 ];
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Eq)]
 pub struct SecuredMessageVersion {
     pub major_version: u8,
     pub minor_version: u8,
     pub update_version_number: u8,
     pub alpha: u8,
+}
+
+impl Default for SecuredMessageVersion {
+    fn default() -> Self {
+        Self {
+            major_version: 0x1,
+            minor_version: 0x1,
+            update_version_number: 0x0,
+            alpha: 0x0,
+        }
+    }
 }
 
 impl SpdmCodec for SecuredMessageVersion {
@@ -153,20 +157,69 @@ impl SpdmCodec for SecuredMessageVersion {
     }
 }
 
-impl SecuredMessageVersion {
-    pub fn get_secure_spdm_version(self) -> u8 {
-        (self.major_version << 4) + self.minor_version
+impl From<SecuredMessageVersion> for u8 {
+    fn from(smv: opaque::SecuredMessageVersion) -> Self {
+        (smv.major_version << 4) + smv.minor_version
     }
+}
 
-    pub const fn from_secure_spdm_version(secure_spdm_version: u8) -> Self {
-        let major_version = secure_spdm_version >> 4;
-        let minor_version = secure_spdm_version & 0x0F;
-        Self {
+impl From<&SecuredMessageVersion> for u8 {
+    fn from(smv: &opaque::SecuredMessageVersion) -> Self {
+        u8::from(*smv)
+    }
+}
+
+impl From<SecuredMessageVersion> for u16 {
+    fn from(smv: opaque::SecuredMessageVersion) -> Self {
+        (((smv.major_version << 4) as u16 + smv.minor_version as u16) << 8)
+            + (smv.update_version_number << 4) as u16
+            + smv.alpha as u16
+    }
+}
+
+impl From<&SecuredMessageVersion> for u16 {
+    fn from(smv: &opaque::SecuredMessageVersion) -> Self {
+        u16::from(*smv)
+    }
+}
+
+impl TryFrom<u8> for SecuredMessageVersion {
+    type Error = ();
+    fn try_from(untrusted_smv: u8) -> Result<Self, <Self as TryFrom<u8>>::Error> {
+        let major_version = untrusted_smv >> 4;
+        let minor_version = untrusted_smv & 0x0F;
+        Ok(Self {
             major_version,
             minor_version,
             update_version_number: 0,
             alpha: 0,
-        }
+        })
+    }
+}
+
+impl TryFrom<u16> for SecuredMessageVersion {
+    type Error = ();
+    fn try_from(untrusted_smv: u16) -> Result<Self, <Self as TryFrom<u8>>::Error> {
+        let major_minor = (untrusted_smv >> 8) as u8;
+        let major_version = major_minor >> 4;
+        let minor_version = major_minor & 0x0F;
+
+        let update_alpha = (untrusted_smv & 0xFF) as u8;
+        let update_version_number = update_alpha >> 4;
+        let alpha = update_alpha & 0x0F;
+
+        Ok(Self {
+            major_version,
+            minor_version,
+            update_version_number,
+            alpha,
+        })
+    }
+}
+
+impl PartialEq for SecuredMessageVersion {
+    fn eq(&self, smv: &SecuredMessageVersion) -> bool {
+        self.major_version == smv.major_version && self.minor_version == smv.minor_version
     }
 }
 

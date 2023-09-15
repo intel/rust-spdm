@@ -166,15 +166,10 @@ impl RequesterContext {
                                 transport_encap.get_max_random_count()
                             };
 
-                            let secure_spdm_version_sel = if let Some(secured_message_version) =
-                                psk_exchange_rsp
-                                    .opaque
-                                    .req_get_dmtf_secure_spdm_version_selection(&mut self.common)
-                            {
-                                secured_message_version.get_secure_spdm_version()
-                            } else {
-                                0
-                            };
+                            let secure_spdm_version_sel = psk_exchange_rsp
+                                .opaque
+                                .req_get_dmtf_secure_spdm_version_selection(&mut self.common)
+                                .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
                             let session_id = ((psk_exchange_rsp.rsp_session_id as u32) << 16)
                                 + half_session_id as u32;

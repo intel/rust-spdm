@@ -202,15 +202,10 @@ impl RequesterContext {
                                 transport_encap.get_max_random_count()
                             };
 
-                            let secure_spdm_version_sel = if let Some(secured_message_version) =
-                                key_exchange_rsp
-                                    .opaque
-                                    .req_get_dmtf_secure_spdm_version_selection(&mut self.common)
-                            {
-                                secured_message_version.get_secure_spdm_version()
-                            } else {
-                                0
-                            };
+                            let secure_spdm_version_sel = key_exchange_rsp
+                                .opaque
+                                .req_get_dmtf_secure_spdm_version_selection(&mut self.common)
+                                .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
                             info!(
                                 "secure_spdm_version_sel set to {:02X?}",

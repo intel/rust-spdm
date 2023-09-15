@@ -5,6 +5,7 @@
 use crate::common::session::SpdmSession;
 #[cfg(feature = "hashed-transcript-data")]
 use crate::common::ManagedBuffer12Sign;
+use crate::common::SecuredMessageVersion;
 use crate::common::SpdmCodec;
 use crate::common::SpdmConnectionState;
 use crate::common::SpdmOpaqueSupport;
@@ -21,6 +22,7 @@ use crate::common::opaque::SpdmOpaqueStruct;
 use crate::message::*;
 use crate::secret;
 use alloc::boxed::Box;
+use core::convert::TryFrom;
 use core::ops::DerefMut;
 
 impl ResponderContext {
@@ -117,10 +119,7 @@ impl ResponderContext {
                 }
                 for index in 0..secured_message_version_list.version_count as usize {
                     for local_version in self.common.config_info.secure_spdm_version {
-                        if secured_message_version_list.versions_list[index]
-                            .get_secure_spdm_version()
-                            == local_version
-                        {
+                        if secured_message_version_list.versions_list[index] == local_version {
                             if self.common.negotiate_info.spdm_version_sel
                                 < SpdmVersion::SpdmVersion12
                             {
@@ -133,7 +132,7 @@ impl ResponderContext {
                                         .as_ref(),
                                 );
                                 return_opaque.data[return_opaque.data_size as usize - 1] =
-                                    local_version;
+                                    u8::from(local_version);
                             } else if self.common.negotiate_info.opaque_data_support
                                 == SpdmOpaqueSupport::OPAQUE_DATA_FMT1
                             {
@@ -146,7 +145,7 @@ impl ResponderContext {
                                         .as_ref(),
                                 );
                                 return_opaque.data[return_opaque.data_size as usize - 1] =
-                                    local_version;
+                                    u8::from(local_version);
                             } else {
                                 self.write_spdm_error(
                                     SpdmErrorCode::SpdmErrorUnsupportedRequest,
@@ -431,8 +430,10 @@ impl ResponderContext {
 
         session.heartbeat_period = heartbeat_period;
         if return_opaque.data_size != 0 {
-            session.secure_spdm_version_sel =
-                return_opaque.data[return_opaque.data_size as usize - 1];
+            session.secure_spdm_version_sel = SecuredMessageVersion::try_from(
+                return_opaque.data[return_opaque.data_size as usize - 1],
+            )
+            .unwrap();
         }
 
         session.set_session_state(crate::common::session::SpdmSessionState::SpdmSessionHandshaking);

@@ -11,8 +11,9 @@ use crate::common::secret_callback::SECRET_ASYM_IMPL_INSTANCE;
 use crate::common::transport::PciDoeTransportEncap;
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::{
-    SpdmCodec, SpdmConfigInfo, SpdmContext, SpdmDeviceIo, SpdmOpaqueSupport, SpdmProvisionInfo,
-    SpdmTransportEncap, DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11, ST1,
+    SecuredMessageVersion, SpdmCodec, SpdmConfigInfo, SpdmContext, SpdmDeviceIo, SpdmOpaqueSupport,
+    SpdmProvisionInfo, SpdmTransportEncap, DMTF_SECURE_SPDM_VERSION_10,
+    DMTF_SECURE_SPDM_VERSION_11, MAX_SECURE_SPDM_VERSION_COUNT, ST1,
 };
 use spdmlib::config::MAX_SPDM_MSG_SIZE;
 use spdmlib::crypto;
@@ -313,7 +314,10 @@ pub fn rsp_create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
         data_transfer_size: config::MAX_SPDM_MSG_SIZE as u32,
         max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
         heartbeat_period: config::HEARTBEAT_PERIOD,
-        secure_spdm_version: [DMTF_SECURE_SPDM_VERSION_10, DMTF_SECURE_SPDM_VERSION_11],
+        secure_spdm_version: [
+            SecuredMessageVersion::try_from(0x10u8).unwrap(),
+            SecuredMessageVersion::try_from(0x11u8).unwrap(),
+        ],
         ..Default::default()
     };
 

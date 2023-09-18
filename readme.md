@@ -1,4 +1,7 @@
 [![CI](https://github.com/intel/rust-spdm/actions/workflows/main.yml/badge.svg)](https://github.com/intel/rust-spdm/actions/workflows/main.yml)
+[![Deny](https://github.com/intel/rust-spdm/actions/workflows/deny.yml/badge.svg)](https://github.com/intel/rust-spdm/actions/workflows/deny.yml)
+[![Format](https://github.com/intel/rust-spdm/actions/workflows/format.yml/badge.svg)](https://github.com/intel/rust-spdm/actions/workflows/format.yml)
+[![Fuzzing](https://github.com/intel/rust-spdm/actions/workflows/fuzz.yml/badge.svg)](https://github.com/intel/rust-spdm/actions/workflows/fuzz.yml)
 
 # rust-spdm
 

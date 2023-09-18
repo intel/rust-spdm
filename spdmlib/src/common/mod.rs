@@ -1445,11 +1445,16 @@ impl Default for ManagedBuffer12Sign {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmMeasurementContentChanged: u8 {
         const NOT_SUPPORTED = 0b0000_0000;
         const DETECTED_CHANGE = 0b0001_0000;
         const NO_CHANGE = 0b0010_0000;
+    }
+}
+
+impl Default for SpdmMeasurementContentChanged {
+    fn default() -> Self {
+        Self::NOT_SUPPORTED
     }
 }
 

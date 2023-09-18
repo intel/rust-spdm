@@ -110,7 +110,7 @@ impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {
                 SpdmOpaqueSupport::read(r)?
             } else {
                 u8::read(r)?;
-                SpdmOpaqueSupport::default()
+                SpdmOpaqueSupport::empty()
             };
 
         let base_asym_algo = SpdmBaseAsymAlgo::read(r)?;
@@ -322,7 +322,7 @@ impl SpdmCodec for SpdmAlgorithmsResponsePayload {
                 SpdmOpaqueSupport::read(r)?
             } else {
                 u8::read(r)?;
-                SpdmOpaqueSupport::default()
+                SpdmOpaqueSupport::empty()
             };
         if !other_params_selection.is_no_more_than_one_selected() {
             return None;

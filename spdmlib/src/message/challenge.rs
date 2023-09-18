@@ -76,9 +76,15 @@ impl SpdmCodec for SpdmChallengeRequestPayload {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmChallengeAuthAttribute: u8 {
+        const BASIC_MUT_AUTH_DISABLED = 0b0000_0000;
         const BASIC_MUT_AUTH_REQ = 0b10000000;
+    }
+}
+
+impl Default for SpdmChallengeAuthAttribute {
+    fn default() -> Self {
+        Self::BASIC_MUT_AUTH_DISABLED
     }
 }
 

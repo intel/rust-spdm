@@ -8,9 +8,14 @@ use crate::{common, error::SpdmStatus};
 use codec::{Codec, Reader, Writer};
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmEndSessionRequestAttributes: u8 {
         const PRESERVE_NEGOTIATED_STATE = 0b00000001;
+    }
+}
+
+impl Default for SpdmEndSessionRequestAttributes {
+    fn default() -> Self {
+        Self::PRESERVE_NEGOTIATED_STATE
     }
 }
 

@@ -113,11 +113,17 @@ impl SpdmCodec for SpdmKeyExchangeRequestPayload {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmKeyExchangeMutAuthAttributes: u8 {
+        const MUT_AUTH_DISABLED = 0b00000000;
         const MUT_AUTH_REQ = 0b00000001;
         const MUT_AUTH_REQ_WITH_ENCAP_REQUEST = 0b00000010;
         const MUT_AUTH_REQ_WITH_GET_DIGESTS = 0b00000100;
+    }
+}
+
+impl Default for SpdmKeyExchangeMutAuthAttributes {
+    fn default() -> Self {
+        Self::MUT_AUTH_DISABLED
     }
 }
 

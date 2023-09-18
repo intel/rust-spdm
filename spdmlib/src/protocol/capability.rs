@@ -5,7 +5,6 @@
 use codec::{Codec, Reader, Writer};
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmRequestCapabilityFlags: u32 {
         const CERT_CAP = 0b0000_0010;
         const CHAL_CAP = 0b0000_0100;
@@ -38,6 +37,12 @@ bitflags! {
     }
 }
 
+impl Default for SpdmRequestCapabilityFlags {
+    fn default() -> Self {
+        Self::VALID_MASK
+    }
+}
+
 impl Codec for SpdmRequestCapabilityFlags {
     fn encode(&self, bytes: &mut Writer) -> Result<usize, codec::EncodeErr> {
         self.bits().encode(bytes)
@@ -51,7 +56,6 @@ impl Codec for SpdmRequestCapabilityFlags {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmResponseCapabilityFlags: u32 {
         const CACHE_CAP = 0b0000_0001;
         const CERT_CAP = 0b0000_0010;
@@ -97,6 +101,12 @@ bitflags! {
             | Self::SET_CERT_CAP.bits
             | Self::CSR_CAP.bits
             | Self::CERT_INSTALL_RESET_CAP.bits;
+    }
+}
+
+impl Default for SpdmResponseCapabilityFlags {
+    fn default() -> Self {
+        Self::VALID_MASK
     }
 }
 

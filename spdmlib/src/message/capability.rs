@@ -61,7 +61,7 @@ impl SpdmCodec for SpdmGetCapabilitiesRequestPayload {
         u8::read(r)?; // param2
 
         let mut ct_exponent = 0;
-        let mut flags = SpdmRequestCapabilityFlags::default();
+        let mut flags = SpdmRequestCapabilityFlags::empty();
         if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion11 {
             u8::read(r)?; // reserved
             ct_exponent = u8::read(r)?;

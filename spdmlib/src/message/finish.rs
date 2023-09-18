@@ -11,9 +11,14 @@ use crate::protocol::{
 use codec::{Codec, Reader, Writer};
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmFinishRequestAttributes: u8 {
         const SIGNATURE_INCLUDED = 0b00000001;
+    }
+}
+
+impl Default for SpdmFinishRequestAttributes {
+    fn default() -> Self {
+        Self::SIGNATURE_INCLUDED
     }
 }
 

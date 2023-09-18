@@ -656,10 +656,17 @@ impl SpdmOpaqueStruct {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmOpaqueSupport: u8 {
+        const OPAQUE_DATA_FMT_DISABLED = 0b0000_0000;
+        const OPAQUE_DATA_FMT0 = 0b0000_0000;
         const OPAQUE_DATA_FMT1 = 0b0000_0010;
         const VALID_MASK = Self::OPAQUE_DATA_FMT1.bits;
+    }
+}
+
+impl Default for SpdmOpaqueSupport {
+    fn default() -> Self {
+        Self::OPAQUE_DATA_FMT_DISABLED
     }
 }
 

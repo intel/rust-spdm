@@ -54,10 +54,15 @@ pub const SPDM_MAX_AEAD_IV_SIZE: usize = 12;
 pub const SPDM_MAX_HKDF_OKM_SIZE: usize = SPDM_MAX_HASH_SIZE;
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmMeasurementSpecification: u8 {
         const DMTF = 0b0000_0001;
         const VALID_MASK = Self::DMTF.bits;
+    }
+}
+
+impl Default for SpdmMeasurementSpecification {
+    fn default() -> Self {
+        Self::DMTF
     }
 }
 
@@ -103,7 +108,6 @@ impl SpdmMeasurementSpecification {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmMeasurementHashAlgo: u32 {
         const RAW_BIT_STREAM = 0b0000_0001;
         const TPM_ALG_SHA_256 = 0b0000_0010;
@@ -121,6 +125,12 @@ bitflags! {
             | Self::TPM_ALG_SHA3_256.bits
             | Self::TPM_ALG_SHA3_256.bits
             | Self::TPM_ALG_SM3.bits;
+    }
+}
+
+impl Default for SpdmMeasurementHashAlgo {
+    fn default() -> Self {
+        Self::TPM_ALG_SHA_384
     }
 }
 
@@ -168,7 +178,6 @@ impl Codec for SpdmMeasurementHashAlgo {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmBaseAsymAlgo: u32 {
         const TPM_ALG_RSASSA_2048 = 0b0000_0001;
         const TPM_ALG_RSAPSS_2048 = 0b0000_0010;
@@ -186,6 +195,12 @@ bitflags! {
             | Self::TPM_ALG_RSASSA_4096.bits
             | Self::TPM_ALG_RSAPSS_4096.bits
             | Self::TPM_ALG_ECDSA_ECC_NIST_P384.bits;
+    }
+}
+
+impl Default for SpdmBaseAsymAlgo {
+    fn default() -> Self {
+        Self::TPM_ALG_ECDSA_ECC_NIST_P384
     }
 }
 
@@ -255,7 +270,6 @@ impl Codec for SpdmBaseAsymAlgo {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmBaseHashAlgo: u32 {
         const TPM_ALG_SHA_256 = 0b0000_0001;
         const TPM_ALG_SHA_384 = 0b0000_0010;
@@ -263,6 +277,12 @@ bitflags! {
         const VALID_MASK = Self::TPM_ALG_SHA_256.bits
             | Self::TPM_ALG_SHA_384.bits
             | Self::TPM_ALG_SHA_512.bits;
+    }
+}
+
+impl Default for SpdmBaseHashAlgo {
+    fn default() -> Self {
+        Self::TPM_ALG_SHA_256
     }
 }
 
@@ -338,12 +358,17 @@ enum_builder! {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmDheAlgo: u16 {
         const SECP_256_R1 = 0b0000_1000;
         const SECP_384_R1 = 0b0001_0000;
         const VALID_MASK = Self::SECP_256_R1.bits
             | Self::SECP_384_R1.bits;
+    }
+}
+
+impl Default for SpdmDheAlgo {
+    fn default() -> Self {
+        Self::SECP_384_R1
     }
 }
 
@@ -398,7 +423,6 @@ impl Codec for SpdmDheAlgo {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmAeadAlgo: u16 {
         const AES_128_GCM = 0b0000_0001;
         const AES_256_GCM = 0b0000_0010;
@@ -406,6 +430,12 @@ bitflags! {
         const VALID_MASK = Self::AES_128_GCM.bits
             | Self::AES_256_GCM.bits
             | Self::CHACHA20_POLY1305.bits;
+    }
+}
+
+impl Default for SpdmAeadAlgo {
+    fn default() -> Self {
+        Self::AES_256_GCM
     }
 }
 
@@ -485,7 +515,6 @@ impl Codec for SpdmAeadAlgo {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmReqAsymAlgo: u16 {
         const TPM_ALG_RSASSA_2048 = 0b0000_0001;
         const TPM_ALG_RSAPSS_2048 = 0b0000_0010;
@@ -503,6 +532,12 @@ bitflags! {
             | Self::TPM_ALG_RSASSA_4096.bits
             | Self::TPM_ALG_RSAPSS_4096.bits
             | Self::TPM_ALG_ECDSA_ECC_NIST_P384.bits;
+    }
+}
+
+impl Default for SpdmReqAsymAlgo {
+    fn default() -> Self {
+        Self::TPM_ALG_ECDSA_ECC_NIST_P384
     }
 }
 
@@ -572,10 +607,15 @@ impl Codec for SpdmReqAsymAlgo {
 }
 
 bitflags! {
-    #[derive(Default)]
     pub struct SpdmKeyScheduleAlgo: u16 {
         const SPDM_KEY_SCHEDULE = 0b0000_0001;
         const VALID_MASK = Self::SPDM_KEY_SCHEDULE.bits;
+    }
+}
+
+impl Default for SpdmKeyScheduleAlgo {
+    fn default() -> Self {
+        Self::SPDM_KEY_SCHEDULE
     }
 }
 

@@ -42,7 +42,7 @@ jobs:
           args: grcov
 
       - name: Cache
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
 
       - name: Check code
         run: |

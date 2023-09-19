@@ -4,6 +4,7 @@
 
 use crate::common::SpdmCodec;
 use crate::error::SpdmResult;
+use crate::error::SPDM_STATUS_INVALID_MSG_FIELD;
 use crate::message::*;
 use crate::responder::*;
 
@@ -39,23 +40,25 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        self.write_error_response(error_code, bytes, writer);
-
-        (Ok(()), Some(writer.used_slice()))
+        let (_, rsp_slice) = self.write_error_response(error_code, bytes, writer);
+        (Ok(()), rsp_slice)
     }
 
-    pub fn write_error_response(
+    pub fn write_error_response<'a>(
         &mut self,
         error_code: SpdmErrorCode,
         bytes: &[u8],
-        writer: &mut Writer,
-    ) {
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
         let mut reader = Reader::init(bytes);
         let message_header = SpdmMessageHeader::read(&mut reader);
         if let Some(message_header) = message_header {
             if message_header.version != self.common.negotiate_info.spdm_version_sel {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
             let error_data = if error_code == SpdmErrorCode::SpdmErrorUnsupportedRequest {
                 message_header.request_response_code.get_u8()
@@ -65,6 +68,12 @@ impl ResponderContext {
             self.write_spdm_error(error_code, error_data, writer);
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
+
+        (Ok(()), Some(writer.used_slice()))
     }
 }

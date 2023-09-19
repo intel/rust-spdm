@@ -51,7 +51,7 @@ async fn fuzz_handle_encap_response_certificate(data: Arc<Vec<u8>>) {
 
         context.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
 
-        let _ = context.handle_encap_response_certificate(&data).is_err();
+        let _ = context.handle_encap_response_certificate(&data);
     }
     // TCD:
     // - id: 0
@@ -102,7 +102,7 @@ async fn fuzz_handle_encap_response_certificate(data: Arc<Vec<u8>>) {
         }
         context.common.provision_info.peer_root_cert_data = Some(fake_root);
 
-        let _ = context.handle_encap_response_certificate(&data).is_err();
+        let _ = context.handle_encap_response_certificate(&data);
     }
 }
 

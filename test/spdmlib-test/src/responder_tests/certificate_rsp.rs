@@ -35,7 +35,7 @@ fn test_case0_handle_spdm_certificate() {
             provision_info,
         );
 
-        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
 
         context.common.provision_info.my_cert_chain = [
             Some(SpdmCertChainBuffer {
@@ -50,28 +50,33 @@ fn test_case0_handle_spdm_certificate() {
             None,
             None,
         ];
+        context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
 
         let spdm_message_header = &mut [0u8; 1024];
         let mut writer = Writer::init(spdm_message_header);
         let value = SpdmMessageHeader {
-            version: SpdmVersion::SpdmVersion10,
+            version: SpdmVersion::SpdmVersion12,
             request_response_code: SpdmRequestResponseCode::SpdmRequestGetCertificate,
         };
         assert!(value.encode(&mut writer).is_ok());
-        let capabilities = &mut [0u8; 1024];
-        let mut writer = Writer::init(capabilities);
+        let certificates_req = &mut [0u8; 1024];
+        let mut writer = Writer::init(certificates_req);
         let value = SpdmGetCertificateRequestPayload {
-            slot_id: 100,
-            offset: 100,
-            length: 600,
+            slot_id: 0,
+            offset: 0,
+            length: 200,
         };
         assert!(value.spdm_encode(&mut context.common, &mut writer).is_ok());
         let bytes = &mut [0u8; 1024];
         bytes.copy_from_slice(&spdm_message_header[0..]);
-        bytes[2..].copy_from_slice(&capabilities[0..1022]);
+        bytes[2..].copy_from_slice(&certificates_req[0..1022]);
 
         let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut response_buffer);
+        context
+            .common
+            .runtime_info
+            .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
         assert!(context
             .handle_spdm_certificate(bytes, None, &mut writer)
             .0

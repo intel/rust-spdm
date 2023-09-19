@@ -4,6 +4,8 @@
 
 use crate::common::SpdmCodec;
 use crate::error::SpdmResult;
+use crate::error::SPDM_STATUS_INVALID_MSG_FIELD;
+use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
 use crate::message::*;
 use crate::responder::*;
 
@@ -14,27 +16,32 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        self.write_spdm_heartbeat_response(session_id, bytes, writer);
-
-        (Ok(()), Some(writer.used_slice()))
+        let (_, rsp_slice) = self.write_spdm_heartbeat_response(session_id, bytes, writer);
+        (Ok(()), rsp_slice)
     }
 
-    pub fn write_spdm_heartbeat_response(
+    pub fn write_spdm_heartbeat_response<'a>(
         &mut self,
         session_id: u32,
         bytes: &[u8],
-        writer: &mut Writer,
-    ) {
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
         let mut reader = Reader::init(bytes);
         let message_header = SpdmMessageHeader::read(&mut reader);
         if let Some(message_header) = message_header {
             if message_header.version != self.common.negotiate_info.spdm_version_sel {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
 
         self.common.reset_buffer_via_request_code(
@@ -48,7 +55,10 @@ impl ResponderContext {
         } else {
             error!("!!! heartbeat req : fail !!!\n");
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
 
         info!("send spdm heartbeat rsp\n");
@@ -63,6 +73,12 @@ impl ResponderContext {
         let res = response.spdm_encode(&mut self.common, writer);
         if res.is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
+
+        (Ok(()), Some(writer.used_slice()))
     }
 }

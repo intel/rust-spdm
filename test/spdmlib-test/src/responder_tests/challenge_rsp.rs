@@ -24,6 +24,8 @@ use alloc::sync::Arc;
 fn test_case0_handle_spdm_challenge() {
     use spdmlib::config::MAX_SPDM_MSG_SIZE;
 
+    use crate::common::secret_callback::SECRET_MEASUREMENT_IMPL_INSTANCE;
+
     let future = async {
         let (config_info, provision_info) = create_info();
         let pcidoe_transport_encap = Arc::new(Mutex::new(PciDoeTransportEncap {}));
@@ -33,6 +35,7 @@ fn test_case0_handle_spdm_challenge() {
         ))));
 
         secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
+        secret::measurement::register(SECRET_MEASUREMENT_IMPL_INSTANCE.clone());
         crypto::rand::register(FAKE_RAND.clone());
 
         let mut context = responder::ResponderContext::new(
@@ -58,13 +61,32 @@ fn test_case0_handle_spdm_challenge() {
         context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
         context.common.negotiate_info.base_asym_sel = SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384;
         context.common.runtime_info.need_measurement_summary_hash = true;
-
-        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;
+        context
+            .common
+            .runtime_info
+            .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context.common.negotiate_info.rsp_capabilities_sel = SpdmResponseCapabilityFlags::CERT_CAP
+            | SpdmResponseCapabilityFlags::CHAL_CAP
+            | SpdmResponseCapabilityFlags::MEAS_CAP_SIG
+            | SpdmResponseCapabilityFlags::ENCRYPT_CAP
+            | SpdmResponseCapabilityFlags::MAC_CAP
+            | SpdmResponseCapabilityFlags::KEY_EX_CAP
+            | SpdmResponseCapabilityFlags::HBEAT_CAP
+            | SpdmResponseCapabilityFlags::KEY_UPD_CAP
+            | SpdmResponseCapabilityFlags::ENCAP_CAP;
+        context.common.negotiate_info.req_capabilities_sel = SpdmRequestCapabilityFlags::CERT_CAP
+            | SpdmRequestCapabilityFlags::ENCRYPT_CAP
+            | SpdmRequestCapabilityFlags::MAC_CAP
+            | SpdmRequestCapabilityFlags::KEY_EX_CAP
+            | SpdmRequestCapabilityFlags::HBEAT_CAP
+            | SpdmRequestCapabilityFlags::KEY_UPD_CAP
+            | SpdmRequestCapabilityFlags::ENCAP_CAP;
 
         let spdm_message_header = &mut [0u8; 2];
         let mut writer = Writer::init(spdm_message_header);
         let value = SpdmMessageHeader {
-            version: SpdmVersion::SpdmVersion10,
+            version: SpdmVersion::SpdmVersion12,
             request_response_code: SpdmRequestResponseCode::SpdmRequestChallenge,
         };
         assert!(value.encode(&mut writer).is_ok());
@@ -72,7 +94,7 @@ fn test_case0_handle_spdm_challenge() {
         let challenge = &mut [0u8; 2 + SPDM_NONCE_SIZE];
         let mut writer = Writer::init(challenge);
         let value = SpdmChallengeRequestPayload {
-            slot_id: 100,
+            slot_id: 0,
             measurement_summary_hash_type:
                 SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeAll,
             nonce: SpdmNonceStruct {

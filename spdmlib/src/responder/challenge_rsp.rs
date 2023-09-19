@@ -11,8 +11,9 @@ use crate::common::SpdmCodec;
 use crate::common::SpdmConnectionState;
 use crate::crypto;
 use crate::error::SpdmResult;
-#[cfg(feature = "hashed-transcript-data")]
+use crate::error::SPDM_STATUS_INVALID_MSG_FIELD;
 use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
+use crate::error::SPDM_STATUS_INVALID_STATE_PEER;
 use crate::error::{SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_CRYPTO_ERROR};
 use crate::message::*;
 use crate::protocol::*;
@@ -25,28 +26,40 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        self.write_spdm_challenge_response(bytes, writer);
-
-        (Ok(()), Some(writer.used_slice()))
+        let (_, rsp_slice) = self.write_spdm_challenge_response(bytes, writer);
+        (Ok(()), rsp_slice)
     }
 
-    pub fn write_spdm_challenge_response(&mut self, bytes: &[u8], writer: &mut Writer<'_>) {
+    pub fn write_spdm_challenge_response<'a>(
+        &mut self,
+        bytes: &[u8],
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
         if self.common.runtime_info.get_connection_state().get_u8()
             < SpdmConnectionState::SpdmConnectionNegotiated.get_u8()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnexpectedRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_PEER),
+                Some(writer.used_slice()),
+            );
         }
         let mut reader = Reader::init(bytes);
         let message_header = SpdmMessageHeader::read(&mut reader);
         if let Some(message_header) = message_header {
             if message_header.version != self.common.negotiate_info.spdm_version_sel {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
 
         self.common
@@ -73,12 +86,18 @@ impl ResponderContext {
                     );
                 if measurement_summary_hash_res.is_none() {
                     self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-                    return;
+                    return (
+                        Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                        Some(writer.used_slice()),
+                    );
                 }
                 measurement_summary_hash = measurement_summary_hash_res.unwrap();
                 if measurement_summary_hash.data_size == 0 {
                     self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-                    return;
+                    return (
+                        Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                        Some(writer.used_slice()),
+                    );
                 }
             } else {
                 self.common.runtime_info.need_measurement_summary_hash = false;
@@ -87,18 +106,27 @@ impl ResponderContext {
         } else {
             error!("!!! challenge : fail !!!\n");
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
 
         let challenge = challenge.unwrap();
         let slot_id = challenge.slot_id as usize;
         if slot_id >= SPDM_MAX_SLOT_NUMBER {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
         if self.common.provision_info.my_cert_chain[slot_id].is_none() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
 
         if self
@@ -107,7 +135,10 @@ impl ResponderContext {
             .is_err()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
 
         let my_cert_chain = self.common.provision_info.my_cert_chain[slot_id]
@@ -123,7 +154,10 @@ impl ResponderContext {
         let res = crypto::rand::get_random(&mut nonce);
         if res.is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
 
         info!("send spdm challenge_auth\n");
@@ -155,7 +189,10 @@ impl ResponderContext {
         let res = response.spdm_encode(&mut self.common, writer);
         if res.is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
         let used = writer.used();
 
@@ -169,13 +206,19 @@ impl ResponderContext {
             .is_err()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
 
         let signature = self.generate_challenge_auth_signature();
         if signature.is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
         let signature = signature.unwrap();
         // patch the message before send
@@ -183,6 +226,8 @@ impl ResponderContext {
 
         self.common.reset_message_b();
         self.common.reset_message_c();
+
+        (Ok(()), Some(writer.used_slice()))
     }
 
     #[cfg(feature = "hashed-transcript-data")]

@@ -55,7 +55,7 @@ async fn fuzz_handle_encap_response_digest(data: Arc<Vec<u8>>) {
         .runtime_info
         .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-    let _ = context.handle_encap_response_digest(&data).is_err();
+    let _ = context.handle_encap_response_digest(&data);
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]

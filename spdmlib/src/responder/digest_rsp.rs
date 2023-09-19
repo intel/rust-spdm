@@ -5,6 +5,9 @@
 use crate::common::SpdmCodec;
 use crate::common::SpdmConnectionState;
 use crate::crypto;
+use crate::error::SPDM_STATUS_INVALID_MSG_FIELD;
+use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
+use crate::error::SPDM_STATUS_INVALID_STATE_PEER;
 use crate::message::*;
 use crate::protocol::*;
 use crate::responder::*;
@@ -20,33 +23,41 @@ impl ResponderContext {
         session_id: Option<u32>,
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        self.write_spdm_digest_response(session_id, bytes, writer);
-
-        (Ok(()), Some(writer.used_slice()))
+        let (_, rsp_slice) = self.write_spdm_digest_response(session_id, bytes, writer);
+        (Ok(()), rsp_slice)
     }
 
-    fn write_spdm_digest_response(
+    fn write_spdm_digest_response<'a>(
         &mut self,
         session_id: Option<u32>,
         bytes: &[u8],
-        writer: &mut Writer,
-    ) {
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
         if self.common.runtime_info.get_connection_state().get_u8()
             < SpdmConnectionState::SpdmConnectionNegotiated.get_u8()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnexpectedRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_PEER),
+                Some(writer.used_slice()),
+            );
         }
         let mut reader = Reader::init(bytes);
         let message_header = SpdmMessageHeader::read(&mut reader);
         if let Some(message_header) = message_header {
             if message_header.version != self.common.negotiate_info.spdm_version_sel {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
 
         self.common.reset_buffer_via_request_code(
@@ -60,7 +71,10 @@ impl ResponderContext {
         } else {
             error!("!!! get_digests : fail !!!\n");
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
 
         match session_id {
@@ -71,7 +85,10 @@ impl ResponderContext {
                     .is_err()
                 {
                     self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-                    return;
+                    return (
+                        Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                        Some(writer.used_slice()),
+                    );
                 }
             }
             Some(_session_id) => {}
@@ -106,7 +123,10 @@ impl ResponderContext {
         let res = response.spdm_encode(&mut self.common, writer);
         if res.is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
 
         for slot_id in 0..SPDM_MAX_SLOT_NUMBER {
@@ -131,9 +151,15 @@ impl ResponderContext {
             None => {
                 if self.common.append_message_b(writer.used_slice()).is_err() {
                     self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
+                    return (
+                        Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                        Some(writer.used_slice()),
+                    );
                 }
             }
             Some(_session_id) => {}
         }
+
+        (Ok(()), Some(writer.used_slice()))
     }
 }

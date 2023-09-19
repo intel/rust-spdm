@@ -44,8 +44,7 @@ async fn fuzz_handle_spdm_key_update(data: Arc<Vec<u8>>) {
 
     let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];
     let mut writer = codec::Writer::init(&mut response_buffer);
-    let (status, send_buffer) = context.handle_spdm_key_update(4294901758, &data, &mut writer);
-    assert!(status.is_ok());
+    let _ = context.handle_spdm_key_update(4294901758, &data, &mut writer);
 }
 
 #[cfg(not(feature = "use_libfuzzer"))]

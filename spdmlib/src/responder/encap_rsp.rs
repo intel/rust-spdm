@@ -27,27 +27,40 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        if let Err(err) = self.encap_check_version_cap_state(
-            SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest.get_u8(),
-            writer,
-        ) {
-            (Err(err), Some(writer.used_slice()))
-        } else {
-            self.write_encap_request_response(bytes, writer);
+        if self
+            .encap_check_version_cap_state(
+                SpdmRequestResponseCode::SpdmRequestGetEncapsulatedRequest.get_u8(),
+                writer,
+            )
+            .is_err()
+        {
             (Ok(()), Some(writer.used_slice()))
+        } else {
+            let (_, rsp_slice) = self.write_encap_request_response(bytes, writer);
+            (Ok(()), rsp_slice)
         }
     }
 
-    fn write_encap_request_response(&mut self, bytes: &[u8], writer: &mut Writer) {
+    fn write_encap_request_response<'a>(
+        &mut self,
+        bytes: &[u8],
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
         let mut reader = Reader::init(bytes);
         if let Some(request_header) = SpdmMessageHeader::read(&mut reader) {
             if request_header.version != self.common.negotiate_info.spdm_version_sel {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         };
 
         let encapsulated_request = SpdmMessage {
@@ -67,13 +80,21 @@ impl ResponderContext {
             .is_err()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
 
         if self.encode_encap_request_get_digest(writer).is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidResponseCode, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
+
+        (Ok(()), Some(writer.used_slice()))
     }
 
     pub fn handle_deliver_encapsulated_reponse<'a>(
@@ -87,21 +108,30 @@ impl ResponderContext {
         ) {
             (Err(err), Some(writer.used_slice()))
         } else {
-            self.write_encap_response_ack_response(bytes, writer);
-            (Ok(()), Some(writer.used_slice()))
+            self.write_encap_response_ack_response(bytes, writer)
         }
     }
 
-    fn write_encap_response_ack_response(&mut self, bytes: &[u8], writer: &mut Writer) {
+    fn write_encap_response_ack_response<'a>(
+        &mut self,
+        bytes: &[u8],
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
         let mut reader = Reader::init(bytes);
         if let Some(request_header) = SpdmMessageHeader::read(&mut reader) {
             if request_header.version != self.common.negotiate_info.spdm_version_sel {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         };
 
         let encap_response_payload = if let Some(encap_response_payload) =
@@ -110,7 +140,10 @@ impl ResponderContext {
             encap_response_payload
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         };
 
         if self
@@ -118,7 +151,13 @@ impl ResponderContext {
             .is_err()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidResponseCode, 0, writer);
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
+
+        (Ok(()), Some(writer.used_slice()))
     }
 
     fn encap_check_version_cap_state(

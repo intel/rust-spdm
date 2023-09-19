@@ -17,7 +17,7 @@ use alloc::sync::Arc;
 #[test]
 #[cfg(feature = "hashed-transcript-data")]
 fn test_case0_handle_spdm_digest() {
-    use spdmlib::config::MAX_SPDM_MSG_SIZE;
+    use spdmlib::{common::SpdmConnectionState, config::MAX_SPDM_MSG_SIZE};
 
     let future = async {
         let (config_info, provision_info) = create_info();
@@ -49,16 +49,19 @@ fn test_case0_handle_spdm_digest() {
             None,
         ];
         context.common.negotiate_info.base_hash_sel = SpdmBaseHashAlgo::TPM_ALG_SHA_384;
+        context.common.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion12;
+        context
+            .common
+            .runtime_info
+            .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-        let spdm_message_header = &mut [0u8; 1024];
-        let mut writer = Writer::init(spdm_message_header);
+        let bytes = &mut [0u8; 1024];
+        let mut writer = Writer::init(bytes);
         let value = SpdmMessageHeader {
-            version: SpdmVersion::SpdmVersion10,
+            version: SpdmVersion::SpdmVersion12,
             request_response_code: SpdmRequestResponseCode::SpdmRequestChallenge,
         };
         assert!(value.encode(&mut writer).is_ok());
-
-        let bytes = &mut [0u8; 1024];
 
         let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut response_buffer);

@@ -14,10 +14,11 @@ use crate::crypto;
 use crate::error::SpdmResult;
 use crate::error::SPDM_STATUS_BUFFER_FULL;
 use crate::error::SPDM_STATUS_CRYPTO_ERROR;
+use crate::error::SPDM_STATUS_INVALID_MSG_FIELD;
 #[cfg(not(feature = "hashed-transcript-data"))]
 use crate::error::SPDM_STATUS_INVALID_PARAMETER;
-#[cfg(feature = "hashed-transcript-data")]
 use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
+use crate::error::SPDM_STATUS_INVALID_STATE_PEER;
 use crate::message::*;
 use crate::protocol::*;
 use crate::responder::*;
@@ -30,33 +31,41 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        self.write_spdm_measurement_response(session_id, bytes, writer);
-
-        (Ok(()), Some(writer.used_slice()))
+        let (_, rsp_slice) = self.write_spdm_measurement_response(session_id, bytes, writer);
+        (Ok(()), rsp_slice)
     }
 
-    pub fn write_spdm_measurement_response(
+    pub fn write_spdm_measurement_response<'a>(
         &mut self,
         session_id: Option<u32>,
         bytes: &[u8],
-        writer: &mut Writer<'_>,
-    ) {
+        writer: &'a mut Writer<'_>,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
         if self.common.runtime_info.get_connection_state().get_u8()
             < SpdmConnectionState::SpdmConnectionNegotiated.get_u8()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnexpectedRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_PEER),
+                Some(writer.used_slice()),
+            );
         }
         let mut reader = Reader::init(bytes);
         let message_header = SpdmMessageHeader::read(&mut reader);
         if let Some(message_header) = message_header {
             if message_header.version != self.common.negotiate_info.spdm_version_sel {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
 
         self.common.reset_buffer_via_request_code(
@@ -71,7 +80,10 @@ impl ResponderContext {
         } else {
             error!("!!! get_measurements : fail !!!\n");
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
         let get_measurements = get_measurements.unwrap();
         let slot_id = get_measurements.slot_id as usize;
@@ -86,18 +98,27 @@ impl ResponderContext {
 
             if slot_id >= SPDM_MAX_SLOT_NUMBER {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
             if self.common.provision_info.my_cert_chain[slot_id].is_none() {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                    Some(writer.used_slice()),
+                );
             }
         } else {
             self.common.runtime_info.need_measurement_signature = false;
 
             if slot_id != 0 {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
         }
 
@@ -115,7 +136,10 @@ impl ResponderContext {
             .is_err()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
 
         let real_measurement_block_count = secret::measurement::measurement_collection(
@@ -151,7 +175,10 @@ impl ResponderContext {
         {
             if index > real_measurement_block_count {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
             secret::measurement::measurement_collection(
                 spdm_version_sel,
@@ -175,7 +202,7 @@ impl ResponderContext {
         let res = crypto::rand::get_random(&mut nonce);
         if res.is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (Err(SPDM_STATUS_CRYPTO_ERROR), Some(writer.used_slice()));
         }
 
         info!("send spdm measurement\n");
@@ -207,7 +234,10 @@ impl ResponderContext {
         let res = response.spdm_encode(&mut self.common, writer);
         if res.is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
         let used = writer.used();
 
@@ -225,13 +255,19 @@ impl ResponderContext {
                 .is_err()
             {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                    Some(writer.used_slice()),
+                );
             }
 
             let signature = self.generate_measurement_signature(session_id);
             if signature.is_err() {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                    Some(writer.used_slice()),
+                );
             }
             let signature = signature.unwrap();
             // patch the message before send
@@ -245,7 +281,13 @@ impl ResponderContext {
             .is_err()
         {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
+
+        (Ok(()), Some(writer.used_slice()))
     }
 
     #[cfg(feature = "hashed-transcript-data")]

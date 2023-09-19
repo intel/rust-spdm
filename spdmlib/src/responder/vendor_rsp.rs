@@ -4,6 +4,8 @@
 
 use crate::common::SpdmCodec;
 use crate::error::SpdmResult;
+use crate::error::SPDM_STATUS_INVALID_MSG_FIELD;
+use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
 use crate::message::*;
 use crate::responder::*;
 
@@ -14,27 +16,32 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        self.write_spdm_vendor_defined_response(session_id, bytes, writer);
-
-        (Ok(()), Some(writer.used_slice()))
+        let (_, rsp_slice) = self.write_spdm_vendor_defined_response(session_id, bytes, writer);
+        (Ok(()), rsp_slice)
     }
 
-    pub fn write_spdm_vendor_defined_response(
+    pub fn write_spdm_vendor_defined_response<'a>(
         &mut self,
         session_id: Option<u32>,
         bytes: &[u8],
-        writer: &mut Writer,
-    ) {
+        writer: &'a mut Writer,
+    ) -> (SpdmResult, Option<&'a [u8]>) {
         let mut reader = Reader::init(bytes);
         let message_header = SpdmMessageHeader::read(&mut reader);
         if let Some(message_header) = message_header {
             if message_header.version != self.common.negotiate_info.spdm_version_sel {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorVersionMismatch, 0, writer);
-                return;
+                return (
+                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                    Some(writer.used_slice()),
+                );
             }
         } else {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
 
         self.common.reset_buffer_via_request_code(
@@ -46,7 +53,10 @@ impl ResponderContext {
             SpdmVendorDefinedRequestPayload::spdm_read(&mut self.common, &mut reader);
         if vendor_defined_request_payload.is_none() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
-            return;
+            return (
+                Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                Some(writer.used_slice()),
+            );
         }
         let vendor_defined_request_payload = vendor_defined_request_payload.unwrap();
 
@@ -55,9 +65,9 @@ impl ResponderContext {
         let req_payload = vendor_defined_request_payload.req_payload;
         let rsp_payload =
             self.respond_to_vendor_defined_request(&req_payload, vendor_defined_request_handler);
-        if rsp_payload.is_err() {
+        if let Err(e) = rsp_payload {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
-            return;
+            return (Err(e), Some(writer.used_slice()));
         }
 
         let rsp_payload = rsp_payload.unwrap();
@@ -78,7 +88,13 @@ impl ResponderContext {
         let res = response.spdm_encode(&mut self.common, writer);
         if res.is_err() {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
+            return (
+                Err(SPDM_STATUS_INVALID_STATE_LOCAL),
+                Some(writer.used_slice()),
+            );
         }
+
+        (Ok(()), Some(writer.used_slice()))
     }
 
     pub fn respond_to_vendor_defined_request<F>(

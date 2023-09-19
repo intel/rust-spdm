@@ -65,7 +65,7 @@ jobs:
           override: true
           components: rust-src, rustfmt, clippy
       - name: Cache
-        uses: Swatinem/rust-cache@v1
+        uses: Swatinem/rust-cache@v2
 
       - name: Build and Run test
         shell: bash

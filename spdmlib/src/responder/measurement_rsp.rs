@@ -19,6 +19,7 @@ use crate::error::SPDM_STATUS_INVALID_MSG_FIELD;
 use crate::error::SPDM_STATUS_INVALID_PARAMETER;
 use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
 use crate::error::SPDM_STATUS_INVALID_STATE_PEER;
+use crate::error::SPDM_STATUS_NOT_READY_PEER;
 use crate::message::*;
 use crate::protocol::*;
 use crate::responder::*;
@@ -31,7 +32,14 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        let (_, rsp_slice) = self.write_spdm_measurement_response(session_id, bytes, writer);
+        let (status, rsp_slice) = self.write_spdm_measurement_response(session_id, bytes, writer);
+
+        if let Err(e) = status {
+            if e != SPDM_STATUS_NOT_READY_PEER {
+                self.common.reset_message_m(session_id);
+            }
+        }
+
         (Ok(()), rsp_slice)
     }
 

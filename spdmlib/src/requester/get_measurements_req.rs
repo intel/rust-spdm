@@ -7,7 +7,8 @@ use crate::crypto;
 use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
 use crate::error::{
     SpdmResult, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_CRYPTO_ERROR, SPDM_STATUS_ERROR_PEER,
-    SPDM_STATUS_INVALID_MSG_FIELD, SPDM_STATUS_INVALID_PARAMETER, SPDM_STATUS_VERIF_FAIL,
+    SPDM_STATUS_INVALID_MSG_FIELD, SPDM_STATUS_INVALID_PARAMETER, SPDM_STATUS_NOT_READY_PEER,
+    SPDM_STATUS_VERIF_FAIL,
 };
 use crate::message::*;
 use crate::protocol::*;
@@ -15,6 +16,33 @@ use crate::requester::*;
 
 impl RequesterContext {
     async fn send_receive_spdm_measurement_record(
+        &mut self,
+        session_id: Option<u32>,
+        measurement_attributes: SpdmMeasurementAttributes,
+        measurement_operation: SpdmMeasurementOperation,
+        spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure,
+        slot_id: u8,
+    ) -> SpdmResult<u8> {
+        let result = self
+            .delegate_send_receive_spdm_measurement_record(
+                session_id,
+                measurement_attributes,
+                measurement_operation,
+                spdm_measurement_record_structure,
+                slot_id,
+            )
+            .await;
+
+        if let Err(e) = result {
+            if e != SPDM_STATUS_NOT_READY_PEER {
+                self.common.reset_message_m(session_id);
+            }
+        }
+
+        result
+    }
+
+    async fn delegate_send_receive_spdm_measurement_record(
         &mut self,
         session_id: Option<u32>,
         measurement_attributes: SpdmMeasurementAttributes,

@@ -100,7 +100,12 @@ async fn fuzz_handle_encap_response_certificate(data: Arc<Vec<u8>>) {
             fake_root.data[0..fake_root.data_size as usize]
                 .copy_from_slice(&data[start_index..end_index]);
         }
-        context.common.provision_info.peer_root_cert_data = Some(fake_root);
+
+        let mut peer_root_cert_data_list =
+            gen_array_clone(None, spdmlib::config::MAX_ROOT_CERT_SUPPORT);
+        peer_root_cert_data_list[0] = Some(fake_root);
+
+        context.common.provision_info.peer_root_cert_data = peer_root_cert_data_list;
 
         let _ = context.handle_encap_response_certificate(&data);
     }

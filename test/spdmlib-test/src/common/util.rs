@@ -15,7 +15,7 @@ use spdmlib::common::{
     SpdmProvisionInfo, SpdmTransportEncap, DMTF_SECURE_SPDM_VERSION_10,
     DMTF_SECURE_SPDM_VERSION_11, MAX_SECURE_SPDM_VERSION_COUNT, ST1,
 };
-use spdmlib::config::MAX_SPDM_MSG_SIZE;
+use spdmlib::config::{MAX_ROOT_CERT_SUPPORT, MAX_SPDM_MSG_SIZE};
 use spdmlib::crypto;
 use spdmlib::message::SpdmMessage;
 use spdmlib::protocol::*;
@@ -105,6 +105,9 @@ pub fn create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
     peer_root_cert_data.data_size = (ca_len) as u16;
     peer_root_cert_data.data[0..ca_len].copy_from_slice(ca_cert.as_ref());
 
+    let mut peer_root_cert_data_list = gen_array_clone(None, MAX_ROOT_CERT_SUPPORT);
+    peer_root_cert_data_list[0] = Some(peer_root_cert_data);
+
     let provision_info = SpdmProvisionInfo {
         my_cert_chain_data: [
             Some(my_cert_chain_data.clone()),
@@ -117,7 +120,7 @@ pub fn create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
             None,
         ],
         my_cert_chain: [None, None, None, None, None, None, None, None],
-        peer_root_cert_data: Some(peer_root_cert_data),
+        peer_root_cert_data: peer_root_cert_data_list,
     };
 
     (config_info, provision_info)
@@ -230,6 +233,9 @@ pub fn req_create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
     peer_root_cert_data.data_size = (ca_len) as u16;
     peer_root_cert_data.data[0..ca_len].copy_from_slice(ca_cert.as_ref());
 
+    let mut peer_root_cert_data_list = gen_array_clone(None, MAX_ROOT_CERT_SUPPORT);
+    peer_root_cert_data_list[0] = Some(peer_root_cert_data);
+
     let provision_info = if cfg!(feature = "mut-auth") {
         spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
         let mut my_cert_chain_data = SpdmCertChainData {
@@ -254,13 +260,13 @@ pub fn req_create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
                 None,
             ],
             my_cert_chain: [None, None, None, None, None, None, None, None],
-            peer_root_cert_data: Some(peer_root_cert_data),
+            peer_root_cert_data: peer_root_cert_data_list,
         }
     } else {
         SpdmProvisionInfo {
             my_cert_chain_data: [None, None, None, None, None, None, None, None],
             my_cert_chain: [None, None, None, None, None, None, None, None],
-            peer_root_cert_data: Some(peer_root_cert_data),
+            peer_root_cert_data: peer_root_cert_data_list,
         }
     };
 
@@ -374,7 +380,7 @@ pub fn rsp_create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
             None,
         ],
         my_cert_chain: [None, None, None, None, None, None, None, None],
-        peer_root_cert_data: None,
+        peer_root_cert_data: gen_array_clone(None, MAX_ROOT_CERT_SUPPORT),
     };
 
     (config_info, provision_info)

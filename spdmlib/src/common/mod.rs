@@ -19,7 +19,7 @@ use async_trait::async_trait;
 pub use opaque::*;
 pub use spdm_codec::SpdmCodec;
 
-use crate::config::{self, MAX_SPDM_SESSION_COUNT};
+use crate::config::{self, MAX_ROOT_CERT_SUPPORT, MAX_SPDM_SESSION_COUNT};
 use crate::error::{
     SpdmResult, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_CRYPTO_ERROR, SPDM_STATUS_DECAP_FAIL,
     SPDM_STATUS_INVALID_PARAMETER, SPDM_STATUS_INVALID_STATE_LOCAL,
@@ -1524,7 +1524,7 @@ impl SpdmRuntimeInfo {
 pub struct SpdmProvisionInfo {
     pub my_cert_chain_data: [Option<SpdmCertChainData>; SPDM_MAX_SLOT_NUMBER],
     pub my_cert_chain: [Option<SpdmCertChainBuffer>; SPDM_MAX_SLOT_NUMBER],
-    pub peer_root_cert_data: Option<SpdmCertChainData>,
+    pub peer_root_cert_data: [Option<SpdmCertChainData>; MAX_ROOT_CERT_SUPPORT],
 }
 
 #[derive(Default)]

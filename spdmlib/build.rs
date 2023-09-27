@@ -19,6 +19,7 @@ struct SpdmConfig {
     transport_config: SpdmBufferConfig,
     max_spdm_msg_size: usize,
     heartbeat_period_value: u8,
+    max_root_cert_support: usize,
 }
 
 impl SpdmConfig {
@@ -151,6 +152,9 @@ pub const MAX_SPDM_MSG_SIZE: usize = {max_spdm_mgs_sz};
 /// 0 represents either Heartbeat is not supported or
 /// heartbeat is not desired on a session
 pub const HEARTBEAT_PERIOD: u8 = {heartbeat_period};
+
+/// This is used for SpdmProvisionInfo.peer_root_cert_data
+pub const MAX_ROOT_CERT_SUPPORT: usize = {max_root_cert_supported};
 "
 };
 }
@@ -188,6 +192,7 @@ fn main() {
         rcv_buf_sz = spdm_config.transport_config.receiver_buffer_size,
         max_spdm_mgs_sz = spdm_config.max_spdm_msg_size,
         heartbeat_period = spdm_config.heartbeat_period_value,
+        max_root_cert_supported = spdm_config.max_root_cert_support,
     )
     .expect("Failed to generate configuration code from the template and JSON config");
 

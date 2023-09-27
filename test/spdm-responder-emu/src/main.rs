@@ -7,7 +7,7 @@
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use spdmlib::common::{SecuredMessageVersion, SpdmOpaqueSupport};
-use spdmlib::config::RECEIVER_BUFFER_SIZE;
+use spdmlib::config::{MAX_ROOT_CERT_SUPPORT, RECEIVER_BUFFER_SIZE};
 
 use std::net::{TcpListener, TcpStream};
 use std::u32;
@@ -254,7 +254,7 @@ async fn handle_message(
             None,
         ],
         my_cert_chain: [None, None, None, None, None, None, None, None],
-        peer_root_cert_data: None,
+        peer_root_cert_data: gen_array_clone(None, MAX_ROOT_CERT_SUPPORT),
     };
 
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());

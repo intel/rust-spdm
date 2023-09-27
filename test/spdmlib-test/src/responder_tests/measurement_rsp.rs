@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::common::device_io::{FakeSpdmDeviceIoReceve, SharedBuffer};
+use crate::common::device_io::{self, FakeSpdmDeviceIoReceve, SharedBuffer};
 use crate::common::secret_callback::*;
 use crate::common::transport::PciDoeTransportEncap;
-use crate::common::util::create_info;
+use crate::common::util::{create_info, ResponderRunner, TestCase, TestSpdmMessage};
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::SpdmCodec;
 use spdmlib::common::SpdmConnectionState;
@@ -60,7 +60,7 @@ fn test_case0_handle_spdm_measurement() {
         let mut writer = Writer::init(measurements_struct);
         let value = SpdmGetMeasurementsRequestPayload {
             measurement_attributes: SpdmMeasurementAttributes::empty(),
-            measurement_operation: SpdmMeasurementOperation::Unknown(5),
+            measurement_operation: SpdmMeasurementOperation::Unknown(1),
             nonce: SpdmNonceStruct {
                 data: [100u8; SPDM_NONCE_SIZE],
             },
@@ -102,7 +102,7 @@ fn test_case0_handle_spdm_measurement() {
             );
             assert_eq!(
                 get_measurements.measurement_operation,
-                SpdmMeasurementOperation::Unknown(5)
+                SpdmMeasurementOperation::Unknown(1)
             );
 
             let spdm_message_slice = &u8_slice[4..];
@@ -230,4 +230,88 @@ fn test_case1_handle_spdm_measurement() {
         }
     };
     executor::block_on(future);
+}
+
+fn test_handle_spdm_measurement_runner(
+    get_measurement_msg: TestSpdmMessage,
+    measurement_msg: TestSpdmMessage,
+) {
+    let mut input = Vec::new();
+    let mut expected = Vec::new();
+
+    let (get_version_msg, version_msg) = super::version_rsp::construct_version_positive();
+    let (get_capabilities_msg, capabilities_msg) =
+        super::capability_rsp::consturct_capability_positive();
+    let (negotiate_algorithm_msg, algorithm_msg) =
+        super::algorithm_rsp::consturct_algorithm_positive();
+    let (get_certificate_msg, certificate_msg) =
+        super::certificate_rsp::construct_certificate_positive();
+
+    input.push(get_version_msg);
+    expected.push(version_msg);
+    input.push(get_capabilities_msg);
+    expected.push(capabilities_msg);
+    input.push(negotiate_algorithm_msg);
+    expected.push(algorithm_msg);
+    input.extend(get_certificate_msg);
+    expected.extend(certificate_msg);
+
+    input.push(get_measurement_msg);
+    expected.push(measurement_msg);
+
+    let case = TestCase { input, expected };
+    assert!(ResponderRunner::run(
+        case,
+        device_io::test_header_generater_callback
+    ));
+}
+
+#[test]
+fn test_case2_handle_spdm_measurements() {
+    use crate::common::secret_callback::SECRET_MEASUREMENT_IMPL_INSTANCE;
+    use crate::protocol;
+    spdmlib::secret::measurement::register(SECRET_MEASUREMENT_IMPL_INSTANCE.clone());
+
+    let get_measurement_msg = TestSpdmMessage {
+        message: protocol::Message::GET_MEASUREMENTS(protocol::measurement::GET_MEASUREMENTS {
+            SPDMVersion: 0x12,
+            RequestResponseCode: 0xE0,
+            Param1: 0,
+            Param2: 0x0, // shall query the Responder for the total number of measurement blocks avaiable
+            Nonce: None,
+            SlotIDParam: None,
+        }),
+        secure: 0,
+    };
+
+    let (config_info, _provision_info) = create_info();
+    let measurement_record_structure = secret::measurement::measurement_collection(
+        SpdmVersion::SpdmVersion12,
+        SpdmMeasurementSpecification::DMTF,
+        config_info.measurement_hash_algo,
+        SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber.get_u8() as usize,
+    )
+    .unwrap();
+
+    let siglen = config_info.base_asym_algo.get_size() as usize;
+    let measurement_msg = TestSpdmMessage {
+        message: protocol::Message::MEASUREMENTS(protocol::measurement::MEASUREMENTS {
+            SPDMVersion: 0x12,
+            RequestResponseCode: 0x60,
+            Param1: measurement_record_structure.number_of_blocks,
+            Param2: 0,
+            NumberOfBlocks: 0,
+            MeasurementRecordLength: measurement_record_structure.measurement_record_length.get(),
+            MeasurementRecordData: measurement_record_structure.measurement_record_data
+                [0..(measurement_record_structure.measurement_record_length.get() as usize)]
+                .to_vec(),
+            Nonce: [0xffu8; 32],
+            OpaqueDataLength: 0,
+            OpaqueData: Vec::new(),
+            Signature: Vec::new(),
+        }),
+        secure: 0,
+    };
+
+    test_handle_spdm_measurement_runner(get_measurement_msg, measurement_msg);
 }

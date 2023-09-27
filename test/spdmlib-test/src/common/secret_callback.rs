@@ -57,7 +57,7 @@ fn measurement_collection_impl(
         {
             let mut dummy_spdm_measurement_record_structure =
                 SpdmMeasurementRecordStructure::default();
-            dummy_spdm_measurement_record_structure.number_of_blocks = 10;
+            dummy_spdm_measurement_record_structure.number_of_blocks = 1;
             Some(dummy_spdm_measurement_record_structure)
         } else if measurement_index
             == SpdmMeasurementOperation::SpdmMeasurementRequestAll.get_u8() as usize

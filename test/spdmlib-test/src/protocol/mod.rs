@@ -13,6 +13,7 @@ pub mod capability;
 pub mod certificate;
 pub mod challenge;
 pub mod digest;
+pub mod measurement;
 pub mod version;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -29,6 +30,8 @@ pub enum Message {
     CHALLENGE_AUTH(challenge::CHALLENGE_AUTH),
     GET_DIGESTS(digest::GET_DIGESTS),
     DIGESTS(digest::DIGESTS),
+    GET_MEASUREMENTS(measurement::GET_MEASUREMENTS),
+    MEASUREMENTS(measurement::MEASUREMENTS),
 }
 
 impl Codec for Message {
@@ -46,6 +49,8 @@ impl Codec for Message {
             Message::CHALLENGE_AUTH(m) => m.encode(bytes),
             Message::GET_DIGESTS(m) => m.encode(bytes),
             Message::DIGESTS(m) => m.encode(bytes),
+            Message::GET_MEASUREMENTS(m) => m.encode(bytes),
+            Message::MEASUREMENTS(m) => m.encode(bytes),
         }
     }
 

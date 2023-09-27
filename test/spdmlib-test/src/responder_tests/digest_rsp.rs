@@ -75,7 +75,6 @@ fn test_case0_handle_spdm_digest() {
 
 #[test]
 fn test_case1_handle_spdm_digest() {
-    env_logger::init();
     use crate::protocol;
 
     let mut input = Vec::new();

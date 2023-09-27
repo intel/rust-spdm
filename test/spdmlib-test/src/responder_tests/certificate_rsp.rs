@@ -130,27 +130,12 @@ fn test_case0_handle_spdm_certificate() {
     executor::block_on(future);
 }
 
-#[test]
-fn test_case1_handle_spdm_certificate() {
+pub fn construct_certificate_positive() -> (Vec<TestSpdmMessage>, Vec<TestSpdmMessage>) {
     use crate::protocol;
+    let (config_info, provision_info) = create_info();
 
     let mut input = Vec::new();
     let mut expected = Vec::new();
-
-    let (config_info, provision_info) = create_info();
-    let (get_version_msg, version_msg) = super::version_rsp::construct_version_positive();
-    let (get_capabilities_msg, capabilities_msg) =
-        super::capability_rsp::consturct_capability_positive();
-    let (negotiate_algorithm_msg, algorithm_msg) =
-        super::algorithm_rsp::consturct_algorithm_positive();
-
-    input.push(get_version_msg);
-    expected.push(version_msg);
-    input.push(get_capabilities_msg);
-    expected.push(capabilities_msg);
-    input.push(negotiate_algorithm_msg);
-    expected.push(algorithm_msg);
-
     let cert_chain = provision_info.my_cert_chain_data[0].as_ref();
     let spdm_certificate_chain = TestCase::get_certificate_chain_buffer(
         config_info.base_hash_algo,
@@ -198,6 +183,30 @@ fn test_case1_handle_spdm_certificate() {
         input.push(get_certificate_msg);
         expected.push(certificate_msg);
     }
+    (input, expected)
+}
+
+#[test]
+fn test_case1_handle_spdm_certificate() {
+    let mut input = Vec::new();
+    let mut expected = Vec::new();
+
+    let (get_version_msg, version_msg) = super::version_rsp::construct_version_positive();
+    let (get_capabilities_msg, capabilities_msg) =
+        super::capability_rsp::consturct_capability_positive();
+    let (negotiate_algorithm_msg, algorithm_msg) =
+        super::algorithm_rsp::consturct_algorithm_positive();
+
+    input.push(get_version_msg);
+    expected.push(version_msg);
+    input.push(get_capabilities_msg);
+    expected.push(capabilities_msg);
+    input.push(negotiate_algorithm_msg);
+    expected.push(algorithm_msg);
+
+    let (get_certificate_msg, certificate_msg) = construct_certificate_positive();
+    input.extend(get_certificate_msg);
+    expected.extend(certificate_msg);
 
     let case = TestCase { input, expected };
     assert!(ResponderRunner::run(

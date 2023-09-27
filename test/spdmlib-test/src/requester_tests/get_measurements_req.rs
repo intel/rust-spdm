@@ -147,7 +147,7 @@ fn test_case0_send_receive_spdm_measurement() {
             .is_ok();
         assert!(status);
 
-        let measurement_operation = SpdmMeasurementOperation::Unknown(5);
+        let measurement_operation = SpdmMeasurementOperation::Unknown(1);
         let status = requester
             .send_receive_spdm_measurement(
                 None,
@@ -159,6 +159,20 @@ fn test_case0_send_receive_spdm_measurement() {
             )
             .await
             .is_ok();
+        assert!(status);
+
+        let measurement_operation = SpdmMeasurementOperation::Unknown(5);
+        let status = requester
+            .send_receive_spdm_measurement(
+                None,
+                0,
+                SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+                measurement_operation,
+                &mut total_number,
+                &mut spdm_measurement_record_structure,
+            )
+            .await
+            .is_err();
         assert!(status);
     };
     executor::block_on(future);

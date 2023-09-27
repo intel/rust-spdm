@@ -142,7 +142,7 @@ impl ResponderContext {
             );
         }
 
-        let real_measurement_block_count = secret::measurement::measurement_collection(
+        let number_of_measurement = secret::measurement::measurement_collection(
             spdm_version_sel,
             measurement_specification_sel,
             measurement_hash_sel,
@@ -151,15 +151,6 @@ impl ResponderContext {
         .unwrap()
         .number_of_blocks;
 
-        let number_of_measurement: u8 = if get_measurements.measurement_operation
-            == SpdmMeasurementOperation::SpdmMeasurementRequestAll
-            || get_measurements.measurement_operation
-                == SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber
-        {
-            real_measurement_block_count
-        } else {
-            1
-        };
         let measurement_record = if get_measurements.measurement_operation
             == SpdmMeasurementOperation::SpdmMeasurementRequestAll
         {
@@ -173,7 +164,7 @@ impl ResponderContext {
         } else if let SpdmMeasurementOperation::Unknown(index) =
             get_measurements.measurement_operation
         {
-            if index > real_measurement_block_count {
+            if index > number_of_measurement {
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
                 return (
                     Err(SPDM_STATUS_INVALID_MSG_FIELD),
@@ -227,6 +218,7 @@ impl ResponderContext {
                         data_size: signature_size,
                         data: [0x60u8; SPDM_MAX_ASYM_KEY_SIZE],
                     },
+                    measurement_operation: get_measurements.measurement_operation,
                 },
             ),
         };

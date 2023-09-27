@@ -18,6 +18,7 @@ use spdmlib::common;
 use spdmlib::common::SpdmOpaqueSupport;
 use spdmlib::common::ST1;
 use spdmlib::config;
+use spdmlib::config::MAX_ROOT_CERT_SUPPORT;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::requester;
@@ -183,6 +184,9 @@ async fn test_spdm(
     peer_root_cert_data.data_size = (ca_len) as u16;
     peer_root_cert_data.data[0..ca_len].copy_from_slice(ca_cert.as_ref());
 
+    let mut peer_root_cert_data_list = gen_array_clone(None, MAX_ROOT_CERT_SUPPORT);
+    peer_root_cert_data_list[0] = Some(peer_root_cert_data);
+
     let provision_info = if cfg!(feature = "mut-auth") {
         spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
         let mut my_cert_chain_data = SpdmCertChainData {
@@ -207,13 +211,13 @@ async fn test_spdm(
                 None,
             ],
             my_cert_chain: [None, None, None, None, None, None, None, None],
-            peer_root_cert_data: Some(peer_root_cert_data),
+            peer_root_cert_data: peer_root_cert_data_list,
         }
     } else {
         common::SpdmProvisionInfo {
             my_cert_chain_data: [None, None, None, None, None, None, None, None],
             my_cert_chain: [None, None, None, None, None, None, None, None],
-            peer_root_cert_data: Some(peer_root_cert_data),
+            peer_root_cert_data: peer_root_cert_data_list,
         }
     };
 

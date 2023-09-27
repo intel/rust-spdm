@@ -82,7 +82,12 @@ async fn fuzz_send_receive_spdm_certificate(fuzzdata: Arc<Vec<u8>>) {
             fake_root.data[0..fake_root.data_size as usize]
                 .copy_from_slice(&fuzzdata[start_index..end_index]);
         }
-        requester.common.provision_info.peer_root_cert_data = Some(fake_root);
+
+        let mut peer_root_cert_data_list =
+            gen_array_clone(None, spdmlib::config::MAX_ROOT_CERT_SUPPORT);
+        peer_root_cert_data_list[0] = Some(fake_root);
+
+        requester.common.provision_info.peer_root_cert_data = peer_root_cert_data_list;
         let _ = requester
             .send_receive_spdm_certificate(None, 0)
             .await

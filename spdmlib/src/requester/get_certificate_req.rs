@@ -295,7 +295,13 @@ impl RequesterContext {
         //
         // 2. verify the authority of cert chain if provisioned
         //
-        if let Some(peer_root_cert_data) = &self.common.provision_info.peer_root_cert_data {
+        for peer_root_cert_data in self
+            .common
+            .provision_info
+            .peer_root_cert_data
+            .iter()
+            .flatten()
+        {
             if root_cert.len() != peer_root_cert_data.data_size as usize {
                 error!("root_cert size - fail!\n");
                 debug!(
@@ -309,8 +315,9 @@ impl RequesterContext {
                 error!("root_cert data - fail!\n");
                 return Err(SPDM_STATUS_INVALID_CERT);
             }
-            info!("2. root cert is verified!\n");
         }
+
+        info!("2. root cert is verified!\n");
 
         info!("cert_chain verification - pass!\n");
         Ok(())

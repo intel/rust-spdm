@@ -1107,6 +1107,8 @@ mod tests {
                         data_size: SPDM_MAX_ASYM_KEY_SIZE as u16,
                         data: [100u8; SPDM_MAX_ASYM_KEY_SIZE],
                     },
+                    measurement_operation:
+                        SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
                 },
             ),
         };

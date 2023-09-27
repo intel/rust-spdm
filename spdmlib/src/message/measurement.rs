@@ -133,6 +133,7 @@ pub struct SpdmMeasurementsResponsePayload {
     pub nonce: SpdmNonceStruct,
     pub opaque: SpdmOpaqueStruct,
     pub signature: SpdmSignatureStruct,
+    pub measurement_operation: SpdmMeasurementOperation,
 }
 
 impl SpdmCodec for SpdmMeasurementsResponsePayload {
@@ -145,13 +146,13 @@ impl SpdmCodec for SpdmMeasurementsResponsePayload {
         //When Param2 in the requested measurement operation is 0 , this
         //parameter shall return the total number of measurement indices on
         //the device. Otherwise, this field is reserved.
-        if self.number_of_measurement == 1 {
-            cnt += 0_u8.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // param1
-        } else {
+        if self.measurement_operation == SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber {
             cnt += self
                 .number_of_measurement
                 .encode(bytes)
-                .map_err(|_| SPDM_STATUS_BUFFER_FULL)?; // param1
+                .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
+        } else {
+            cnt += 0_u8.encode(bytes).map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
         }
         if context.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12
             && context.runtime_info.need_measurement_signature
@@ -206,6 +207,7 @@ impl SpdmCodec for SpdmMeasurementsResponsePayload {
             nonce,
             opaque,
             signature,
+            measurement_operation: SpdmMeasurementOperation::Unknown(0),
         })
     }
 }
@@ -359,6 +361,7 @@ mod tests {
                 data_size: SPDM_MAX_ASYM_KEY_SIZE as u16,
                 data: [100u8; SPDM_MAX_ASYM_KEY_SIZE],
             },
+            measurement_operation: SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
         };
 
         context.negotiate_info.spdm_version_sel = SpdmVersion::SpdmVersion11;

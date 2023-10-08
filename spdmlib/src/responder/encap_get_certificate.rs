@@ -6,7 +6,8 @@ use codec::{Codec, Reader, Writer};
 
 use crate::{
     common::SpdmCodec,
-    config, crypto,
+    config,
+    crypto::{self, is_root_certificate},
     error::{
         SpdmResult, SPDM_STATUS_CRYPTO_ERROR, SPDM_STATUS_ERROR_PEER, SPDM_STATUS_INVALID_CERT,
         SPDM_STATUS_INVALID_MSG_FIELD, SPDM_STATUS_INVALID_MSG_SIZE, SPDM_STATUS_INVALID_PARAMETER,
@@ -219,21 +220,23 @@ impl ResponderContext {
             0,
         )?;
         let root_cert = &runtime_peer_cert_chain_data.data[root_cert_begin..root_cert_end];
-        let root_hash = if let Some(rh) =
-            crypto::hash::hash_all(self.common.negotiate_info.base_hash_sel, root_cert)
-        {
-            rh
-        } else {
-            return Err(SPDM_STATUS_CRYPTO_ERROR);
-        };
-        if root_hash.data[..(root_hash.data_size as usize)]
-            != peer_cert_chain.data
-                [4usize..(4usize + self.common.negotiate_info.base_hash_sel.get_size() as usize)]
-        {
-            error!("root_hash - fail!\n");
-            return Err(SPDM_STATUS_INVALID_CERT);
+        if is_root_certificate(root_cert).is_ok() {
+            let root_hash = if let Some(rh) =
+                crypto::hash::hash_all(self.common.negotiate_info.base_hash_sel, root_cert)
+            {
+                rh
+            } else {
+                return Err(SPDM_STATUS_CRYPTO_ERROR);
+            };
+            if root_hash.data[..(root_hash.data_size as usize)]
+                != peer_cert_chain.data[4usize
+                    ..(4usize + self.common.negotiate_info.base_hash_sel.get_size() as usize)]
+            {
+                error!("root_hash - fail!\n");
+                return Err(SPDM_STATUS_INVALID_CERT);
+            }
+            info!("1.2. root cert hash is verified!\n");
         }
-        info!("1.2. root cert hash is verified!\n");
 
         //
         // 2. verify the authority of cert chain if provisioned

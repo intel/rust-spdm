@@ -285,6 +285,23 @@ fn check_and_skip_common_tag(data: &[u8]) -> SpdmResult<usize> {
     }
 }
 
+fn check_and_get_common_tag(data: &[u8]) -> SpdmResult<(usize, &[u8])> {
+    let len = data.len();
+    if len < 1 {
+        Err(SPDM_STATUS_VERIF_FAIL)
+    } else {
+        let (payload_length, bytes_consumed) = check_length(&data[1..])?;
+        if len < 1 + bytes_consumed + payload_length {
+            Err(SPDM_STATUS_VERIF_FAIL)
+        } else {
+            Ok((
+                1 + bytes_consumed + payload_length,
+                &data[1 + bytes_consumed..1 + bytes_consumed + payload_length],
+            ))
+        }
+    }
+}
+
 fn get_oid_by_base_asym_algo(base_asym_algo: SpdmBaseAsymAlgo) -> Option<&'static [u8]> {
     match base_asym_algo {
         SpdmBaseAsymAlgo::TPM_ALG_RSASSA_2048 => Some(OID_RSA_SHA256RSA),
@@ -310,6 +327,66 @@ fn object_identifiers_are_same(a: &[u8], b: &[u8]) -> bool {
             }
         }
         true
+    }
+}
+
+// test root cert by checking issuer name == subject name
+pub fn is_root_certificate(cert: &[u8]) -> SpdmResult {
+    let mut c_walker = 0usize;
+
+    check_tag_is_sequence(cert)?;
+    c_walker += 1;
+
+    let (_, bytes_consumed) = check_length(&cert[c_walker..])?;
+    c_walker += bytes_consumed;
+
+    // tbs
+    let data = &cert[c_walker..];
+    let mut t_walker = 0usize;
+    let len = data.len();
+
+    check_tag_is_sequence(data)?;
+    t_walker += 1;
+
+    let (tbs_length, bytes_consumed) = check_length(&data[t_walker..])?;
+    t_walker += bytes_consumed;
+
+    if len < t_walker + tbs_length {
+        return Err(SPDM_STATUS_VERIF_FAIL);
+    }
+
+    // version         [0]  EXPLICIT Version DEFAULT v1,
+    let bytes_consumed = check_version(&data[t_walker..])?;
+    t_walker += bytes_consumed;
+
+    // serialNumber         CertificateSerialNumber,
+    let bytes_consumed = check_and_skip_common_tag(&data[t_walker..])?;
+    t_walker += bytes_consumed;
+
+    // signature            AlgorithmIdentifier,
+    check_tag_is_sequence(&data[t_walker..])?;
+    t_walker += 1;
+    let (signature_id_length, bytes_consumed) = check_length(&data[t_walker..])?;
+    t_walker += bytes_consumed;
+
+    check_object_identifier(&data[t_walker..], None)?;
+
+    t_walker += signature_id_length;
+    // issuer               Name,
+    let (bytes_consumed, issuer) = check_and_get_common_tag(&data[t_walker..])?;
+    t_walker += bytes_consumed;
+
+    // validity             Validity,
+    let bytes_consumed = check_validity(&data[t_walker..])?;
+    t_walker += bytes_consumed;
+
+    // subject              Name,
+    let (_, subject) = check_and_get_common_tag(&data[t_walker..])?;
+
+    if subject == issuer {
+        Ok(())
+    } else {
+        Err(SPDM_STATUS_VERIF_FAIL)
     }
 }
 
@@ -658,5 +735,28 @@ mod tests {
             check_cert_chain_format(&ct1_wrong, SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384),
             Err(SPDM_STATUS_VERIF_FAIL)
         );
+    }
+
+    #[test]
+    fn test_case0_is_root_certificate() {
+        let ca1 = std::fs::read("../test_key/ecp256/ca.cert.der").expect("unable to read ca cert!");
+        let ca2 =
+            std::fs::read("../test_key/ecp256/ca1.cert.der").expect("unable to read ca1 cert!");
+        let inter1 =
+            std::fs::read("../test_key/ecp256/inter.cert.der").expect("unable to read inter cert!");
+        let end1 = std::fs::read("../test_key/ecp256/end_requester1.cert.der")
+            .expect("unable to read end cert!");
+        let end2 = std::fs::read("../test_key/ecp256/end_responder1.cert.der")
+            .expect("unable to read end cert!");
+
+        let ct1_wrong = [0x30, 0x82, 0x01, 0xA8, 0xA0];
+
+        assert!(is_root_certificate(&ca1).is_ok());
+        assert!(is_root_certificate(&ca2).is_ok());
+
+        assert!(is_root_certificate(&inter1).is_err());
+        assert!(is_root_certificate(&end1).is_err());
+        assert!(is_root_certificate(&end2).is_err());
+        assert!(is_root_certificate(&ct1_wrong).is_err());
     }
 }

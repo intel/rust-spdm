@@ -69,6 +69,20 @@ impl ResponderContext {
             SpdmGetCapabilitiesRequestPayload::spdm_read(&mut self.common, &mut reader);
         if let Some(get_capabilities) = get_capabilities {
             debug!("!!! get_capabilities : {:02x?}\n", get_capabilities);
+
+            #[cfg(feature = "mandatory-mut-auth")]
+            if !get_capabilities
+                .flags
+                .contains(SpdmRequestCapabilityFlags::MUT_AUTH_CAP)
+            {
+                error!("!!! get_capabilities : mut-auth is not supported by requester while mandatory-mut-auth is enabled in responder !!!\n");
+                self.write_spdm_error(SpdmErrorCode::SpdmErrorUnexpectedRequest, 0, writer);
+                return (
+                    Err(crate::error::SPDM_STATUS_UNSUPPORTED_CAP),
+                    Some(writer.used_slice()),
+                );
+            }
+
             self.common.negotiate_info.req_ct_exponent_sel = get_capabilities.ct_exponent;
             self.common.negotiate_info.req_capabilities_sel = get_capabilities.flags;
             self.common.negotiate_info.rsp_ct_exponent_sel =

@@ -297,6 +297,8 @@ impl RequesterContext {
         //
         // 2. verify the authority of cert chain if provisioned
         //
+        let mut cert_chain_provisioned = false;
+        let mut found_match = false;
         for peer_root_cert_data in self
             .common
             .provision_info
@@ -304,19 +306,20 @@ impl RequesterContext {
             .iter()
             .flatten()
         {
+            cert_chain_provisioned = true;
             if root_cert.len() != peer_root_cert_data.data_size as usize {
-                error!("root_cert size - fail!\n");
-                debug!(
-                    "provision root_cert data size - {:?}\n",
-                    peer_root_cert_data.data_size
-                );
-                debug!("runtime root_cert data size - {:?}\n", root_cert.len());
-                return Err(SPDM_STATUS_INVALID_CERT);
+                continue;
             }
             if root_cert[..] != peer_root_cert_data.data[..peer_root_cert_data.data_size as usize] {
-                error!("root_cert data - fail!\n");
-                return Err(SPDM_STATUS_INVALID_CERT);
+                continue;
+            } else {
+                found_match = true;
+                break;
             }
+        }
+
+        if cert_chain_provisioned && !found_match {
+            return Err(SPDM_STATUS_INVALID_CERT);
         }
 
         info!("2. root cert is verified!\n");

@@ -21,6 +21,7 @@ zeroize = { version = "1.5.0", features = ["zeroize_derive"]}
 
 [features]
 mut-auth = ["spdm-emu/mut-auth"]
+mandatory-mut-auth = ["mut-auth", "spdm-emu/mandatory-mut-auth"]
 spdm-ring = ["spdm-emu/spdm-ring"]
 spdm-mbedtls = ["spdm-emu/spdm-mbedtls"]
 hashed-transcript-data = ["spdm-emu/hashed-transcript-data"]

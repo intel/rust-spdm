@@ -143,6 +143,9 @@ pub struct SpdmContext {
     #[cfg(feature = "mut-auth")]
     pub encap_context: SpdmEncapContext,
 
+    #[cfg(feature = "mandatory-mut-auth")]
+    pub mut_auth_done: bool,
+
     pub session: [SpdmSession; config::MAX_SPDM_SESSION_COUNT],
 }
 
@@ -163,6 +166,8 @@ impl SpdmContext {
             peer_info: SpdmPeerInfo::default(),
             #[cfg(feature = "mut-auth")]
             encap_context: SpdmEncapContext::default(),
+            #[cfg(feature = "mandatory-mut-auth")]
+            mut_auth_done: false,
             session: gen_array(config::MAX_SPDM_SESSION_COUNT),
         }
     }

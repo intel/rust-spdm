@@ -159,6 +159,12 @@ impl ResponderContext {
         });
 
         self.common.peer_info.peer_cert_chain_temp = None;
+
+        #[cfg(feature = "mandatory-mut-auth")]
+        if result.is_ok() {
+            self.common.mut_auth_done = true;
+        }
+
         result
     }
 

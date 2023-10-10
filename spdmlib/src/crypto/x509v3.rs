@@ -194,7 +194,7 @@ fn check_length(data: &[u8]) -> SpdmResult<(usize, usize)> {
         Ok((data[0] as usize, 1))
     } else {
         let length_count = data[0] - ASN1_LENGTH_MULTI_OCTET_MASK;
-        if len < (length_count as usize + 1) || length_count == 0 {
+        if len < (length_count as usize + 1) || length_count == 0 || length_count > 8 {
             Err(SPDM_STATUS_VERIF_FAIL)
         } else {
             let mut length = [0u8; 8];

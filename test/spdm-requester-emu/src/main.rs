@@ -7,6 +7,16 @@
 use common::SpdmDeviceIo;
 use common::SpdmTransportEncap;
 
+use idekm::pci_ide_km_requester::IdekmReqContext;
+use idekm::pci_idekm::Aes256GcmKeyBuffer;
+use idekm::pci_idekm::KpAckStatus;
+use idekm::pci_idekm::KEY_DIRECTION_RX;
+use idekm::pci_idekm::KEY_DIRECTION_TX;
+use idekm::pci_idekm::KEY_SET_0;
+use idekm::pci_idekm::KEY_SUB_STREAM_CPL;
+use idekm::pci_idekm::KEY_SUB_STREAM_NPR;
+use idekm::pci_idekm::KEY_SUB_STREAM_PR;
+use idekm::pci_idekm::PCI_IDE_KM_IDE_REG_BLOCK_MAX_COUNT;
 use log::LevelFilter;
 use log::*;
 use simple_logger::SimpleLogger;
@@ -19,6 +29,7 @@ use spdmlib::common::SpdmOpaqueSupport;
 use spdmlib::common::ST1;
 use spdmlib::config;
 use spdmlib::config::MAX_ROOT_CERT_SUPPORT;
+use spdmlib::crypto::rand::get_random;
 use spdmlib::message::*;
 use spdmlib::protocol::*;
 use spdmlib::requester;
@@ -372,6 +383,682 @@ async fn test_spdm(
     }
 }
 
+async fn test_idekm(
+    socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
+    transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
+) {
+    let req_capabilities = SpdmRequestCapabilityFlags::CERT_CAP
+        | SpdmRequestCapabilityFlags::CHAL_CAP
+        | SpdmRequestCapabilityFlags::ENCRYPT_CAP
+        | SpdmRequestCapabilityFlags::MAC_CAP
+        | SpdmRequestCapabilityFlags::KEY_EX_CAP
+        | SpdmRequestCapabilityFlags::PSK_CAP
+        | SpdmRequestCapabilityFlags::ENCAP_CAP
+        | SpdmRequestCapabilityFlags::HBEAT_CAP
+        | SpdmRequestCapabilityFlags::KEY_UPD_CAP;
+    // | SpdmRequestCapabilityFlags::HANDSHAKE_IN_THE_CLEAR_CAP
+    // | SpdmRequestCapabilityFlags::PUB_KEY_ID_CAP
+    let req_capabilities = if cfg!(feature = "mut-auth") {
+        req_capabilities | SpdmRequestCapabilityFlags::MUT_AUTH_CAP
+    } else {
+        req_capabilities
+    };
+
+    let config_info = common::SpdmConfigInfo {
+        spdm_version: [
+            SpdmVersion::SpdmVersion10,
+            SpdmVersion::SpdmVersion11,
+            SpdmVersion::SpdmVersion12,
+        ],
+        req_capabilities,
+        req_ct_exponent: 0,
+        measurement_specification: SpdmMeasurementSpecification::DMTF,
+        base_asym_algo: if USE_ECDSA {
+            SpdmBaseAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384
+        } else {
+            SpdmBaseAsymAlgo::TPM_ALG_RSASSA_3072
+        },
+        base_hash_algo: SpdmBaseHashAlgo::TPM_ALG_SHA_384,
+        dhe_algo: SpdmDheAlgo::SECP_384_R1,
+        aead_algo: SpdmAeadAlgo::AES_256_GCM,
+        req_asym_algo: if USE_ECDSA {
+            SpdmReqAsymAlgo::TPM_ALG_ECDSA_ECC_NIST_P384
+        } else {
+            SpdmReqAsymAlgo::TPM_ALG_RSASSA_3072
+        },
+        key_schedule_algo: SpdmKeyScheduleAlgo::SPDM_KEY_SCHEDULE,
+        opaque_support: SpdmOpaqueSupport::OPAQUE_DATA_FMT1,
+        data_transfer_size: config::MAX_SPDM_MSG_SIZE as u32,
+        max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
+        ..Default::default()
+    };
+
+    let mut peer_root_cert_data = SpdmCertChainData {
+        ..Default::default()
+    };
+
+    let ca_file_path = if USE_ECDSA {
+        "test_key/ecp384/ca.cert.der"
+    } else {
+        "test_key/rsa3072/ca.cert.der"
+    };
+    let ca_cert = std::fs::read(ca_file_path).expect("unable to read ca cert!");
+    let inter_file_path = if USE_ECDSA {
+        "test_key/ecp384/inter.cert.der"
+    } else {
+        "test_key/rsa3072/inter.cert.der"
+    };
+    let inter_cert = std::fs::read(inter_file_path).expect("unable to read inter cert!");
+    let leaf_file_path = if USE_ECDSA {
+        "test_key/ecp384/end_responder.cert.der"
+    } else {
+        "test_key/rsa3072/end_responder.cert.der"
+    };
+    let leaf_cert = std::fs::read(leaf_file_path).expect("unable to read leaf cert!");
+
+    let ca_len = ca_cert.len();
+    let inter_len = inter_cert.len();
+    let leaf_len = leaf_cert.len();
+    println!(
+        "total cert size - {:?} = {:?} + {:?} + {:?}",
+        ca_len + inter_len + leaf_len,
+        ca_len,
+        inter_len,
+        leaf_len
+    );
+    peer_root_cert_data.data_size = (ca_len) as u16;
+    peer_root_cert_data.data[0..ca_len].copy_from_slice(ca_cert.as_ref());
+
+    let mut peer_root_cert_data_list = gen_array_clone(None, MAX_ROOT_CERT_SUPPORT);
+    peer_root_cert_data_list[0] = Some(peer_root_cert_data);
+
+    let provision_info = if cfg!(feature = "mut-auth") {
+        spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
+        let mut my_cert_chain_data = SpdmCertChainData {
+            ..Default::default()
+        };
+
+        my_cert_chain_data.data_size = (ca_len + inter_len + leaf_len) as u16;
+        my_cert_chain_data.data[0..ca_len].copy_from_slice(ca_cert.as_ref());
+        my_cert_chain_data.data[ca_len..(ca_len + inter_len)].copy_from_slice(inter_cert.as_ref());
+        my_cert_chain_data.data[(ca_len + inter_len)..(ca_len + inter_len + leaf_len)]
+            .copy_from_slice(leaf_cert.as_ref());
+
+        common::SpdmProvisionInfo {
+            my_cert_chain_data: [
+                Some(my_cert_chain_data),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            my_cert_chain: [None, None, None, None, None, None, None, None],
+            peer_root_cert_data: peer_root_cert_data_list,
+        }
+    } else {
+        common::SpdmProvisionInfo {
+            my_cert_chain_data: [None, None, None, None, None, None, None, None],
+            my_cert_chain: [None, None, None, None, None, None, None, None],
+            peer_root_cert_data: peer_root_cert_data_list,
+        }
+    };
+
+    let mut context = requester::RequesterContext::new(
+        socket_io_transport,
+        transport_encap,
+        config_info,
+        provision_info,
+    );
+
+    if context.init_connection().await.is_err() {
+        panic!("init_connection failed!");
+    }
+
+    if context.send_receive_spdm_digest(None).await.is_err() {
+        panic!("send_receive_spdm_digest failed!");
+    }
+
+    if context
+        .send_receive_spdm_certificate(None, 0)
+        .await
+        .is_err()
+    {
+        panic!("send_receive_spdm_certificate failed!");
+    }
+
+    if context
+        .send_receive_spdm_challenge(
+            0,
+            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+        )
+        .await
+        .is_err()
+    {
+        panic!("send_receive_spdm_challenge failed!");
+    }
+
+    let mut total_number: u8 = 0;
+    let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+    if context
+        .send_receive_spdm_measurement(
+            None,
+            0,
+            SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+            SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+            &mut total_number,
+            &mut spdm_measurement_record_structure,
+        )
+        .await
+        .is_err()
+    {
+        panic!("send_receive_spdm_measurement failed!");
+    }
+
+    let session_id = context
+        .start_session(
+            false,
+            0,
+            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+        )
+        .await
+        .unwrap();
+
+    // ide_km test
+    let mut idekm_req_context = IdekmReqContext;
+    // ide_km query
+    let port_index = 0u8;
+    let mut dev_func_num = 0u8;
+    let mut bus_num = 0u8;
+    let mut segment = 0u8;
+    let mut max_port_index = 0u8;
+    let mut ide_reg_block = [0u32; PCI_IDE_KM_IDE_REG_BLOCK_MAX_COUNT];
+    let mut ide_reg_block_cnt = 0usize;
+    idekm_req_context
+        .pci_ide_km_query(
+            &mut context,
+            session_id,
+            port_index,
+            &mut dev_func_num,
+            &mut bus_num,
+            &mut segment,
+            &mut max_port_index,
+            &mut ide_reg_block,
+            &mut ide_reg_block_cnt,
+        )
+        .await
+        .unwrap();
+
+    // ide_km key_prog key set 0 | RX | PR
+    let stream_id = 0u8;
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_PR;
+    let mut key_iv: Aes256GcmKeyBuffer;
+    key_iv = Default::default();
+    get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[3].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[4].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[5].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[6].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[7].to_le_bytes()).unwrap();
+    key_iv.iv[0] = 0;
+    key_iv.iv[1] = 1;
+    let mut kp_ack_status = KpAckStatus::default();
+    idekm_req_context
+        .pci_ide_km_key_prog(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+            key_iv,
+            &mut kp_ack_status,
+        )
+        .await
+        .unwrap();
+    if kp_ack_status != KpAckStatus::SUCCESS {
+        panic!(
+            "KEY_PROG at Key Set 0 | RX | PR failed with {:X?}",
+            kp_ack_status
+        );
+    } else {
+        println!("Successful KEY_PROG at Key Set 0 | RX | PR!");
+    }
+
+    // ide_km key_prog key set 0 | RX | NPR
+    let stream_id = 0u8;
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_NPR;
+    let mut key_iv: Aes256GcmKeyBuffer;
+    key_iv = Default::default();
+    get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[3].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[4].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[5].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[6].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[7].to_le_bytes()).unwrap();
+    key_iv.iv[0] = 0;
+    key_iv.iv[1] = 1;
+    let mut kp_ack_status = KpAckStatus::default();
+    idekm_req_context
+        .pci_ide_km_key_prog(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+            key_iv,
+            &mut kp_ack_status,
+        )
+        .await
+        .unwrap();
+    if kp_ack_status != KpAckStatus::SUCCESS {
+        panic!(
+            "KEY_PROG at Key Set 0 | RX | NPR failed with {:X?}",
+            kp_ack_status
+        );
+    } else {
+        println!("Successful KEY_PROG at Key Set 0 | RX | NPR!");
+    }
+
+    // ide_km key_prog key set 0 | RX | CPL
+    let stream_id = 0u8;
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_CPL;
+    let mut key_iv: Aes256GcmKeyBuffer;
+    key_iv = Default::default();
+    get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[3].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[4].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[5].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[6].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[7].to_le_bytes()).unwrap();
+    key_iv.iv[0] = 0;
+    key_iv.iv[1] = 1;
+    let mut kp_ack_status = KpAckStatus::default();
+    idekm_req_context
+        .pci_ide_km_key_prog(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+            key_iv,
+            &mut kp_ack_status,
+        )
+        .await
+        .unwrap();
+    if kp_ack_status != KpAckStatus::SUCCESS {
+        panic!(
+            "KEY_PROG at Key Set 0 | RX | CPL failed with {:X?}",
+            kp_ack_status
+        );
+    } else {
+        println!("Successful KEY_PROG at Key Set 0 | RX | CPL!");
+    }
+
+    // ide_km key_prog key set 0 | TX | PR
+    let stream_id = 0u8;
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_PR;
+    let mut key_iv: Aes256GcmKeyBuffer;
+    key_iv = Default::default();
+    get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[3].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[4].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[5].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[6].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[7].to_le_bytes()).unwrap();
+    key_iv.iv[0] = 0;
+    key_iv.iv[1] = 1;
+    let mut kp_ack_status = KpAckStatus::default();
+    idekm_req_context
+        .pci_ide_km_key_prog(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+            key_iv,
+            &mut kp_ack_status,
+        )
+        .await
+        .unwrap();
+    if kp_ack_status != KpAckStatus::SUCCESS {
+        panic!(
+            "KEY_PROG at Key Set 0 | TX | PR failed with {:X?}",
+            kp_ack_status
+        );
+    } else {
+        println!("Successful KEY_PROG at Key Set 0 | TX | PR!");
+    }
+
+    // ide_km key_prog key set 0 | TX | NPR
+    let stream_id = 0u8;
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_NPR;
+    let mut key_iv: Aes256GcmKeyBuffer;
+    key_iv = Default::default();
+    get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[3].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[4].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[5].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[6].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[7].to_le_bytes()).unwrap();
+    key_iv.iv[0] = 0;
+    key_iv.iv[1] = 1;
+    let mut kp_ack_status = KpAckStatus::default();
+    idekm_req_context
+        .pci_ide_km_key_prog(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+            key_iv,
+            &mut kp_ack_status,
+        )
+        .await
+        .unwrap();
+    if kp_ack_status != KpAckStatus::SUCCESS {
+        panic!(
+            "KEY_PROG at Key Set 0 | TX | NPR failed with {:X?}",
+            kp_ack_status
+        );
+    } else {
+        println!("Successful KEY_PROG at Key Set 0 | TX | NPR!");
+    }
+
+    // ide_km key_prog key set 0 | TX | CPL
+    let stream_id = 0u8;
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_CPL;
+    let mut key_iv: Aes256GcmKeyBuffer;
+    key_iv = Default::default();
+    get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[3].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[4].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[5].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[6].to_le_bytes()).unwrap();
+    get_random(&mut key_iv.key[7].to_le_bytes()).unwrap();
+    key_iv.iv[0] = 0;
+    key_iv.iv[1] = 1;
+    let mut kp_ack_status = KpAckStatus::default();
+    idekm_req_context
+        .pci_ide_km_key_prog(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+            key_iv,
+            &mut kp_ack_status,
+        )
+        .await
+        .unwrap();
+    if kp_ack_status != KpAckStatus::SUCCESS {
+        panic!(
+            "KEY_PROG at Key Set 0 | TX | CPL failed with {:X?}",
+            kp_ack_status
+        );
+    } else {
+        println!("Successful KEY_PROG at Key Set 0 | TX | CPL!");
+    }
+
+    // ide_km key_set_go key set 0 | RX | PR
+    let stream_id = 0u8;
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_PR;
+    let port_index = 0u8;
+    idekm_req_context
+        .pci_ide_km_key_set_go(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_GO at Key Set 0 | RX | PR!");
+
+    // ide_km key_set_go key set 0 | RX | NPR
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_NPR;
+    idekm_req_context
+        .pci_ide_km_key_set_go(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_GO at Key Set 0 | RX | NPR!");
+
+    // ide_km key_set_go key set 0 | RX | CPL
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_CPL;
+    idekm_req_context
+        .pci_ide_km_key_set_go(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_GO at Key Set 0 | RX | CPL!");
+
+    // ide_km key_set_go key set 0 | TX | PR
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_PR;
+    idekm_req_context
+        .pci_ide_km_key_set_go(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_GO at Key Set 0 | TX | PR!");
+
+    // ide_km key_set_go key set 0 | TX | NPR
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_NPR;
+    idekm_req_context
+        .pci_ide_km_key_set_go(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_GO at Key Set 0 | TX | NPR!");
+
+    // ide_km key_set_go key set 0 | TX | CPL
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_CPL;
+    idekm_req_context
+        .pci_ide_km_key_set_go(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_GO at Key Set 0 | TX | CPL!");
+
+    // ide_km key_set_stop key set 0 | RX | PR
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_PR;
+    idekm_req_context
+        .pci_ide_km_key_set_stop(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_STOP at Key Set 0 | RX | PR!");
+
+    // ide_km key_set_stop key set 0 | RX | NPR
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_NPR;
+    idekm_req_context
+        .pci_ide_km_key_set_stop(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_STOP at Key Set 0 | RX | NPR!");
+
+    // ide_km key_set_stop key set 0 | RX | CPL
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_RX;
+    let key_sub_stream = KEY_SUB_STREAM_CPL;
+    idekm_req_context
+        .pci_ide_km_key_set_stop(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_STOP at Key Set 0 | RX | CPL!");
+
+    // ide_km key_set_stop key set 0 | TX | PR
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_PR;
+    idekm_req_context
+        .pci_ide_km_key_set_stop(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_STOP at Key Set 0 | TX | PR!");
+
+    // ide_km key_set_stop key set 0 | TX | NPR
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_NPR;
+    idekm_req_context
+        .pci_ide_km_key_set_stop(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_STOP at Key Set 0 | TX | NPR!");
+
+    // ide_km key_set_stop key set 0 | TX | CPL
+    let key_set = KEY_SET_0;
+    let key_direction = KEY_DIRECTION_TX;
+    let key_sub_stream = KEY_SUB_STREAM_CPL;
+    idekm_req_context
+        .pci_ide_km_key_set_stop(
+            &mut context,
+            session_id,
+            stream_id,
+            key_set,
+            key_direction,
+            key_sub_stream,
+            port_index,
+        )
+        .await
+        .unwrap();
+    println!("Successful KEY_SET_STOP at Key Set 0 | TX | CPL!");
+
+    // end spdm session
+    context.end_session(session_id).await.unwrap();
+}
+
 // A new logger enables the user to choose log level by setting a `SPDM_LOG` environment variable.
 // Use the `Trace` level by default.
 fn new_logger_from_env() -> SimpleLogger {
@@ -435,7 +1122,13 @@ fn emu_main() {
     let socket_io_transport = SocketIoTransport::new(socket.clone());
     let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
         Arc::new(Mutex::new(socket_io_transport));
+
     rt.block_on(test_spdm(
+        socket_io_transport.clone(),
+        transport_encap.clone(),
+    ));
+
+    rt.block_on(test_idekm(
         socket_io_transport.clone(),
         transport_encap.clone(),
     ));
@@ -447,7 +1140,7 @@ fn main() {
     use std::thread;
 
     thread::Builder::new()
-        .stack_size(EMU_STACK_SIZE)
+        .stack_size(EMU_STACK_SIZE * 2)
         .spawn(emu_main)
         .unwrap()
         .join()

@@ -4,6 +4,10 @@
 
 #![forbid(unsafe_code)]
 
+mod spdm_device_example;
+use spdm_device_example::init_device_instance;
+
+use idekm::pci_ide_km_responder::PCI_IDE_KM_INSTANCE;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use spdmlib::common::{SecuredMessageVersion, SpdmOpaqueSupport};
@@ -258,6 +262,7 @@ async fn handle_message(
     };
 
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
+    spdmlib::message::vendor::register_vendor_defined_struct(PCI_IDE_KM_INSTANCE);
     let mut context = responder::ResponderContext::new(
         socket_io_transport,
         transport_encap,
@@ -416,6 +421,7 @@ pub async fn send_pci_discovery(
 
 fn main() {
     use std::thread;
+    init_device_instance();
 
     thread::Builder::new()
         .stack_size(EMU_STACK_SIZE)

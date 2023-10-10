@@ -906,6 +906,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "idekm"
+version = "0.1.0"
+dependencies = [
+ "codec",
+ "conquer-once",
+ "spdmlib",
+ "zeroize",
+]
+
+[[package]]
 name = "is-terminal"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1626,6 +1636,7 @@ version = "0.1.0"
 dependencies = [
  "codec",
  "futures",
+ "idekm",
  "log",
  "mctp_transport",
  "pcidoe_transport",
@@ -1642,6 +1653,7 @@ version = "0.1.0"
 dependencies = [
  "codec",
  "futures",
+ "idekm",
  "log",
  "mctp_transport",
  "pcidoe_transport",

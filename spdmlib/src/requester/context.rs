@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::common::ST1;
 use crate::common::{self, SpdmDeviceIo, SpdmTransportEncap};
+use crate::common::{ManagedBufferA, ST1};
 use crate::config;
 use crate::error::{SpdmResult, SPDM_STATUS_RECEIVE_FAIL, SPDM_STATUS_SEND_FAIL};
 use crate::protocol::*;
@@ -34,10 +34,16 @@ impl RequesterContext {
         }
     }
 
-    pub async fn init_connection(&mut self) -> SpdmResult {
+    pub async fn init_connection(
+        &mut self,
+        transcript_vca: &mut Option<ManagedBufferA>,
+    ) -> SpdmResult {
+        *transcript_vca = None;
         self.send_receive_spdm_version().await?;
         self.send_receive_spdm_capability().await?;
-        self.send_receive_spdm_algorithm().await
+        self.send_receive_spdm_algorithm().await?;
+        *transcript_vca = Some(self.common.runtime_info.message_a.clone());
+        Ok(())
     }
 
     pub async fn start_session(

@@ -288,6 +288,8 @@ fn issue_other_request_before_vca_negotiated() {
         let mut total_number: u8 = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
         let mut content_changed = None;
+        let mut transcript_meas = None;
+
         let result = requester
             .send_receive_spdm_measurement(
                 None,
@@ -297,6 +299,7 @@ fn issue_other_request_before_vca_negotiated() {
                 &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
+                &mut transcript_meas,
             )
             .await;
         assert!(

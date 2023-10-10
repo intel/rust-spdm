@@ -100,6 +100,8 @@ async fn run_spdm(spdm: Vec<i32>) {
                 let mut spdm_measurement_record_structure =
                     SpdmMeasurementRecordStructure::default();
                 let mut content_changed = None;
+                let mut transcript_meas = None;
+
                 if requester
                     .send_receive_spdm_measurement(
                         None,
@@ -109,6 +111,7 @@ async fn run_spdm(spdm: Vec<i32>) {
                         &mut content_changed,
                         &mut total_number,
                         &mut spdm_measurement_record_structure,
+                        &mut transcript_meas,
                     )
                     .await
                     .is_err()

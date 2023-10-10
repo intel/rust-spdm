@@ -46,7 +46,12 @@ pub async fn fuzz_total_requesters() {
         req_provision_info,
     );
 
-    if requester.init_connection().await.is_err() {
+    let mut transcript_vca = None;
+    if requester
+        .init_connection(&mut transcript_vca)
+        .await
+        .is_err()
+    {
         return;
     }
 

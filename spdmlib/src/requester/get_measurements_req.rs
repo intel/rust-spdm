@@ -15,6 +15,7 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[allow(clippy::too_many_arguments)]
     async fn send_receive_spdm_measurement_record(
         &mut self,
         session_id: Option<u32>,
@@ -22,8 +23,13 @@ impl RequesterContext {
         measurement_operation: SpdmMeasurementOperation,
         content_changed: &mut Option<SpdmMeasurementContentChanged>,
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure,
+        transcript_meas: &mut Option<ManagedBufferM>,
         slot_id: u8,
     ) -> SpdmResult<u8> {
+        if transcript_meas.is_none() {
+            *transcript_meas = Some(ManagedBufferM::default());
+        }
+
         let result = self
             .delegate_send_receive_spdm_measurement_record(
                 session_id,
@@ -31,6 +37,7 @@ impl RequesterContext {
                 measurement_operation,
                 content_changed,
                 spdm_measurement_record_structure,
+                transcript_meas,
                 slot_id,
             )
             .await;
@@ -38,12 +45,14 @@ impl RequesterContext {
         if let Err(e) = result {
             if e != SPDM_STATUS_NOT_READY_PEER {
                 self.common.reset_message_m(session_id);
+                *transcript_meas = None;
             }
         }
 
         result
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn delegate_send_receive_spdm_measurement_record(
         &mut self,
         session_id: Option<u32>,
@@ -51,6 +60,7 @@ impl RequesterContext {
         measurement_operation: SpdmMeasurementOperation,
         content_changed: &mut Option<SpdmMeasurementContentChanged>,
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure,
+        transcript_meas: &mut Option<ManagedBufferM>,
         slot_id: u8,
     ) -> SpdmResult<u8> {
         info!("send spdm measurement\n");
@@ -89,6 +99,7 @@ impl RequesterContext {
             spdm_measurement_record_structure,
             &send_buffer[..send_used],
             &receive_buffer[..used],
+            transcript_meas,
         )
     }
 
@@ -131,6 +142,7 @@ impl RequesterContext {
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure,
         send_buffer: &[u8],
         receive_buffer: &[u8],
+        transcript_meas: &mut Option<ManagedBufferM>,
     ) -> SpdmResult<u8> {
         self.common.runtime_info.need_measurement_signature =
             measurement_attributes.contains(SpdmMeasurementAttributes::SIGNATURE_REQUESTED);
@@ -181,6 +193,26 @@ impl RequesterContext {
                         self.common.append_message_m(session_id, send_buffer)?;
                         self.common
                             .append_message_m(session_id, &receive_buffer[..temp_used])?;
+                        if let Some(ret_message_m) = transcript_meas {
+                            ret_message_m
+                                .append_message(send_buffer)
+                                .ok_or(SPDM_STATUS_BUFFER_FULL)?;
+                            ret_message_m
+                                .append_message(&receive_buffer[..temp_used])
+                                .ok_or(SPDM_STATUS_BUFFER_FULL)?;
+
+                            if measurement_attributes
+                                .contains(SpdmMeasurementAttributes::SIGNATURE_REQUESTED)
+                            {
+                                if measurements.signature.as_ref().is_empty() {
+                                    return Err(SPDM_STATUS_INVALID_MSG_FIELD);
+                                } else {
+                                    ret_message_m
+                                        .append_message(measurements.signature.as_ref())
+                                        .ok_or(SPDM_STATUS_BUFFER_FULL)?;
+                                }
+                            }
+                        }
 
                         // verify signature
                         if measurement_attributes
@@ -247,6 +279,7 @@ impl RequesterContext {
         out_total_number: &mut u8, // out, total number when measurement_operation = SpdmMeasurementQueryTotalNumber
         //      number of blocks got measured.
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure, // out
+        transcript_meas: &mut Option<ManagedBufferM>,                           // out
     ) -> SpdmResult {
         *out_total_number = self
             .send_receive_spdm_measurement_record(
@@ -255,6 +288,7 @@ impl RequesterContext {
                 measurement_operation,
                 content_changed,
                 spdm_measurement_record_structure,
+                transcript_meas,
                 slot_id,
             )
             .await?;

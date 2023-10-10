@@ -239,7 +239,8 @@ async fn test_spdm(
         provision_info,
     );
 
-    if context.init_connection().await.is_err() {
+    let mut transcript_vca = None;
+    if context.init_connection(&mut transcript_vca).await.is_err() {
         panic!("init_connection failed!");
     }
 
@@ -269,6 +270,8 @@ async fn test_spdm(
     let mut total_number: u8 = 0;
     let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
     let mut content_changed = None;
+    let mut transcript_meas = None;
+
     if context
         .send_receive_spdm_measurement(
             None,
@@ -278,11 +281,16 @@ async fn test_spdm(
             &mut content_changed,
             &mut total_number,
             &mut spdm_measurement_record_structure,
+            &mut transcript_meas,
         )
         .await
         .is_err()
     {
         panic!("send_receive_spdm_measurement failed!");
+    }
+
+    if transcript_meas.is_none() {
+        panic!("get message_m from send_receive_spdm_measurement failed!");
     }
 
     let result = context
@@ -332,6 +340,8 @@ async fn test_spdm(
         }
 
         let mut content_changed = None;
+        let mut transcript_meas = None;
+
         if context
             .send_receive_spdm_measurement(
                 Some(session_id),
@@ -341,11 +351,16 @@ async fn test_spdm(
                 &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
+                &mut transcript_meas,
             )
             .await
             .is_err()
         {
             panic!("send_receive_spdm_measurement failed");
+        }
+
+        if transcript_vca.is_none() || transcript_meas.is_none() {
+            panic!("get VCA + message_m from send_receive_spdm_measurement failed!");
         }
 
         if context
@@ -517,7 +532,8 @@ async fn test_idekm(
         provision_info,
     );
 
-    if context.init_connection().await.is_err() {
+    let mut transcript_vca = None;
+    if context.init_connection(&mut transcript_vca).await.is_err() {
         panic!("init_connection failed!");
     }
 
@@ -547,6 +563,8 @@ async fn test_idekm(
     let mut total_number: u8 = 0;
     let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
     let mut content_changed = None;
+    let mut transcript_meas = None;
+
     if context
         .send_receive_spdm_measurement(
             None,
@@ -556,6 +574,7 @@ async fn test_idekm(
             &mut content_changed,
             &mut total_number,
             &mut spdm_measurement_record_structure,
+            &mut transcript_meas,
         )
         .await
         .is_err()

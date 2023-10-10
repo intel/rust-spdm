@@ -56,7 +56,8 @@ fn test_case0_start_session() {
             req_provision_info,
         );
 
-        let status = requester.init_connection().await.is_ok();
+        let mut transcript_vca = None;
+        let status = requester.init_connection(&mut transcript_vca).await.is_ok();
         assert!(status);
 
         let status = requester.send_receive_spdm_digest(None).await.is_ok();
@@ -142,7 +143,8 @@ fn test_case0_get_next_half_session() {
             req_provision_info,
         );
 
-        let status = requester.init_connection().await.is_ok();
+        let mut transcript_vca = None;
+        let status = requester.init_connection(&mut transcript_vca).await.is_ok();
         assert!(status);
 
         let status = requester.send_receive_spdm_digest(None).await.is_ok();

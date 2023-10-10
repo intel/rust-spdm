@@ -68,6 +68,8 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
         let mut content_changed = None;
+        let mut transcript_meas = None;
+
         let _ = requester
             .send_receive_spdm_measurement(
                 None,
@@ -77,6 +79,7 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
                 &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
+                &mut transcript_meas,
             )
             .await;
     }
@@ -123,6 +126,8 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
         let mut content_changed = None;
+        let mut transcript_meas = None;
+
         let _ = requester
             .send_receive_spdm_measurement(
                 None,
@@ -132,6 +137,7 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
                 &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
+                &mut transcript_meas,
             )
             .await;
     }
@@ -179,6 +185,8 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
         let mut content_changed = None;
+        let mut transcript_meas = None;
+
         let _ = requester
             .send_receive_spdm_measurement(
                 None,
@@ -188,6 +196,7 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
                 &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
+                &mut transcript_meas,
             )
             .await;
     }
@@ -235,6 +244,8 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
         let mut content_changed = None;
+        let mut transcript_meas = None;
+
         let _ = requester
             .send_receive_spdm_measurement(
                 None,
@@ -244,6 +255,7 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
                 &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
+                &mut transcript_meas,
             )
             .await;
     }
@@ -319,6 +331,8 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
         let mut content_changed = None;
+        let mut transcript_meas = None;
+
         let _ = requester
             .send_receive_spdm_measurement(
                 Some(4294836221),
@@ -328,6 +342,7 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
                 &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
+                &mut transcript_meas,
             )
             .await;
     }

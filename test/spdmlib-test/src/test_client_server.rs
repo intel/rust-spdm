@@ -60,7 +60,11 @@ fn intergration_client_server() {
             provision_info,
         );
 
-        assert!(!requester_context.init_connection().await.is_err());
+        let mut transcript_vca = None;
+        assert!(!requester_context
+            .init_connection(&mut transcript_vca)
+            .await
+            .is_err());
 
         assert!(!requester_context
             .send_receive_spdm_digest(None)

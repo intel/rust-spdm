@@ -6,9 +6,10 @@ use super::app_message_handler::dispatch_secured_app_message_cb;
 use crate::common::{session::SpdmSessionState, SpdmDeviceIo, SpdmTransportEncap};
 use crate::common::{SpdmConnectionState, ST1};
 use crate::config::{self, MAX_SPDM_MSG_SIZE, RECEIVER_BUFFER_SIZE};
-use crate::error::{SpdmResult, SPDM_STATUS_UNSUPPORTED_CAP};
+use crate::error::{SpdmResult, SPDM_STATUS_INVALID_STATE_LOCAL, SPDM_STATUS_UNSUPPORTED_CAP};
 use crate::message::*;
 use crate::protocol::{SpdmRequestCapabilityFlags, SpdmResponseCapabilityFlags};
+use crate::watchdog::{reset_watchdog, start_watchdog};
 use codec::{Codec, Reader, Writer};
 extern crate alloc;
 use core::ops::DerefMut;
@@ -117,13 +118,36 @@ impl ResponderContext {
         } else if opcode == SpdmRequestResponseCode::SpdmResponseFinishRsp.get_u8()
             && session_id.is_none()
         {
-            let session = self
+            let session_id =
+                if let Some(session_id) = self.common.runtime_info.get_last_session_id() {
+                    session_id
+                } else {
+                    return Err(SPDM_STATUS_INVALID_STATE_LOCAL);
+                };
+
+            let heartbeat_period = {
+                let session = self.common.get_session_via_id(session_id).unwrap();
+                session.set_session_state(
+                    crate::common::session::SpdmSessionState::SpdmSessionEstablished,
+                );
+
+                session.heartbeat_period
+            };
+
+            if self
                 .common
-                .get_session_via_id(self.common.runtime_info.get_last_session_id().unwrap())
-                .unwrap();
-            session.set_session_state(
-                crate::common::session::SpdmSessionState::SpdmSessionEstablished,
-            );
+                .negotiate_info
+                .req_capabilities_sel
+                .contains(SpdmRequestCapabilityFlags::HBEAT_CAP)
+                && self
+                    .common
+                    .negotiate_info
+                    .rsp_capabilities_sel
+                    .contains(SpdmResponseCapabilityFlags::HBEAT_CAP)
+            {
+                start_watchdog(session_id, heartbeat_period as u16 * 2);
+            }
+
             self.common.runtime_info.set_last_session_id(None);
         } else if opcode == SpdmRequestResponseCode::SpdmResponseEndSessionAck.get_u8() {
             let session = self.common.get_session_via_id(session_id.unwrap()).unwrap();
@@ -133,10 +157,30 @@ impl ResponderContext {
             && session_id.is_some()
         {
             #[allow(clippy::unnecessary_unwrap)]
-            let session = self.common.get_session_via_id(session_id.unwrap()).unwrap();
-            session.set_session_state(
-                crate::common::session::SpdmSessionState::SpdmSessionEstablished,
-            );
+            let session_id = session_id.unwrap();
+
+            let heartbeat_period = {
+                let session = self.common.get_session_via_id(session_id).unwrap();
+                session.set_session_state(
+                    crate::common::session::SpdmSessionState::SpdmSessionEstablished,
+                );
+
+                session.heartbeat_period
+            };
+
+            if self
+                .common
+                .negotiate_info
+                .req_capabilities_sel
+                .contains(SpdmRequestCapabilityFlags::HBEAT_CAP)
+                && self
+                    .common
+                    .negotiate_info
+                    .rsp_capabilities_sel
+                    .contains(SpdmResponseCapabilityFlags::HBEAT_CAP)
+            {
+                start_watchdog(session_id, heartbeat_period as u16 * 2);
+            }
         }
 
         Ok(())
@@ -186,6 +230,21 @@ impl ResponderContext {
                     match decap_result {
                         Err(_) => Err(used),
                         Ok((decode_size, is_app_message)) => {
+                            // reset watchdog in any session messages.
+                            if self
+                                .common
+                                .negotiate_info
+                                .req_capabilities_sel
+                                .contains(SpdmRequestCapabilityFlags::HBEAT_CAP)
+                                && self
+                                    .common
+                                    .negotiate_info
+                                    .rsp_capabilities_sel
+                                    .contains(SpdmResponseCapabilityFlags::HBEAT_CAP)
+                            {
+                                reset_watchdog(session_id);
+                            }
+
                             if !is_app_message {
                                 let (status, send_buffer) = self.dispatch_secured_message(
                                     session_id,

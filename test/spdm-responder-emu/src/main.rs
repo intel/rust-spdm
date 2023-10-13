@@ -10,6 +10,7 @@ use spdm_device_example::init_device_instance;
 use idekm::pci_ide_km_responder::PCI_IDE_KM_INSTANCE;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
+use spdm_emu::watchdog_impl_sample::init_watchdog;
 use spdmlib::common::{SecuredMessageVersion, SpdmOpaqueSupport};
 use spdmlib::config::{MAX_ROOT_CERT_SUPPORT, RECEIVER_BUFFER_SIZE};
 
@@ -263,6 +264,7 @@ async fn handle_message(
 
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
     spdmlib::message::vendor::register_vendor_defined_struct(PCI_IDE_KM_INSTANCE);
+    init_watchdog();
     let mut context = responder::ResponderContext::new(
         socket_io_transport,
         transport_encap,

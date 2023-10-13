@@ -9,6 +9,7 @@ pub mod crypto_callback;
 pub mod secret_impl_sample;
 pub mod socket_io_transport;
 pub mod spdm_emu;
+pub mod watchdog_impl_sample;
 
 use std::mem::size_of;
 

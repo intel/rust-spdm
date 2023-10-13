@@ -6,6 +6,7 @@ use crate::common::device_io::{FakeSpdmDeviceIo, FakeSpdmDeviceIoReceve, SharedB
 use crate::common::secret_callback::*;
 use crate::common::transport::PciDoeTransportEncap;
 use crate::common::util::create_info;
+use crate::watchdog_impl_sample::init_watchdog;
 use codec::Writer;
 use spdmlib::common::session::{SpdmSession, SpdmSessionState};
 use spdmlib::common::SpdmCodec;
@@ -19,6 +20,7 @@ use alloc::sync::Arc;
 
 #[test]
 fn test_case0_start_session() {
+    init_watchdog();
     let future = async {
         let (rsp_config_info, rsp_provision_info) = create_info();
         let (req_config_info, req_provision_info) = create_info();
@@ -105,6 +107,7 @@ fn test_case0_start_session() {
 #[test]
 fn test_case0_get_next_half_session() {
     let future = async {
+        init_watchdog();
         let (rsp_config_info, rsp_provision_info) = create_info();
         let (req_config_info, req_provision_info) = create_info();
 
@@ -220,6 +223,7 @@ fn test_case0_get_next_half_session() {
 #[test]
 fn test_case0_receive_secured_message() {
     let future = async {
+        init_watchdog();
         let (rsp_config_info, rsp_provision_info) = create_info();
         let (req_config_info, req_provision_info) = create_info();
 

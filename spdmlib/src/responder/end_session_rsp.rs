@@ -7,7 +7,10 @@ use crate::error::SpdmResult;
 use crate::error::SPDM_STATUS_INVALID_MSG_FIELD;
 use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
 use crate::message::*;
+use crate::protocol::SpdmRequestCapabilityFlags;
+use crate::protocol::SpdmResponseCapabilityFlags;
 use crate::responder::*;
+use crate::watchdog::stop_watchdog;
 
 impl ResponderContext {
     pub fn handle_spdm_end_session<'a>(
@@ -16,6 +19,20 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
+        if self
+            .common
+            .negotiate_info
+            .req_capabilities_sel
+            .contains(SpdmRequestCapabilityFlags::HBEAT_CAP)
+            && self
+                .common
+                .negotiate_info
+                .rsp_capabilities_sel
+                .contains(SpdmResponseCapabilityFlags::HBEAT_CAP)
+        {
+            stop_watchdog(session_id);
+        }
+
         let (_, rsp_slice) = self.write_spdm_end_session_response(session_id, bytes, writer);
         (Ok(()), rsp_slice)
     }

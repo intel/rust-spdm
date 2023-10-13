@@ -18,6 +18,7 @@ use crate::error::SPDM_STATUS_INVALID_STATE_PEER;
 use crate::message::*;
 use crate::protocol::*;
 use crate::responder::*;
+use crate::watchdog::start_watchdog;
 use config::MAX_SPDM_PSK_CONTEXT_SIZE;
 extern crate alloc;
 use crate::secret;
@@ -400,13 +401,30 @@ impl ResponderContext {
             let th2 = th2.unwrap();
             debug!("!!! th2 : {:02x?}\n", th2.as_ref());
             let spdm_version_sel = self.common.negotiate_info.spdm_version_sel;
-            let session = self.common.get_session_via_id(session_id).unwrap();
-            session
-                .generate_data_secret(spdm_version_sel, &th2)
-                .unwrap();
-            session.set_session_state(
-                crate::common::session::SpdmSessionState::SpdmSessionEstablished,
-            );
+            let heartbeat_period = {
+                let session = self.common.get_session_via_id(session_id).unwrap();
+                session
+                    .generate_data_secret(spdm_version_sel, &th2)
+                    .unwrap();
+                session.set_session_state(
+                    crate::common::session::SpdmSessionState::SpdmSessionEstablished,
+                );
+
+                session.heartbeat_period
+            };
+            if self
+                .common
+                .negotiate_info
+                .req_capabilities_sel
+                .contains(SpdmRequestCapabilityFlags::HBEAT_CAP)
+                && self
+                    .common
+                    .negotiate_info
+                    .rsp_capabilities_sel
+                    .contains(SpdmResponseCapabilityFlags::HBEAT_CAP)
+            {
+                start_watchdog(session_id, heartbeat_period as u16 * 2);
+            }
         }
 
         let session = self.common.get_session_via_id(session_id).unwrap();

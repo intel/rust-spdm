@@ -6,6 +6,7 @@ use crate::common::device_io::{FakeSpdmDeviceIo, FakeSpdmDeviceIoReceve, SharedB
 use crate::common::secret_callback::SECRET_ASYM_IMPL_INSTANCE;
 use crate::common::transport::PciDoeTransportEncap;
 use crate::common::util::{get_rsp_cert_chain_buff, req_create_info, rsp_create_info};
+use crate::watchdog_impl_sample::init_watchdog;
 use spdmlib::protocol::{
     SpdmMeasurementSummaryHashType, SpdmReqAsymAlgo, SpdmRequestCapabilityFlags,
     SpdmResponseCapabilityFlags,
@@ -20,6 +21,7 @@ use alloc::sync::Arc;
 fn intergration_client_server() {
     let future = async {
         spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
+        init_watchdog();
 
         let shared_buffer = SharedBuffer::new();
         let device_io_responder = Arc::new(Mutex::new(FakeSpdmDeviceIoReceve::new(Arc::new(

@@ -17,3 +17,6 @@ mod requester_tests;
 
 #[cfg(test)]
 mod responder_tests;
+
+#[cfg(test)]
+mod watchdog_impl_sample;

@@ -46,8 +46,8 @@ impl RequesterContext {
 
         self.handle_spdm_key_update_op_response(
             session_id,
-            update_requester,
-            update_responder,
+            key_update_operation,
+            tag,
             &receive_buffer[..used],
         )
     }
@@ -75,8 +75,8 @@ impl RequesterContext {
     pub fn handle_spdm_key_update_op_response(
         &mut self,
         session_id: u32,
-        update_requester: bool,
-        update_responder: bool,
+        key_update_operation: SpdmKeyUpdateOperation,
+        tag: u8,
         receive_buffer: &[u8],
     ) -> SpdmResult {
         let mut reader = Reader::init(receive_buffer);
@@ -87,32 +87,18 @@ impl RequesterContext {
                 }
                 match message_header.request_response_code {
                     SpdmRequestResponseCode::SpdmResponseKeyUpdateAck => {
-                        let key_update_rsp =
-                            SpdmKeyUpdateResponsePayload::spdm_read(&mut self.common, &mut reader);
-                        let spdm_version_sel = self.common.negotiate_info.spdm_version_sel;
-                        let session = if let Some(s) = self.common.get_session_via_id(session_id) {
-                            s
+                        if let Some(key_update_rsp) =
+                            SpdmKeyUpdateResponsePayload::spdm_read(&mut self.common, &mut reader)
+                        {
+                            if key_update_rsp.key_update_operation != key_update_operation
+                                || key_update_rsp.tag != tag
+                            {
+                                Err(SPDM_STATUS_INVALID_MSG_FIELD)
+                            } else {
+                                Ok(())
+                            }
                         } else {
-                            return Err(SPDM_STATUS_INVALID_PARAMETER);
-                        };
-                        if let Some(key_update_rsp) = key_update_rsp {
-                            debug!("!!! key_update rsp : {:02x?}\n", key_update_rsp);
-                            session.activate_data_secret_update(
-                                spdm_version_sel,
-                                update_requester,
-                                update_responder,
-                                true,
-                            )?;
-                            Ok(())
-                        } else {
-                            error!("!!! key_update : fail !!!\n");
-                            session.activate_data_secret_update(
-                                spdm_version_sel,
-                                update_requester,
-                                update_responder,
-                                false,
-                            )?;
-                            Err(SPDM_STATUS_INVALID_MSG_FIELD)
+                            Err(SPDM_STATUS_INVALID_PARAMETER)
                         }
                     }
                     SpdmRequestResponseCode::SpdmResponseError => self
@@ -139,13 +125,41 @@ impl RequesterContext {
         {
             return Err(SPDM_STATUS_INVALID_MSG_FIELD);
         }
-        self.send_receive_spdm_key_update_op(session_id, key_update_operation, 1)
-            .await?;
-        self.send_receive_spdm_key_update_op(
-            session_id,
-            SpdmKeyUpdateOperation::SpdmVerifyNewKey,
-            2,
-        )
-        .await
+
+        {
+            let session = self
+                .common
+                .get_session_via_id(session_id)
+                .ok_or(SPDM_STATUS_INVALID_PARAMETER)?;
+            session.backup_data_secret();
+        }
+
+        if self
+            .send_receive_spdm_key_update_op(session_id, key_update_operation, 1)
+            .await
+            .is_err()
+            || self
+                .send_receive_spdm_key_update_op(
+                    session_id,
+                    SpdmKeyUpdateOperation::SpdmVerifyNewKey,
+                    2,
+                )
+                .await
+                .is_err()
+        {
+            let session = self
+                .common
+                .get_session_via_id(session_id)
+                .ok_or(SPDM_STATUS_INVALID_PARAMETER)?;
+            session.roll_back_data_secret();
+        }
+
+        let session = self
+            .common
+            .get_session_via_id(session_id)
+            .ok_or(SPDM_STATUS_INVALID_PARAMETER)?;
+        session.zero_data_secret_backup();
+
+        Ok(())
     }
 }

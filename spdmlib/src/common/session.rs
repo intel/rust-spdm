@@ -577,6 +577,10 @@ impl SpdmSession {
         Ok(())
     }
 
+    pub fn backup_data_secret(&mut self) {
+        self.application_secret_backup = self.application_secret.clone()
+    }
+
     pub fn create_data_secret_update(
         &mut self,
         spdm_version: SpdmVersion,
@@ -591,11 +595,6 @@ impl SpdmSession {
         let aead_algo = self.crypto_param.aead_algo;
 
         if update_requester {
-            self.application_secret_backup.request_data_secret =
-                self.application_secret.request_data_secret.clone();
-            self.application_secret_backup.request_direction =
-                self.application_secret.request_direction.clone();
-
             self.application_secret.request_data_secret = if let Some(us) =
                 self.key_schedule.derive_update_secret(
                     spdm_version,
@@ -640,11 +639,6 @@ impl SpdmSession {
         }
 
         if update_responder {
-            self.application_secret_backup.response_data_secret =
-                self.application_secret.response_data_secret.clone();
-            self.application_secret_backup.response_direction =
-                self.application_secret.response_direction.clone();
-
             self.application_secret.response_data_secret = if let Some(us) =
                 self.key_schedule.derive_update_secret(
                     spdm_version,
@@ -690,41 +684,12 @@ impl SpdmSession {
         Ok(())
     }
 
-    pub fn activate_data_secret_update(
-        &mut self,
-        _spdm_version: SpdmVersion,
-        update_requester: bool,
-        update_responder: bool,
-        use_new_key: bool,
-    ) -> SpdmResult {
-        if !use_new_key {
-            if update_requester {
-                self.application_secret.request_data_secret =
-                    self.application_secret_backup.request_data_secret.clone();
-                self.application_secret.request_direction =
-                    self.application_secret_backup.request_direction.clone();
-            }
-            if update_responder {
-                self.application_secret.response_data_secret =
-                    self.application_secret_backup.response_data_secret.clone();
-                self.application_secret.response_direction =
-                    self.application_secret_backup.response_direction.clone();
-            }
-        } else {
-            if update_requester {
-                self.application_secret_backup.request_data_secret =
-                    SpdmDirectionDataSecretStruct::default();
-                self.application_secret_backup.request_direction =
-                    SpdmSessionSecretParam::default();
-            }
-            if update_responder {
-                self.application_secret_backup.response_data_secret =
-                    SpdmDirectionDataSecretStruct::default();
-                self.application_secret_backup.response_direction =
-                    SpdmSessionSecretParam::default();
-            }
-        }
-        Ok(())
+    pub fn roll_back_data_secret(&mut self) {
+        self.application_secret = self.application_secret_backup.clone()
+    }
+
+    pub fn zero_data_secret_backup(&mut self) {
+        self.application_secret_backup = SpdmSessionAppliationSecret::default()
     }
 
     pub fn generate_hmac_with_response_finished_key(
@@ -1374,24 +1339,6 @@ mod tests_session {
         }
     }
 
-    #[test]
-    fn test_case0_activate_data_secret_update() {
-        let mut session = SpdmSession::default();
-        let status = session
-            .activate_data_secret_update(SpdmVersion::SpdmVersion12, true, true, false)
-            .is_ok();
-        assert!(status);
-
-        let status = session
-            .activate_data_secret_update(SpdmVersion::SpdmVersion12, true, false, false)
-            .is_ok();
-        assert!(status);
-
-        let status = session
-            .activate_data_secret_update(SpdmVersion::SpdmVersion12, false, false, false)
-            .is_ok();
-        assert!(status);
-    }
     #[test]
     fn test_case0_decode_msg() {
         let mut session = SpdmSession::default();

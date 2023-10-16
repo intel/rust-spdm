@@ -16,8 +16,29 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        let (_, rsp_slice) = self.write_spdm_key_update_response(session_id, bytes, writer);
-        (Ok(()), rsp_slice)
+        {
+            if let Some(session) = self.common.get_session_via_id(session_id) {
+                session.backup_data_secret();
+            } else {
+                return (Ok(()), None);
+            }
+        }
+
+        let (result, rsp_slice) = self.write_spdm_key_update_response(session_id, bytes, writer);
+        if result.is_err() {
+            if let Some(session) = self.common.get_session_via_id(session_id) {
+                session.roll_back_data_secret();
+            } else {
+                return (Ok(()), None);
+            }
+        }
+
+        if let Some(session) = self.common.get_session_via_id(session_id) {
+            session.zero_data_secret_backup();
+            (Ok(()), rsp_slice)
+        } else {
+            (Ok(()), None)
+        }
     }
 
     pub fn write_spdm_key_update_response<'a>(
@@ -70,11 +91,8 @@ impl ResponderContext {
             }
             SpdmKeyUpdateOperation::SpdmUpdateAllKeys => {
                 let _ = session.create_data_secret_update(spdm_version_sel, true, true);
-                let _ = session.activate_data_secret_update(spdm_version_sel, true, true, true);
             }
-            SpdmKeyUpdateOperation::SpdmVerifyNewKey => {
-                let _ = session.activate_data_secret_update(spdm_version_sel, true, false, true);
-            }
+            SpdmKeyUpdateOperation::SpdmVerifyNewKey => {}
             _ => {
                 error!("!!! key_update req : fail !!!\n");
                 self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);

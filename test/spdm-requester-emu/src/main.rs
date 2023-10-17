@@ -268,12 +268,14 @@ async fn test_spdm(
 
     let mut total_number: u8 = 0;
     let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+    let mut content_changed = None;
     if context
         .send_receive_spdm_measurement(
             None,
             0,
             SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
             SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+            &mut content_changed,
             &mut total_number,
             &mut spdm_measurement_record_structure,
         )
@@ -329,12 +331,14 @@ async fn test_spdm(
             panic!("send_receive_spdm_key_update failed");
         }
 
+        let mut content_changed = None;
         if context
             .send_receive_spdm_measurement(
                 Some(session_id),
                 0,
                 SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                 SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -542,12 +546,14 @@ async fn test_idekm(
 
     let mut total_number: u8 = 0;
     let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+    let mut content_changed = None;
     if context
         .send_receive_spdm_measurement(
             None,
             0,
             SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
             SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+            &mut content_changed,
             &mut total_number,
             &mut spdm_measurement_record_structure,
         )

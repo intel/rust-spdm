@@ -99,12 +99,14 @@ async fn run_spdm(spdm: Vec<i32>) {
                 let mut total_number = 0;
                 let mut spdm_measurement_record_structure =
                     SpdmMeasurementRecordStructure::default();
+                let mut content_changed = None;
                 if requester
                     .send_receive_spdm_measurement(
                         None,
                         0,
                         SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                         SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+                        &mut content_changed,
                         &mut total_number,
                         &mut spdm_measurement_record_structure,
                     )

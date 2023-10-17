@@ -67,12 +67,14 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
 
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+        let mut content_changed = None;
         let _ = requester
             .send_receive_spdm_measurement(
                 None,
                 0,
                 SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                 SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -120,12 +122,14 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
 
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+        let mut content_changed = None;
         let _ = requester
             .send_receive_spdm_measurement(
                 None,
                 0,
                 SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                 SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -174,12 +178,14 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
 
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+        let mut content_changed = None;
         let _ = requester
             .send_receive_spdm_measurement(
                 None,
                 0,
                 SpdmMeasurementAttributes::RAW_BIT_STREAM_REQUESTED,
                 SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -228,12 +234,14 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
 
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+        let mut content_changed = None;
         let _ = requester
             .send_receive_spdm_measurement(
                 None,
                 0,
                 SpdmMeasurementAttributes::empty(),
                 SpdmMeasurementOperation::Unknown(4),
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -310,12 +318,14 @@ async fn fuzz_send_receive_spdm_measurement(fuzzdata: Arc<Vec<u8>>) {
         requester.common.reset_runtime_info();
         let mut total_number = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+        let mut content_changed = None;
         let _ = requester
             .send_receive_spdm_measurement(
                 Some(4294836221),
                 0,
                 SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                 SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )

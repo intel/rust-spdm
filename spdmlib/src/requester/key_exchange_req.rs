@@ -58,14 +58,27 @@ impl RequesterContext {
         let receive_used = self
             .receive_message(None, &mut receive_buffer, false)
             .await?;
-        self.handle_spdm_key_exhcange_response(
+
+        let mut target_session_id = None;
+        if let Err(e) = self.handle_spdm_key_exchange_response(
             req_session_id,
             slot_id,
             &send_buffer[..send_used],
             &receive_buffer[..receive_used],
             measurement_summary_hash_type,
             key_exchange_context,
-        )
+            &mut target_session_id,
+        ) {
+            if let Some(session_id) = target_session_id {
+                if let Some(session) = self.common.get_session_via_id(session_id) {
+                    session.teardown();
+                }
+            }
+
+            Err(e)
+        } else {
+            Ok(target_session_id.unwrap())
+        }
     }
 
     pub fn encode_spdm_key_exchange(
@@ -132,7 +145,8 @@ impl RequesterContext {
         Ok((key_exchange_context, writer.used()))
     }
 
-    pub fn handle_spdm_key_exhcange_response(
+    #[allow(clippy::too_many_arguments)]
+    pub fn handle_spdm_key_exchange_response(
         &mut self,
         req_session_id: u16,
         slot_id: u8,
@@ -140,7 +154,8 @@ impl RequesterContext {
         receive_buffer: &[u8],
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
         key_exchange_context: Box<dyn crypto::SpdmDheKeyExchange>,
-    ) -> SpdmResult<u32> {
+        target_session_id: &mut Option<u32>,
+    ) -> SpdmResult {
         self.common.runtime_info.need_measurement_summary_hash = (measurement_summary_hash_type
             == SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeTcb)
             || (measurement_summary_hash_type
@@ -214,6 +229,7 @@ impl RequesterContext {
 
                             let session_id = ((key_exchange_rsp.rsp_session_id as u32) << 16)
                                 + req_session_id as u32;
+                            *target_session_id = Some(session_id);
                             let spdm_version_sel = self.common.negotiate_info.spdm_version_sel;
                             let message_a = self.common.runtime_info.message_a.clone();
                             let cert_chain_hash =
@@ -390,7 +406,7 @@ impl RequesterContext {
                                     .set_last_session_id(Some(session_id));
                             }
 
-                            Ok(session_id)
+                            Ok(())
                         } else {
                             error!("!!! key_exchange : fail !!!\n");
                             Err(SPDM_STATUS_INVALID_MSG_FIELD)

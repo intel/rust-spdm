@@ -101,7 +101,7 @@ run_with_spdm_emu() {
     cleanup
     
     echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_FEATURES" &
-    sleep 5
+    sleep 20
     pushd test_key
     chmod +x ./spdm_requester_emu
     echo_command  ./spdm_requester_emu --trans PCI_DOE --exe_conn DIGEST,CERT,CHAL,MEAS --exe_session KEY_EX,PSK,KEY_UPDATE,HEARTBEAT,MEAS,DIGEST,CERT
@@ -119,7 +119,7 @@ run_with_spdm_emu_mut_auth() {
     cleanup
     
     echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_MUTAUTH_FEATURES" &
-    sleep 5
+    sleep 20
     pushd test_key
     chmod +x ./spdm_requester_emu
     echo_command  ./spdm_requester_emu --trans PCI_DOE --req_asym ECDSA_P384 --exe_conn DIGEST,CERT,CHAL,MEAS --exe_session KEY_EX,PSK,KEY_UPDATE,HEARTBEAT,MEAS,DIGEST,CERT
@@ -128,7 +128,7 @@ run_with_spdm_emu_mut_auth() {
 
 run_with_spdm_emu_mandatory_mut_auth() {
     echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_MANDATORY_MUTAUTH_FEATURES" &
-    sleep 5
+    sleep 20
     pushd test_key
     chmod +x ./spdm_requester_emu
     echo_command  ./spdm_requester_emu --trans PCI_DOE --req_asym ECDSA_P384 --exe_conn DIGEST,CERT,CHAL,MEAS --exe_session KEY_EX,PSK,KEY_UPDATE,HEARTBEAT,MEAS,DIGEST,CERT
@@ -151,7 +151,7 @@ run_basic_test() {
 run_rust_spdm_emu() {
     echo "Running requester and responder..."
     echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_FEATURES" &
-    sleep 5
+    sleep 20
     echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_REQUESTER_FEATURES"
     cleanup
 }

@@ -120,12 +120,14 @@ fn test_case0_send_receive_spdm_measurement() {
         let measurement_operation = SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber;
         let mut total_number: u8 = 0;
         let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
+        let mut content_changed = None;
         let status = requester
             .send_receive_spdm_measurement(
                 None,
                 0,
                 SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                 measurement_operation,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -134,12 +136,14 @@ fn test_case0_send_receive_spdm_measurement() {
         assert!(status);
 
         let measurement_operation = SpdmMeasurementOperation::SpdmMeasurementRequestAll;
+        let mut content_changed = None;
         let status = requester
             .send_receive_spdm_measurement(
                 None,
                 0,
                 SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                 measurement_operation,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -148,12 +152,14 @@ fn test_case0_send_receive_spdm_measurement() {
         assert!(status);
 
         let measurement_operation = SpdmMeasurementOperation::Unknown(1);
+        let mut content_changed = None;
         let status = requester
             .send_receive_spdm_measurement(
                 None,
                 0,
                 SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                 measurement_operation,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -162,12 +168,14 @@ fn test_case0_send_receive_spdm_measurement() {
         assert!(status);
 
         let measurement_operation = SpdmMeasurementOperation::Unknown(5);
+        let mut content_changed = None;
         let status = requester
             .send_receive_spdm_measurement(
                 None,
                 0,
                 SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
                 measurement_operation,
+                &mut content_changed,
                 &mut total_number,
                 &mut spdm_measurement_record_structure,
             )
@@ -352,11 +360,13 @@ fn test_handle_spdm_measurement_record_response() {
             let session_id = None;
             let mut spdm_measurement_record_structure = SpdmMeasurementRecordStructure::default();
             let send_buffer = [0u8; MAX_SPDM_MSG_SIZE];
+            let mut content_changed = None;
             let result = requester.handle_spdm_measurement_record_response(
                 session_id,
                 tc.request_slot_id,
                 tc.attributes,
                 tc.operation,
+                &mut content_changed,
                 &mut spdm_measurement_record_structure,
                 &send_buffer,
                 &*tc.receive_buffer,

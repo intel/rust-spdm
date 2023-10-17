@@ -20,6 +20,7 @@ impl RequesterContext {
         session_id: Option<u32>,
         measurement_attributes: SpdmMeasurementAttributes,
         measurement_operation: SpdmMeasurementOperation,
+        content_changed: &mut Option<SpdmMeasurementContentChanged>,
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure,
         slot_id: u8,
     ) -> SpdmResult<u8> {
@@ -28,6 +29,7 @@ impl RequesterContext {
                 session_id,
                 measurement_attributes,
                 measurement_operation,
+                content_changed,
                 spdm_measurement_record_structure,
                 slot_id,
             )
@@ -47,6 +49,7 @@ impl RequesterContext {
         session_id: Option<u32>,
         measurement_attributes: SpdmMeasurementAttributes,
         measurement_operation: SpdmMeasurementOperation,
+        content_changed: &mut Option<SpdmMeasurementContentChanged>,
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure,
         slot_id: u8,
     ) -> SpdmResult<u8> {
@@ -82,6 +85,7 @@ impl RequesterContext {
             slot_id,
             measurement_attributes,
             measurement_operation,
+            content_changed,
             spdm_measurement_record_structure,
             &send_buffer[..send_used],
             &receive_buffer[..used],
@@ -123,6 +127,7 @@ impl RequesterContext {
         slot_id: u8,
         measurement_attributes: SpdmMeasurementAttributes,
         measurement_operation: SpdmMeasurementOperation,
+        content_changed: &mut Option<SpdmMeasurementContentChanged>,
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure,
         send_buffer: &[u8],
         receive_buffer: &[u8],
@@ -159,6 +164,9 @@ impl RequesterContext {
                         if self.common.negotiate_info.spdm_version_sel >= SpdmVersion::SpdmVersion12
                         {
                             self.common.runtime_info.content_changed = measurements.content_changed;
+                            *content_changed = Some(measurements.content_changed);
+                        } else {
+                            *content_changed = None;
                         }
 
                         let base_asym_size =
@@ -228,12 +236,14 @@ impl RequesterContext {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_receive_spdm_measurement(
         &mut self,
         session_id: Option<u32>,
         slot_id: u8,
         spdm_measuremente_attributes: SpdmMeasurementAttributes,
         measurement_operation: SpdmMeasurementOperation,
+        content_changed: &mut Option<SpdmMeasurementContentChanged>, // out, None if spdm version < 0x12
         out_total_number: &mut u8, // out, total number when measurement_operation = SpdmMeasurementQueryTotalNumber
         //      number of blocks got measured.
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure, // out
@@ -243,6 +253,7 @@ impl RequesterContext {
                 session_id,
                 spdm_measuremente_attributes,
                 measurement_operation,
+                content_changed,
                 spdm_measurement_record_structure,
                 slot_id,
             )

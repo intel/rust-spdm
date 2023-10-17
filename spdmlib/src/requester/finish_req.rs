@@ -17,6 +17,26 @@ impl RequesterContext {
         session_id: u32,
     ) -> SpdmResult {
         info!("send spdm finish\n");
+
+        if let Err(e) = self
+            .delegate_send_receive_spdm_finish(req_slot_id, session_id)
+            .await
+        {
+            if let Some(session) = self.common.get_session_via_id(session_id) {
+                session.teardown();
+            }
+
+            Err(e)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub async fn delegate_send_receive_spdm_finish(
+        &mut self,
+        req_slot_id: Option<u8>,
+        session_id: u32,
+    ) -> SpdmResult {
         let in_clear_text = self
             .common
             .negotiate_info

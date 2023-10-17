@@ -18,7 +18,13 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        let (_, rsp_slice) = self.write_spdm_psk_finish_response(session_id, bytes, writer);
+        let (result, rsp_slice) = self.write_spdm_psk_finish_response(session_id, bytes, writer);
+        if result.is_err() {
+            if let Some(session) = self.common.get_session_via_id(session_id) {
+                session.teardown();
+            }
+        }
+
         (Ok(()), rsp_slice)
     }
 

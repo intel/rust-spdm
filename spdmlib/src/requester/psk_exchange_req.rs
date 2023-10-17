@@ -52,13 +52,26 @@ impl RequesterContext {
         let receive_used = self
             .receive_message(None, &mut receive_buffer, false)
             .await?;
-        self.handle_spdm_psk_exchange_response(
+
+        let mut target_session_id = None;
+        if let Err(e) = self.handle_spdm_psk_exchange_response(
             half_session_id,
             measurement_summary_hash_type,
             &psk_hint,
             &send_buffer[..send_used],
             &receive_buffer[..receive_used],
-        )
+            &mut target_session_id,
+        ) {
+            if let Some(session_id) = target_session_id {
+                if let Some(session) = self.common.get_session_via_id(session_id) {
+                    session.teardown();
+                }
+            }
+
+            Err(e)
+        } else {
+            Ok(target_session_id.unwrap())
+        }
     }
 
     pub fn encode_spdm_psk_exchange(
@@ -126,6 +139,7 @@ impl RequesterContext {
         psk_hint: &SpdmPskHintStruct,
         send_buffer: &[u8],
         receive_buffer: &[u8],
+        target_session_id: &mut Option<u32>,
     ) -> SpdmResult<u32> {
         self.common.runtime_info.need_measurement_summary_hash = (measurement_summary_hash_type
             == SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeTcb)
@@ -173,6 +187,7 @@ impl RequesterContext {
 
                             let session_id = ((psk_exchange_rsp.rsp_session_id as u32) << 16)
                                 + half_session_id as u32;
+                            *target_session_id = Some(session_id);
                             let spdm_version_sel = self.common.negotiate_info.spdm_version_sel;
                             let message_a = self.common.runtime_info.message_a.clone();
 

@@ -32,7 +32,17 @@ impl ResponderContext {
         bytes: &[u8],
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
-        let (_, rsp_slice) = self.write_spdm_psk_exchange_response(bytes, writer);
+        let mut target_session_id = None;
+        let (result, rsp_slice) =
+            self.write_spdm_psk_exchange_response(bytes, writer, &mut target_session_id);
+        if result.is_err() {
+            if let Some(session_id) = target_session_id {
+                if let Some(session) = self.common.get_session_via_id(session_id) {
+                    session.teardown();
+                }
+            }
+        }
+
         (Ok(()), rsp_slice)
     }
 
@@ -40,6 +50,7 @@ impl ResponderContext {
         &mut self,
         bytes: &[u8],
         writer: &'a mut Writer,
+        target_session_id: &mut Option<u32>,
     ) -> (SpdmResult, Option<&'a [u8]>) {
         if self.common.runtime_info.get_connection_state().get_u8()
             < SpdmConnectionState::SpdmConnectionNegotiated.get_u8()
@@ -247,6 +258,7 @@ impl ResponderContext {
         let session = session.unwrap();
         let session_id =
             ((rsp_session_id as u32) << 16) + psk_exchange_req.unwrap().req_session_id as u32;
+        *target_session_id = Some(session_id);
         session.setup(session_id).unwrap();
         session.set_use_psk(true);
 

@@ -16,6 +16,18 @@ impl RequesterContext {
     pub async fn send_receive_spdm_psk_finish(&mut self, session_id: u32) -> SpdmResult {
         info!("send spdm psk_finish\n");
 
+        if let Err(e) = self.delegate_send_receive_spdm_psk_finish(session_id).await {
+            if let Some(session) = self.common.get_session_via_id(session_id) {
+                session.teardown();
+            }
+
+            Err(e)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub async fn delegate_send_receive_spdm_psk_finish(&mut self, session_id: u32) -> SpdmResult {
         if self.common.get_session_via_id(session_id).is_none() {
             return Err(SPDM_STATUS_INVALID_PARAMETER);
         }

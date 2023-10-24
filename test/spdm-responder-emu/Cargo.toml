@@ -13,7 +13,7 @@ idekm  = { path = "../../idekm", default-features = false }
 codec = { path = "../../codec" }
 mctp_transport = { path = "../../mctp_transport" }
 pcidoe_transport = { path = "../../pcidoe_transport" }
-simple_logger = "1.11.0"
+simple_logger = "4.2.0"
 log = "0.4.13"
 futures = { version = "0.3", default-features = false }
 spin = { version = "0.9.8" }

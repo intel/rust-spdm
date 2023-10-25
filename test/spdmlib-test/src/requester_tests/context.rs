@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use crate::common::device_io::{FakeSpdmDeviceIo, FakeSpdmDeviceIoReceve, SharedBuffer};
 use crate::common::secret_callback::*;

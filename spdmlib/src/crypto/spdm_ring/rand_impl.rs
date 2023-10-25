@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use crate::crypto::SpdmCryptoRandom;
 use crate::error::{SpdmResult, SPDM_STATUS_CRYPTO_ERROR};

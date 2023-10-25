@@ -1,6 +1,6 @@
 // Copyright (c) 2020 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use fuzzlib::config::MAX_SPDM_MSG_SIZE;
 use fuzzlib::{spdmlib::protocol::SpdmVersion, *};

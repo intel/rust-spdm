@@ -1,6 +1,6 @@
 // Copyright (c) 2020 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use crate::config;
 use crate::crypto::bytes_mut_scrubbed::BytesMutStrubbed;

@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use bytes::{buf::IntoIter, Buf, BufMut, Bytes, BytesMut};
 use core::{

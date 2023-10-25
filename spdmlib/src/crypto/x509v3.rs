@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use crate::error::{SpdmResult, SPDM_STATUS_VERIF_FAIL};
 use crate::protocol::SpdmBaseAsymAlgo;

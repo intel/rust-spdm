@@ -1,6 +1,6 @@
 // Copyright (c) 2021 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 mod secret_callback;
 
 use conquer_once::spin::OnceCell;

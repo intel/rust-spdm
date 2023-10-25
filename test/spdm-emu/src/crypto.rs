@@ -1,6 +1,6 @@
 // Copyright (c) 2022 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 #[cfg(feature = "spdm-mbedtls")]
 pub fn crypto_mbedtls_register_handles() {

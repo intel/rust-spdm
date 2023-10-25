@@ -1,6 +1,6 @@
 // Copyright (c) 2020 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use crate::common::spdm_codec::SpdmCodec;
 use crate::error::SPDM_STATUS_BUFFER_FULL;

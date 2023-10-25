@@ -1,6 +1,6 @@
 // Copyright (c) 2020 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use crate::common::crypto_callback::FAKE_HMAC;
 use crate::common::device_io::{FakeSpdmDeviceIoReceve, SharedBuffer};

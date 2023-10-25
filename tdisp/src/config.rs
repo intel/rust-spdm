@@ -1,6 +1,6 @@
 // Copyright (c) 2022 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 pub const MAX_VERSION_COUNT: usize = 2;
 pub const MAX_MESSAGE_INTERNAL_BUFFER_SIZE: usize = 0xA000;

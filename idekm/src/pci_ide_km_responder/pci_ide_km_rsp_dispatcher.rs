@@ -1,6 +1,6 @@
 // Copyright (c) 2023 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use super::{
     pci_ide_km_rsp_key_prog, pci_ide_km_rsp_key_set_go, pci_ide_km_rsp_key_set_stop,

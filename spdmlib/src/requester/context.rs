@@ -1,6 +1,6 @@
 // Copyright (c) 2020 Intel Corporation
 //
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Apache-2.0 or MIT
 
 use crate::common::{self, SpdmDeviceIo, SpdmTransportEncap};
 use crate::common::{ManagedBufferA, ST1};

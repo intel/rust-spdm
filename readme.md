@@ -5,7 +5,7 @@
 
 # rust-spdm
 
-This project provides a Rust language implementation of [SPDM](https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.2.1.pdf)
+This project provides a Rust language implementation of [SPDM](https://www.dmtf.org/standards/spdm), [IDE_KM](https://pcisig.com/integrity-and-data-encryption-ide-ecn-%E2%80%93-revision)
 and [TDISP](https://pcisig.com/tee-device-interface-security-protocol-tdisp).
 These protocols are used to facilitate direct device assignment for Trusted Execution
 Environment I/O (TEE-I/O) in Confidential Computing. 
@@ -20,25 +20,43 @@ performance.
 
 ### Specification
 
-DSP0274 Security Protocol and Data Model (SPDM) Specification (version 1.0.1, version 1.1.2 and version 1.2.1)
+DMTF [DSP0274](https://www.dmtf.org/dsp/DSP0274) Security Protocol and Data Model (SPDM) Specification (version [1.2.2](https://www.dmtf.org/sites/default/files/standards/documents/DSP0274_1.2.2.pdf))
 
-DSP0277 Secured Messages using SPDM Specification (version 1.1.0)
+DMTF [DSP0277](https://www.dmtf.org/dsp/DSP0277) Secured Messages using SPDM Specification (version [1.1.1](https://www.dmtf.org/sites/default/files/standards/documents/DSP0277_1.1.1.pdf))
 
-### Implemented Requests and Responses
+PCIe Base Specification Version [6.0.1](https://members.pcisig.com/wg/PCI-SIG/document/18363), [6.1](https://members.pcisig.com/wg/PCI-SIG/document/19849)
+
+PCIe [DOE 1.0 ECN](https://members.pcisig.com/wg/PCI-SIG/document/14143) in PCIe 6.0, [DOE 1.1 ECN](https://members.pcisig.com/wg/PCI-SIG/document/18483) in PCIe 6.1.
+
+PCIe [CMA 1.0 ECN](https://members.pcisig.com/wg/PCI-SIG/document/14236) in PCIe 6.0, [CMA 1.1 ECN](https://members.pcisig.com/wg/PCI-SIG/document/20110) in PCIe TBD.
+
+PCIe [IDE ECN](https://members.pcisig.com/wg/PCI-SIG/document/16599) in PCIe 6.0.
+
+PCIe [TDISP ECN](https://members.pcisig.com/wg/PCI-SIG/document/18268) in PCIe 6.1.
+
+### SPDM Implemented Requests and Responses
 
 SPDM 1.0: GET_VERSION, GET_CAPABILITIES, NEGOTIATE_ALGORITHMS, GET_DIGESTS, GET_CERTIFICATE, CHALLENGE, and GET_MEASUREMENTS.
 
 SPDM 1.1: KEY_EXCHANGE, FINISH, PSK_EXCHANGE, PSK_FINISH, END_SESSION, HEARTBEAT, KEY_UPDATE messages.
 
-SPDM 1.2: N/A. New SPDM 1.2 messages are not supported yet.
+SPDM 1.2: Support 1.0/1.1 messages and new format. New SPDM 1.2 messages are not supported yet.
 
-### Capability Support
+SPDM 1.3: Not support yet.
+
+### SPDM Vendor Defined Message
+
+IDE_KM 1.0 in PCIe 6.0/6.1.
+
+TDISP 1.0 in PCIe 6.1.
+
+### SPDM Capability Support
 
 Requester: ENCRYPT_CAP, MAC_CAP, KEY_EX_CAP, PSK_CAP, HBEAT_CAP, KEY_UPD_CAP, HANDSHAKE_IN_THE_CLEAR_CAP.
 
 Responder: CERT_CAP, CHAL_CAP, MEAS_CAP_NO_SIG, MEAS_CAP_SIG, MEAS_FRESH_CAP, ENCRYPT_CAP, MAC_CAP, KEY_EX_CAP, PSK_CAP_WITHOUT_CONTEXT, PSK_CAP_WITH_CONTEXT, HBEAT_CAP, KEY_UPD_CAP, HANDSHAKE_IN_THE_CLEAR_CAP.
 
-### Cryptographic Algorithm Support
+### SPDM Cryptographic Algorithm Support
 
 It depends on crypto wrapper. Current support algorithms:
 * Hash: SHA2(256/384/512)

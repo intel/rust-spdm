@@ -73,3 +73,4 @@ resolver = "2"
 [patch.crates-io]
   ring = { path = "external/ring" }
   webpki = { path = "external/webpki" }
+  mbedtls-platform-support = { path = "spdmlib_crypto_mbedtls/mbedtls-platform-support" }

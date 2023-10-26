@@ -1047,14 +1047,12 @@ dependencies = [
 [[package]]
 name = "mbedtls-platform-support"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be354d52c70402fbfb37bad9ae2aa99ab52af79f37423cb9d6c41c8fb863abc7"
 dependencies = [
  "cc",
  "cfg-if",
  "chrono",
  "mbedtls-sys-auto",
- "spin 0.4.10",
+ "spin 0.5.2",
 ]
 
 [[package]]
@@ -1708,12 +1706,6 @@ dependencies = [
  "spin 0.9.8",
  "zeroize",
 ]
-
-[[package]]
-name = "spin"
-version = "0.4.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ceac490aa12c567115b40b7b7fceca03a6c9d53d5defea066123debc83c5dc1f"
 
 [[package]]
 name = "spin"

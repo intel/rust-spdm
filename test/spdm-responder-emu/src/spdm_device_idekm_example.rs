@@ -73,7 +73,7 @@ fn pci_ide_km_device_query(
     Ok(())
 }
 
-pub fn init_device_instance() {
+pub fn init_device_idekm_instance() {
     pci_ide_km_rsp_key_prog::register(PciIdeKmDeviceKeyProg {
         pci_ide_km_device_key_prog_cb: pci_ide_km_device_key_prog,
     });

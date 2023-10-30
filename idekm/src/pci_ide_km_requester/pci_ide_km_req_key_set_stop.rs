@@ -12,7 +12,7 @@ use spdmlib::{
     requester::RequesterContext,
 };
 
-use crate::pci_idekm::vendor_id;
+use crate::pci_idekm::pci_sig_vendor_id;
 use crate::pci_idekm::KGoStopAckDataObject;
 use crate::pci_idekm::KSetStopDataObject;
 use crate::pci_idekm::STANDARD_ID;
@@ -55,7 +55,7 @@ impl IdekmReqContext {
             .send_spdm_vendor_defined_request(
                 Some(session_id),
                 STANDARD_ID,
-                vendor_id(),
+                pci_sig_vendor_id(),
                 vendor_defined_req_payload_struct,
             )
             .await?;

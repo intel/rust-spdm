@@ -15,6 +15,17 @@ use spin::Mutex;
 extern crate alloc;
 use alloc::sync::Arc;
 
+const fn pci_sig_vendor_id() -> VendorIDStruct {
+    let mut vendor_idstruct = VendorIDStruct {
+        len: 2,
+        vendor_id: [0u8; MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN],
+    };
+
+    vendor_idstruct.vendor_id[0] = 0x01;
+
+    vendor_idstruct
+}
+
 #[test]
 fn test_case0_handle_spdm_vendor_defined_request() {
     let (rsp_config_info, rsp_provision_info) = create_info();
@@ -41,8 +52,10 @@ fn test_case0_handle_spdm_vendor_defined_request() {
 
     let vendor_defined_func: for<'r> fn(
         usize,
+        &VendorIDStruct,
         &'r vendor::VendorDefinedReqPayloadStruct,
     ) -> Result<_, _> = |_: usize,
+                         _: &VendorIDStruct,
                          _vendor_defined_req_payload_struct|
      -> SpdmResult<VendorDefinedRspPayloadStruct> {
         let mut vendor_defined_res_payload_struct = VendorDefinedRspPayloadStruct {
@@ -58,6 +71,7 @@ fn test_case0_handle_spdm_vendor_defined_request() {
     register_vendor_defined_struct(VendorDefinedStruct {
         vendor_defined_request_handler: vendor_defined_func,
         vendor_context: 0,
+        vendor_id: pci_sig_vendor_id(),
     });
 
     if let Ok(vendor_defined_res_payload_struct) =

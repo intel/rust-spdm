@@ -7,23 +7,29 @@ use super::{
     pci_ide_km_rsp_query,
 };
 use crate::pci_idekm::{
-    KEY_PROG_OBJECT_ID, K_SET_GO_OBJECT_ID, K_SET_STOP_OBJECT_ID, QUERY_OBJECT_ID,
+    pci_sig_vendor_id, KEY_PROG_OBJECT_ID, K_SET_GO_OBJECT_ID, K_SET_STOP_OBJECT_ID,
+    QUERY_OBJECT_ID,
 };
 use spdmlib::{
     error::{SpdmResult, SPDM_STATUS_INVALID_MSG_FIELD},
-    message::{VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct, VendorDefinedStruct},
+    message::{
+        VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct, VendorDefinedStruct,
+        VendorIDStruct,
+    },
 };
 
 pub const PCI_IDE_KM_INSTANCE: VendorDefinedStruct = VendorDefinedStruct {
     vendor_defined_request_handler: pci_ide_km_rsp_dispatcher,
     vendor_context: 0,
+    vendor_id: pci_sig_vendor_id(),
 };
 
-fn pci_ide_km_rsp_dispatcher(
+pub fn pci_ide_km_rsp_dispatcher(
     _vendor_context: usize,
+    vendor_id: &VendorIDStruct,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
-    if vendor_defined_req_payload_struct.req_length < 2 {
+    if vendor_defined_req_payload_struct.req_length < 2 || *vendor_id != pci_sig_vendor_id() {
         return Err(SPDM_STATUS_INVALID_MSG_FIELD);
     }
 

@@ -1,363 +1,481 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use core::fmt::Debug;
-
-use crate::common::{InternalError, TdispResult};
-use crate::context::TdispContext;
-use crate::tdisp_codec::*;
-use crate::{
-    config::{
-        MAX_DEVICE_SPECIFIC_INFORMATION_LENGTH, MAX_EXTENDED_ERROR_DATA_LENGTH,
-        MAX_MESSAGE_INTERNAL_BUFFER_SIZE, MAX_MMIO_RANGE_COUNT, MAX_VENDOR_ID_LEN,
-        MAX_VERSION_COUNT,
-    },
-    state_machine::TdispStateMachine,
+use codec::{u24, Codec};
+use core::convert::TryFrom;
+use spdmlib::message::{
+    RegistryOrStandardsBodyID, VendorIDStruct, MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE,
+    MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN,
 };
 
-type ProtocolId = u8;
-pub const PROTOCOL_ID: ProtocolId = 0x1;
+pub const TDISP_PROTOCOL_ID: u8 = 1;
 
-enum_builder! {
-    @U8
-    EnumName: TdispRequestResponseCode;
-    EnumVal{
-        // request codes
-        RequestGetTdispVersion => 0x81, // This request message must retrieve a device's TDISP version
-        RequestGetTdispCapabilities => 0x82, // Retrieve protocol capabilities of the device
-        RequestLockInterfaceRequest => 0x83, // Move TDI to CONFIG_LOCKED
-        RequestGetDeviceInterfaceReport => 0x84, // Obtain a TDI report
-        RequestGetDeviceInterfaceState => 0x85, // Obtain state of a TDI
-        RequestStartInterfaceRequest => 0x86, // Start a TDI
-        RequestStopInterfaceRequest => 0x87, // Stop and move TDI to CONFIG_UNLOCKED (if not already in CONFIG_UNLOCKED)
-        RequestBindP2pStreamRequest => 0x88, // Bind a P2P stream
-        RequestUnbindP2pStreamRequest => 0x89, // Unbind a P2P stream
-        RequestSetMmioAttributeRequest => 0x8A, // Update attributes of specified MMIO range
-        RequestVdmRequest => 0x8B, // Vendor-defined message request
-
-        // response codes
-        ResponseTdispVersion => 0x01, // Version supported by device
-        ResponseTdispCapabilities => 0x02, // Protocol capabilities of the device
-        ResponseLockInterfaceResponse => 0x03, // Response to LOCK_INTERFACE_REQUEST
-        ResponseDeviceInterfaceReport => 0x04, // Report for a TDI
-        ResponseDeviceInterfaceState => 0x05, // Returns TDI state
-        ResponseStartInterfaceResponse => 0x06, // Response to request to move TDI to RUN
-        ResponseStopInterfaceResponse => 0x07, // Response to a STOP_INTERFACE_REQUEST
-        ResponseBindP2pStreamResponse => 0x08, // Response to bind P2P stream request
-        ResponseUnbindP2pStreamResponse => 0x09, // Response to unbind P2P stream request
-        ResponseSetMmioAttributeResponse => 0x0A, // Response to update MMIO range attributes
-        ResponseVdmResponse => 0x0B, // Vendor-defined message response
-        ResponseTdispError => 0x7F // Error in handling a request
-    }
-}
-
-enum_builder! {
-    @U16
-    EnumName: GenericErrorResponseCode;
-    EnumVal{
-        InvalidRequest => 0x0001, // One or more request field is invalid.
-        Busy => 0x0003, // the Responder may be able to process the request message if the request message is sent again in the future
-        InvalidInterfaceState => 0x0004, // The Responder received the request while in the wrong state, or received an unexpected request
-        Unspecified => 0x0005, // Unspecified error occurred
-        UnsupportedRequest => 0x0007, // Request code is unsupporteda
-        VersionMismatch => 0x0041, // The version in not supported
-        VendorSpecificError => 0x00FF, // Vendor defined
-        InvalidInterface => 0x0101, // INTERFACE_ID does not exist
-        InvalidNonce => 0x0102, // The received nonce does not match the expected one
-        InsufficientEntropy => 0x0103, // The Responder fails to generate nonce
-        InvalidDeviceConfiguration => 0x0104 // Invalid/Unsupported device configurations
-    }
-}
-
-#[derive(Debug)]
-pub struct ExtendedErrorData {
-    pub registry_id: u8,
-    pub vendor_id_len: u8,
-    pub vendor_id: [u8; MAX_VENDOR_ID_LEN],
-    pub vendor_err_data: [u8; MAX_EXTENDED_ERROR_DATA_LENGTH],
-}
-
-impl Default for ExtendedErrorData {
-    fn default() -> Self {
-        Self {
-            registry_id: Default::default(),
-            vendor_id_len: Default::default(),
-            vendor_id: [0u8; MAX_VENDOR_ID_LEN],
-            vendor_err_data: [0u8; MAX_EXTENDED_ERROR_DATA_LENGTH],
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub struct FunctionId {
     pub requester_id: u16,
-    requester_segment: u8,
+    pub requester_segment: u8,
     pub requester_segment_valid: bool,
 }
 
-impl FunctionId {
-    #[allow(dead_code)]
-    fn get_requester_segment(&self) -> Option<u8> {
-        if self.requester_segment_valid {
-            Some(self.requester_segment)
-        } else {
-            None
-        }
-    }
-
-    #[allow(dead_code)]
-    fn set_requester_segment(&mut self, requester_segment: u8) -> TdispResult {
-        if self.requester_segment_valid {
-            self.requester_segment = requester_segment;
-            Ok(())
-        } else {
-            Err(InternalError::ErrStr(
-                "requester segment is not allowed to change when RSV bit is cleared!",
-            ))
-        }
-    }
-}
-
-impl TdispCodec for FunctionId {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.requester_id.encode(bytes);
-        if self.requester_segment_valid {
-            self.requester_segment.encode(bytes);
-            1u8.encode(bytes); // Requester Segment Valid bit
-        } else {
-            0u16.encode(bytes);
-        }
-    }
-
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let requester_id = u16::read(r)?;
-        let requester_segment = u8::read(r)?;
-        let requester_segment_valid = u8::read(r)?;
-        if requester_segment_valid == 0x1 {
-            Some(FunctionId {
-                requester_id,
-                requester_segment,
-                requester_segment_valid: true,
-            })
-        } else if requester_segment_valid == 0x0 {
-            Some(FunctionId {
-                requester_id,
-                requester_segment: 0u8,
-                requester_segment_valid: false,
-            })
-        } else {
-            None
-        }
-    }
-}
-
 impl Codec for FunctionId {
-    fn encode(&self, bytes: &mut Writer) {
-        self.requester_id.encode(bytes);
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut function_id = 0u32;
+        function_id |= self.requester_id as u32;
         if self.requester_segment_valid {
-            self.requester_segment.encode(bytes);
-            1u8.encode(bytes); // Requester Segment Valid bit
-        } else {
-            0u16.encode(bytes);
+            function_id |= (self.requester_segment as u32) << 16;
         }
+        function_id |= (self.requester_segment_valid as u32) << 24;
+
+        function_id.encode(bytes)
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
-        let requester_id = u16::read(r)?;
-        let requester_segment = u8::read(r)?;
-        let requester_segment_valid = u8::read(r)?;
-        if requester_segment_valid == 0x1 {
-            Some(FunctionId {
-                requester_id,
-                requester_segment,
-                requester_segment_valid: true,
-            })
-        } else if requester_segment_valid == 0x0 {
-            Some(FunctionId {
-                requester_id,
-                requester_segment: 0u8,
-                requester_segment_valid: false,
-            })
-        } else {
-            None
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let function_id = u32::read(r)?;
+
+        let requester_id = (function_id & 0x0000FFFF) as u16;
+        let requester_segment = ((function_id & 0x00FF0000) >> 16) as u8;
+        let requester_segment_valid = function_id & (1 << 24) != 0;
+
+        if !requester_segment_valid && requester_segment != 0 {
+            return None;
         }
+
+        Some(Self {
+            requester_id,
+            requester_segment,
+            requester_segment_valid,
+        })
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub struct InterfaceId {
     pub function_id: FunctionId,
 }
 
-impl TdispCodec for InterfaceId {
-    fn tdisp_encode(&self, context: &mut TdispContext, bytes: &mut Writer) {
-        self.function_id.tdisp_encode(context, bytes);
-        0u32.encode(bytes); // reserved
-    }
-
-    fn tdisp_read(context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let function_id = FunctionId::tdisp_read(context, r)?;
-        let _ = u32::read(r)?;
-
-        Some(InterfaceId { function_id })
-    }
-}
-
 impl Codec for InterfaceId {
-    fn encode(&self, bytes: &mut Writer) {
-        self.function_id.encode(bytes);
-        0u32.encode(bytes); // reserved
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.function_id.encode(bytes)?;
+        cnt += 0u64.encode(bytes)?;
+
+        Ok(cnt)
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let function_id = FunctionId::read(r)?;
-        let _ = u32::read(r)?;
+        let _ = u64::read(r)?;
 
-        Some(InterfaceId { function_id })
+        Some(Self { function_id })
     }
 }
 
-pub type TdispVersion = u8;
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+pub enum TdiState {
+    RUN,
+    ERROR,
+    CONFIG_LOCKED,
+    CONFIG_UNLOCKED,
+}
 
-#[derive(Debug, Default)]
+impl From<TdiState> for u8 {
+    fn from(ts: TdiState) -> Self {
+        match ts {
+            TdiState::RUN => 2,
+            TdiState::ERROR => 3,
+            TdiState::CONFIG_LOCKED => 1,
+            TdiState::CONFIG_UNLOCKED => 0,
+        }
+    }
+}
+
+impl From<&TdiState> for u8 {
+    fn from(ts: &TdiState) -> Self {
+        u8::from(*ts)
+    }
+}
+
+impl TryFrom<u8> for TdiState {
+    type Error = ();
+    fn try_from(uts: u8) -> Result<Self, <Self as TryFrom<u8>>::Error> {
+        match uts {
+            0 => Ok(Self::CONFIG_UNLOCKED),
+            1 => Ok(Self::CONFIG_LOCKED),
+            2 => Ok(Self::RUN),
+            3 => Ok(Self::ERROR),
+            4_u8..=u8::MAX => Err(()),
+        }
+    }
+}
+
+impl Default for TdiState {
+    fn default() -> Self {
+        Self::CONFIG_UNLOCKED
+    }
+}
+
+impl Codec for TdiState {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        u8::from(self).encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let tdi_state = u8::read(r)?;
+        Self::try_from(tdi_state).ok()
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+pub enum TdispRequestResponseCode {
+    // Request
+    GET_TDISP_VERSION,
+    GET_TDISP_CAPABILITIES,
+    LOCK_INTERFACE_REQUEST,
+    GET_DEVICE_INTERFACE_REPORT,
+    GET_DEVICE_INTERFACE_STATE,
+    START_INTERFACE_REQUEST,
+    STOP_INTERFACE_REQUEST,
+    BIND_P2P_STREAM_REQUEST,
+    UNBIND_P2P_STREAM_REQUEST,
+    SET_MMIO_ATTRIBUTE_REQUEST,
+    VDM_REQUEST,
+
+    // Response
+    TDISP_VERSION,
+    TDISP_CAPABILITIES,
+    LOCK_INTERFACE_RESPONSE,
+    DEVICE_INTERFACE_REPORT,
+    DEVICE_INTERFACE_STATE,
+    START_INTERFACE_RESPONSE,
+    STOP_INTERFACE_RESPONSE,
+    BIND_P2P_STREAM_RESPONSE,
+    UNBIND_P2P_STREAM_RESPONSE,
+    SET_MMIO_ATTRIBUTE_RESPONSE,
+    VDM_RESPONSE,
+    TDISP_ERROR,
+}
+
+impl From<TdispRequestResponseCode> for u8 {
+    fn from(trrc: TdispRequestResponseCode) -> Self {
+        match trrc {
+            TdispRequestResponseCode::GET_TDISP_VERSION => 0x81,
+            TdispRequestResponseCode::GET_TDISP_CAPABILITIES => 0x82,
+            TdispRequestResponseCode::LOCK_INTERFACE_REQUEST => 0x83,
+            TdispRequestResponseCode::GET_DEVICE_INTERFACE_REPORT => 0x84,
+            TdispRequestResponseCode::GET_DEVICE_INTERFACE_STATE => 0x85,
+            TdispRequestResponseCode::START_INTERFACE_REQUEST => 0x86,
+            TdispRequestResponseCode::STOP_INTERFACE_REQUEST => 0x87,
+            TdispRequestResponseCode::BIND_P2P_STREAM_REQUEST => 0x88,
+            TdispRequestResponseCode::UNBIND_P2P_STREAM_REQUEST => 0x89,
+            TdispRequestResponseCode::SET_MMIO_ATTRIBUTE_REQUEST => 0x8A,
+            TdispRequestResponseCode::VDM_REQUEST => 0x8B,
+            TdispRequestResponseCode::TDISP_VERSION => 0x01,
+            TdispRequestResponseCode::TDISP_CAPABILITIES => 0x02,
+            TdispRequestResponseCode::LOCK_INTERFACE_RESPONSE => 0x03,
+            TdispRequestResponseCode::DEVICE_INTERFACE_REPORT => 0x04,
+            TdispRequestResponseCode::DEVICE_INTERFACE_STATE => 0x05,
+            TdispRequestResponseCode::START_INTERFACE_RESPONSE => 0x06,
+            TdispRequestResponseCode::STOP_INTERFACE_RESPONSE => 0x07,
+            TdispRequestResponseCode::BIND_P2P_STREAM_RESPONSE => 0x08,
+            TdispRequestResponseCode::UNBIND_P2P_STREAM_RESPONSE => 0x09,
+            TdispRequestResponseCode::SET_MMIO_ATTRIBUTE_RESPONSE => 0x0A,
+            TdispRequestResponseCode::VDM_RESPONSE => 0x0B,
+            TdispRequestResponseCode::TDISP_ERROR => 0x7F,
+        }
+    }
+}
+
+impl From<&TdispRequestResponseCode> for u8 {
+    fn from(trrc: &TdispRequestResponseCode) -> Self {
+        u8::from(*trrc)
+    }
+}
+
+impl TryFrom<u8> for TdispRequestResponseCode {
+    type Error = ();
+    fn try_from(utrrc: u8) -> Result<Self, <Self as TryFrom<u8>>::Error> {
+        match utrrc {
+            0x81 => Ok(TdispRequestResponseCode::GET_TDISP_VERSION),
+            0x82 => Ok(TdispRequestResponseCode::GET_TDISP_CAPABILITIES),
+            0x83 => Ok(TdispRequestResponseCode::LOCK_INTERFACE_REQUEST),
+            0x84 => Ok(TdispRequestResponseCode::GET_DEVICE_INTERFACE_REPORT),
+            0x85 => Ok(TdispRequestResponseCode::GET_DEVICE_INTERFACE_STATE),
+            0x86 => Ok(TdispRequestResponseCode::START_INTERFACE_REQUEST),
+            0x87 => Ok(TdispRequestResponseCode::STOP_INTERFACE_REQUEST),
+            0x88 => Ok(TdispRequestResponseCode::BIND_P2P_STREAM_REQUEST),
+            0x89 => Ok(TdispRequestResponseCode::UNBIND_P2P_STREAM_REQUEST),
+            0x8A => Ok(TdispRequestResponseCode::SET_MMIO_ATTRIBUTE_REQUEST),
+            0x8B => Ok(TdispRequestResponseCode::VDM_REQUEST),
+            0x01 => Ok(TdispRequestResponseCode::TDISP_VERSION),
+            0x02 => Ok(TdispRequestResponseCode::TDISP_CAPABILITIES),
+            0x03 => Ok(TdispRequestResponseCode::LOCK_INTERFACE_RESPONSE),
+            0x04 => Ok(TdispRequestResponseCode::DEVICE_INTERFACE_REPORT),
+            0x05 => Ok(TdispRequestResponseCode::DEVICE_INTERFACE_STATE),
+            0x06 => Ok(TdispRequestResponseCode::START_INTERFACE_RESPONSE),
+            0x07 => Ok(TdispRequestResponseCode::STOP_INTERFACE_RESPONSE),
+            0x08 => Ok(TdispRequestResponseCode::BIND_P2P_STREAM_RESPONSE),
+            0x09 => Ok(TdispRequestResponseCode::UNBIND_P2P_STREAM_RESPONSE),
+            0x0A => Ok(TdispRequestResponseCode::SET_MMIO_ATTRIBUTE_RESPONSE),
+            0x0B => Ok(TdispRequestResponseCode::VDM_RESPONSE),
+            0x7F => Ok(TdispRequestResponseCode::TDISP_ERROR),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Codec for TdispRequestResponseCode {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        u8::from(self).encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let req_rsp_code = u8::read(r)?;
+        Self::try_from(req_rsp_code).ok()
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct TdispVersion {
+    pub major_version: u8,
+    pub minor_version: u8,
+}
+
+impl Default for TdispVersion {
+    fn default() -> Self {
+        Self {
+            major_version: 1,
+            minor_version: 0,
+        }
+    }
+}
+
+impl PartialOrd for TdispVersion {
+    fn partial_cmp(&self, tv: &TdispVersion) -> Option<core::cmp::Ordering> {
+        if self.major_version > tv.major_version {
+            Some(core::cmp::Ordering::Greater)
+        } else if self.major_version < tv.major_version {
+            Some(core::cmp::Ordering::Less)
+        } else if self.minor_version > tv.minor_version {
+            Some(core::cmp::Ordering::Greater)
+        } else if self.minor_version < tv.minor_version {
+            Some(core::cmp::Ordering::Less)
+        } else {
+            Some(core::cmp::Ordering::Equal)
+        }
+    }
+}
+
+impl Codec for TdispVersion {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        (self.major_version << 4 | self.minor_version).encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let tdisp_version = u8::read(r)?;
+
+        let major_version = (tdisp_version & 0xF0) >> 4;
+        let minor_version = tdisp_version & 0x0F;
+
+        Some(Self {
+            major_version,
+            minor_version,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
 pub struct TdispMessageHeader {
     pub tdisp_version: TdispVersion,
     pub message_type: TdispRequestResponseCode,
     pub interface_id: InterfaceId,
 }
 
-impl TdispCodec for TdispMessageHeader {
-    fn tdisp_encode(&self, context: &mut TdispContext, bytes: &mut Writer) {
-        self.tdisp_version.encode(bytes);
-        self.message_type.encode(bytes);
-        0u16.encode(bytes); // reserved
-        self.interface_id.tdisp_encode(context, bytes);
-    }
-
-    fn tdisp_read(context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let tdisp_version = TdispVersion::read(r)?;
-        let message_type = TdispRequestResponseCode::read(r)?;
-        u16::read(r)?;
-        let interface_id = InterfaceId::tdisp_read(context, r)?;
-
-        Some(TdispMessageHeader {
-            tdisp_version,
-            message_type,
-            interface_id,
-        })
-    }
-}
-
 impl Codec for TdispMessageHeader {
-    fn encode(&self, bytes: &mut Writer) {
-        self.tdisp_version.encode(bytes);
-        self.message_type.encode(bytes);
-        0u16.encode(bytes); // reserved
-        self.interface_id.encode(bytes);
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += TDISP_PROTOCOL_ID.encode(bytes)?;
+        cnt += self.tdisp_version.encode(bytes)?;
+        cnt += self.message_type.encode(bytes)?;
+        cnt += 0u16.encode(bytes)?; // reserved
+        cnt += self.interface_id.encode(bytes)?;
+
+        Ok(cnt)
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let protocol_id = u8::read(r)?;
+        if protocol_id != TDISP_PROTOCOL_ID {
+            return None;
+        }
         let tdisp_version = TdispVersion::read(r)?;
         let message_type = TdispRequestResponseCode::read(r)?;
-        u16::read(r)?;
+        u16::read(r)?; // reserved
         let interface_id = InterfaceId::read(r)?;
 
-        Some(TdispMessageHeader {
+        Some(Self {
             tdisp_version,
             message_type,
             interface_id,
         })
     }
+}
 
-    fn read_bytes(bytes: &[u8]) -> Option<Self> {
-        let mut rd = Reader::init(bytes);
-        Self::read(&mut rd)
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[allow(non_camel_case_types)]
+pub enum TdispErrorCode {
+    INVALID_REQUEST,
+    BUSY,
+    INVALID_INTERFACE_STATE,
+    UNSPECIFIED,
+    UNSUPPORTED_REQUEST,
+    VERSION_MISMATCH,
+    VENDOR_SPECIFIC_ERROR,
+    INVALID_INTERFACE,
+    INVALID_NONCE,
+    INSUFFICIENT_ENTROPY,
+    INVALID_DEVICE_CONFIGURATION,
+}
+
+impl From<TdispErrorCode> for u32 {
+    fn from(ec: TdispErrorCode) -> Self {
+        match ec {
+            TdispErrorCode::INVALID_REQUEST => 0x0001,
+            TdispErrorCode::BUSY => 0x0003,
+            TdispErrorCode::INVALID_INTERFACE_STATE => 0x0004,
+            TdispErrorCode::UNSPECIFIED => 0x0005,
+            TdispErrorCode::UNSUPPORTED_REQUEST => 0x0007,
+            TdispErrorCode::VERSION_MISMATCH => 0x0041,
+            TdispErrorCode::VENDOR_SPECIFIC_ERROR => 0x00FF,
+            TdispErrorCode::INVALID_INTERFACE => 0x0101,
+            TdispErrorCode::INVALID_NONCE => 0x0102,
+            TdispErrorCode::INSUFFICIENT_ENTROPY => 0x0103,
+            TdispErrorCode::INVALID_DEVICE_CONFIGURATION => 0x0104,
+        }
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadDummy {}
-
-impl TdispCodec for MessagePayloadDummy {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
-
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadDummy {})
+impl From<&TdispErrorCode> for u32 {
+    fn from(ec: &TdispErrorCode) -> Self {
+        u32::from(*ec)
     }
 }
 
-impl Codec for MessagePayloadDummy {
-    fn encode(&self, _bytes: &mut Writer) {}
-
-    fn read(_: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadDummy {})
+impl TryFrom<u32> for TdispErrorCode {
+    type Error = ();
+    fn try_from(uec: u32) -> Result<Self, <Self as TryFrom<u32>>::Error> {
+        match uec {
+            0x0001 => Ok(Self::INVALID_REQUEST),
+            0x0003 => Ok(Self::BUSY),
+            0x0004 => Ok(Self::INVALID_INTERFACE_STATE),
+            0x0005 => Ok(Self::UNSPECIFIED),
+            0x0007 => Ok(Self::UNSUPPORTED_REQUEST),
+            0x0041 => Ok(Self::VERSION_MISMATCH),
+            0x00FF => Ok(Self::VENDOR_SPECIFIC_ERROR),
+            0x0101 => Ok(Self::INVALID_INTERFACE),
+            0x0102 => Ok(Self::INVALID_NONCE),
+            0x0103 => Ok(Self::INSUFFICIENT_ENTROPY),
+            0x0104 => Ok(Self::INVALID_DEVICE_CONFIGURATION),
+            _ => Err(()),
+        }
     }
 }
 
-#[derive(Debug, Default)]
-pub struct TdispMessage<T = MessagePayloadDummy>
-where
-    T: TdispCodec + Default + Debug,
-{
-    pub tdisp_message_header: TdispMessageHeader,
-    pub tdisp_message_payload: T,
-}
-
-impl<T> TdispCodec for TdispMessage<T>
-where
-    T: TdispCodec + Default + Debug,
-{
-    fn tdisp_encode(&self, context: &mut TdispContext, bytes: &mut Writer) {
-        PROTOCOL_ID.encode(bytes);
-        self.tdisp_message_header.tdisp_encode(context, bytes);
-        self.tdisp_message_payload.tdisp_encode(context, bytes);
+impl Codec for TdispErrorCode {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        u32::from(self).encode(bytes)
     }
 
-    fn tdisp_read(context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let _ = ProtocolId::read(r)?; // protocol id
-        let tdisp_message_header = TdispMessageHeader::tdisp_read(context, r)?;
-        let tdisp_message_payload = T::tdisp_read(context, r)?;
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let errcode = u32::read(r)?;
+        Self::try_from(errcode).ok()
+    }
+}
 
-        Some(TdispMessage {
-            tdisp_message_header,
-            tdisp_message_payload,
+#[derive(Debug, Copy, Clone)]
+pub struct ReqGetTdispVersion {
+    pub interface_id: InterfaceId,
+}
+
+impl Codec for ReqGetTdispVersion {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        TdispMessageHeader {
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
+            message_type: TdispRequestResponseCode::GET_TDISP_VERSION,
+            interface_id: self.interface_id,
+        }
+        .encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        if message_header.tdisp_version.major_version != 1 {
+            return None;
+        }
+
+        if message_header.message_type != TdispRequestResponseCode::GET_TDISP_VERSION {
+            return None;
+        }
+
+        Some(Self {
+            interface_id: message_header.interface_id,
         })
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestGetVersion {}
-
-impl TdispCodec for MessagePayloadRequestGetVersion {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
-
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadRequestGetVersion {})
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseVersion {
+#[derive(Debug, Copy, Clone)]
+pub struct RspTdispVersion {
+    pub interface_id: InterfaceId,
     pub version_num_count: u8,
-    pub version_num_entry: [TdispVersion; MAX_VERSION_COUNT],
+    pub version_num_entry: [TdispVersion; u8::MAX as usize],
 }
 
-impl TdispCodec for MessagePayloadResponseVersion {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.version_num_count.encode(bytes);
+impl Codec for RspTdispVersion {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += TdispMessageHeader {
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
+            message_type: TdispRequestResponseCode::TDISP_VERSION,
+            interface_id: self.interface_id,
+        }
+        .encode(bytes)?;
+        cnt += self.version_num_count.encode(bytes)?;
         for version in self
             .version_num_entry
             .iter()
             .take(self.version_num_count as usize)
         {
-            version.encode(bytes);
+            cnt += version.encode(bytes)?;
         }
+
+        Ok(cnt)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        if message_header.tdisp_version.major_version != 1 {
+            return None;
+        }
+
+        if message_header.message_type != TdispRequestResponseCode::TDISP_VERSION {
+            return None;
+        }
+
         let version_num_count = u8::read(r)?;
-        let mut version_num_entry: [TdispVersion; MAX_VERSION_COUNT] = [0u8; MAX_VERSION_COUNT];
+        let mut version_num_entry = [TdispVersion::default(); u8::MAX as usize];
         for version in version_num_entry
             .iter_mut()
             .take(version_num_count as usize)
@@ -365,67 +483,37 @@ impl TdispCodec for MessagePayloadResponseVersion {
             *version = TdispVersion::read(r)?;
         }
 
-        Some(MessagePayloadResponseVersion {
+        Some(Self {
+            interface_id: message_header.interface_id,
             version_num_count,
             version_num_entry,
         })
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestGetCapabilities {
-    tsm_caps: u32,
+#[derive(Debug, Copy, Clone)]
+pub struct ReqGetTdispCapabilities {
+    pub message_header: TdispMessageHeader,
+    pub tsm_caps: u32,
 }
 
-impl TdispCodec for MessagePayloadRequestGetCapabilities {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.tsm_caps.encode(bytes);
+impl Codec for ReqGetTdispCapabilities {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.tsm_caps.encode(bytes)?;
+
+        Ok(cnt)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
         let tsm_caps = u32::read(r)?;
 
-        Some(MessagePayloadRequestGetCapabilities { tsm_caps })
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseCapabilities {
-    pub dsm_caps: u32,
-    pub req_msgs_supported: u128,
-    pub lock_interface_flags_supported: u16,
-    pub dev_addr_width: u8,
-    pub num_req_this: u8,
-    pub num_req_all: u8,
-}
-
-impl TdispCodec for MessagePayloadResponseCapabilities {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.dsm_caps.encode(bytes);
-        self.req_msgs_supported.encode(bytes);
-        self.lock_interface_flags_supported.encode(bytes);
-        u24::new(0).encode(bytes); // reserved
-        self.dev_addr_width.encode(bytes);
-        self.num_req_this.encode(bytes);
-        self.num_req_all.encode(bytes);
-    }
-
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let dsm_caps = u32::read(r)?;
-        let req_msgs_supported = u128::read(r)?;
-        let lock_interface_flags_supported = u16::read(r)?;
-        let _ = u24::read(r)?; // reserved
-        let dev_addr_width = u8::read(r)?;
-        let num_req_this = u8::read(r)?;
-        let num_req_all = u8::read(r)?;
-
-        Some(MessagePayloadResponseCapabilities {
-            dsm_caps,
-            req_msgs_supported,
-            lock_interface_flags_supported,
-            dev_addr_width,
-            num_req_this,
-            num_req_all,
+        Some(Self {
+            message_header,
+            tsm_caps,
         })
     }
 }
@@ -441,127 +529,167 @@ bitflags! {
     }
 }
 
-impl TdispCodec for LockInterfaceFlag {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.bits().encode(bytes);
+impl Codec for LockInterfaceFlag {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.bits().encode(bytes)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let bits = u16::read(r)?;
-
-        LockInterfaceFlag::from_bits(bits)
+        Some(Self { bits })
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestLockInterface {
+#[derive(Debug, Copy, Clone)]
+pub struct RspTdispCapabilities {
+    pub message_header: TdispMessageHeader,
+    pub dsm_caps: u32,
+    pub req_msgs_supported: [u8; 16],
+    pub lock_interface_flags_supported: LockInterfaceFlag,
+    pub dev_addr_width: u8,
+    pub num_req_this: u8,
+    pub num_req_all: u8,
+}
+
+impl Codec for RspTdispCapabilities {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.dsm_caps.encode(bytes)?;
+        cnt += self.req_msgs_supported.encode(bytes)?;
+        cnt += self.lock_interface_flags_supported.encode(bytes)?;
+        cnt += u24::new(0).encode(bytes)?; // reserved
+        cnt += self.dev_addr_width.encode(bytes)?;
+        cnt += self.num_req_this.encode(bytes)?;
+        cnt += self.num_req_all.encode(bytes)?;
+
+        Ok(cnt)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let dsm_caps = u32::read(r)?;
+        let req_msgs_supported = <[u8; 16]>::read(r)?;
+        let lock_interface_flags_supported = LockInterfaceFlag::read(r)?;
+        u24::read(r)?; // reserved
+        let dev_addr_width = u8::read(r)?;
+        let num_req_this = u8::read(r)?;
+        let num_req_all = u8::read(r)?;
+
+        Some(Self {
+            message_header,
+            dsm_caps,
+            req_msgs_supported,
+            lock_interface_flags_supported,
+            dev_addr_width,
+            num_req_this,
+            num_req_all,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[allow(non_snake_case)]
+pub struct ReqLockInterfaceRequest {
+    pub message_header: TdispMessageHeader,
     pub flags: LockInterfaceFlag,
-    pub stream_id_for_default_stream: u8,
+    pub default_stream_id: u8,
     pub mmio_reporting_offset: u64,
     pub bind_p2p_address_mask: u64,
 }
 
-impl TdispCodec for MessagePayloadRequestLockInterface {
-    fn tdisp_encode(&self, context: &mut TdispContext, bytes: &mut Writer) {
-        self.flags.tdisp_encode(context, bytes);
-        self.stream_id_for_default_stream.encode(bytes);
-        0u8.encode(bytes); // reserved
-        self.mmio_reporting_offset.encode(bytes);
-        self.bind_p2p_address_mask.encode(bytes);
+impl Codec for ReqLockInterfaceRequest {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.flags.encode(bytes)?;
+        cnt += self.default_stream_id.encode(bytes)?;
+        cnt += 0u8.encode(bytes)?; //reserved
+        cnt += self.mmio_reporting_offset.encode(bytes)?;
+        cnt += self.bind_p2p_address_mask.encode(bytes)?;
+
+        Ok(cnt)
     }
 
-    fn tdisp_read(context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let flags = LockInterfaceFlag::tdisp_read(context, r)?;
-        let stream_id_for_default_stream = u8::read(r)?;
-        let _ = u8::read(r)?; // reserved
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let flags = LockInterfaceFlag::read(r)?;
+        let default_stream_id = u8::read(r)?;
+        u8::read(r)?; // reserved
         let mmio_reporting_offset = u64::read(r)?;
         let bind_p2p_address_mask = u64::read(r)?;
-        Some(MessagePayloadRequestLockInterface {
+
+        Some(Self {
+            message_header,
             flags,
-            stream_id_for_default_stream,
+            default_stream_id,
             mmio_reporting_offset,
             bind_p2p_address_mask,
         })
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseLockInterface {
-    pub start_interface_nonce: u128,
+pub const START_INTERFACE_NONCE_LEN: usize = 32;
+
+#[derive(Debug, Copy, Clone)]
+#[allow(non_snake_case)]
+pub struct RspLockInterfaceResponse {
+    pub message_header: TdispMessageHeader,
+    pub start_interface_nonce: [u8; START_INTERFACE_NONCE_LEN],
 }
 
-impl TdispCodec for MessagePayloadResponseLockInterface {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.start_interface_nonce.encode(bytes);
+impl Codec for RspLockInterfaceResponse {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.start_interface_nonce.encode(bytes)?;
+
+        Ok(cnt)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let start_interface_nonce = u128::read(r)?;
-        Some(MessagePayloadResponseLockInterface {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let start_interface_nonce = <[u8; START_INTERFACE_NONCE_LEN]>::read(r)?;
+
+        Some(Self {
+            message_header,
             start_interface_nonce,
         })
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestGetDeviceInterfaceReport {
+#[derive(Debug, Copy, Clone)]
+#[allow(non_snake_case)]
+pub struct ReqGetDeviceInterfaceReport {
+    pub message_header: TdispMessageHeader,
     pub offset: u16,
     pub length: u16,
 }
 
-impl TdispCodec for MessagePayloadRequestGetDeviceInterfaceReport {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.offset.encode(bytes);
-        self.length.encode(bytes);
+impl Codec for ReqGetDeviceInterfaceReport {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.offset.encode(bytes)?;
+        cnt += self.length.encode(bytes)?;
+
+        Ok(cnt)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
         let offset = u16::read(r)?;
         let length = u16::read(r)?;
-        Some(MessagePayloadRequestGetDeviceInterfaceReport { offset, length })
-    }
-}
 
-#[derive(Debug)]
-pub struct MessagePayloadResponseDeviceInterfaceReport {
-    pub portion_length: u16,
-    pub reminder_length: u16,
-    pub report_bytes: [u8; MAX_MESSAGE_INTERNAL_BUFFER_SIZE],
-}
-
-impl TdispCodec for MessagePayloadResponseDeviceInterfaceReport {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.portion_length.encode(bytes);
-        self.reminder_length.encode(bytes);
-        for b in self.report_bytes.iter().take(self.portion_length as usize) {
-            b.encode(bytes);
-        }
-    }
-
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let portion_length = u16::read(r)?;
-        let reminder_length = u16::read(r)?;
-        let mut report_bytes: [u8; MAX_MESSAGE_INTERNAL_BUFFER_SIZE] =
-            [0u8; MAX_MESSAGE_INTERNAL_BUFFER_SIZE];
-        for b in report_bytes.iter_mut().take(portion_length as usize) {
-            *b = u8::read(r)?;
-        }
-
-        Some(MessagePayloadResponseDeviceInterfaceReport {
-            portion_length,
-            reminder_length,
-            report_bytes,
+        Some(Self {
+            message_header,
+            offset,
+            length,
         })
-    }
-}
-
-impl Default for MessagePayloadResponseDeviceInterfaceReport {
-    fn default() -> Self {
-        Self {
-            portion_length: Default::default(),
-            reminder_length: Default::default(),
-            report_bytes: [0u8; MAX_MESSAGE_INTERNAL_BUFFER_SIZE],
-        }
     }
 }
 
@@ -576,15 +704,273 @@ bitflags! {
     }
 }
 
-impl TdispCodec for InterfaceInfo {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.bits().encode(bytes);
+impl Codec for InterfaceInfo {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.bits().encode(bytes)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let bits = u16::read(r)?;
+        Some(Self { bits })
+    }
+}
 
-        InterfaceInfo::from_bits(bits)
+pub const MAX_DEVICE_REPORT_BUFFER: usize =
+    MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE - 1/*Protocol ID*/ - 16/*Header size*/ - 4;
+pub const MAX_PORTION_LENGTH: usize = MAX_DEVICE_REPORT_BUFFER;
+
+#[derive(Debug, Copy, Clone)]
+#[allow(non_snake_case)]
+pub struct RspDeviceInterfaceReport {
+    pub message_header: TdispMessageHeader,
+    pub portion_length: u16,
+    pub remainder_length: u16,
+    pub report: [u8; MAX_PORTION_LENGTH],
+}
+
+impl Codec for RspDeviceInterfaceReport {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.portion_length.encode(bytes)?;
+        cnt += self.remainder_length.encode(bytes)?;
+        for b in self.report.iter().take(self.portion_length as usize) {
+            cnt += b.encode(bytes)?;
+        }
+
+        Ok(cnt)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let portion_length = u16::read(r)?;
+        let remainder_length = u16::read(r)?;
+        let mut report = [0u8; MAX_PORTION_LENGTH];
+        if portion_length as usize > MAX_PORTION_LENGTH {
+            return None;
+        }
+        for rp in report.iter_mut().take(portion_length as usize) {
+            *rp = u8::read(r)?;
+        }
+
+        Some(Self {
+            message_header,
+            portion_length,
+            remainder_length,
+            report,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ReqGetDeviceInterfaceState {
+    pub message_header: TdispMessageHeader,
+}
+
+impl Codec for ReqGetDeviceInterfaceState {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.message_header.encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        Some(Self { message_header })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+#[allow(non_snake_case)]
+pub struct RspDeviceInterfaceState {
+    pub message_header: TdispMessageHeader,
+    pub tdi_state: TdiState,
+}
+
+impl Codec for RspDeviceInterfaceState {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.tdi_state.encode(bytes)?;
+
+        Ok(cnt)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let tdi_state = TdiState::read(r)?;
+
+        Some(Self {
+            message_header,
+            tdi_state,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ReqStartInterfaceRequest {
+    pub message_header: TdispMessageHeader,
+    pub start_interface_nonce: [u8; START_INTERFACE_NONCE_LEN],
+}
+
+impl Codec for ReqStartInterfaceRequest {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.start_interface_nonce.encode(bytes)?;
+
+        Ok(cnt)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let start_interface_nonce = <[u8; START_INTERFACE_NONCE_LEN]>::read(r)?;
+
+        Some(Self {
+            message_header,
+            start_interface_nonce,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct RspStartInterfaceResponse {
+    pub message_header: TdispMessageHeader,
+}
+
+impl Codec for RspStartInterfaceResponse {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.message_header.encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        Some(Self { message_header })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ReqStopInterfaceRequest {
+    pub message_header: TdispMessageHeader,
+}
+
+impl Codec for ReqStopInterfaceRequest {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.message_header.encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        Some(Self { message_header })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct RspStopInterfaceResponse {
+    pub message_header: TdispMessageHeader,
+}
+
+impl Codec for RspStopInterfaceResponse {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.message_header.encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        Some(Self { message_header })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ReqBindP2PStreamRequest {
+    pub message_header: TdispMessageHeader,
+    pub p2p_stream_id: u8,
+}
+
+impl Codec for ReqBindP2PStreamRequest {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.p2p_stream_id.encode(bytes)?;
+
+        Ok(cnt)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let p2p_stream_id = u8::read(r)?;
+
+        Some(Self {
+            message_header,
+            p2p_stream_id,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct RspBindP2PStreamResponse {
+    pub message_header: TdispMessageHeader,
+}
+
+impl Codec for RspBindP2PStreamResponse {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.message_header.encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        Some(Self { message_header })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ReqUnBindP2PStreamRequest {
+    pub message_header: TdispMessageHeader,
+    pub p2p_stream_id: u8,
+}
+
+impl Codec for ReqUnBindP2PStreamRequest {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.p2p_stream_id.encode(bytes)?;
+
+        Ok(cnt)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let p2p_stream_id = u8::read(r)?;
+
+        Some(Self {
+            message_header,
+            p2p_stream_id,
+        })
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct RspUnBindP2PStreamResponse {
+    pub message_header: TdispMessageHeader,
+}
+
+impl Codec for RspUnBindP2PStreamResponse {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.message_header.encode(bytes)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        Some(Self { message_header })
     }
 }
 
@@ -599,444 +985,146 @@ bitflags! {
     }
 }
 
-impl TdispCodec for MMIORangeAttribute {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.bits().encode(bytes);
+impl Codec for MMIORangeAttribute {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.bits().encode(bytes)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let bits = u16::read(r)?;
-
-        MMIORangeAttribute::from_bits(bits)
+        Some(Self { bits })
     }
 }
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct MMIORange {
-    pub first_4k_page_with_offset_added: u64,
-    pub number_of_4k_pages: u32,
-    pub range_attribute: MMIORangeAttribute,
-    pub range_id: u16,
+#[derive(Debug, Copy, Clone)]
+pub struct TdispMmioRange {
+    pub first_page_with_offset_added: u64,
+    pub number_of_pages: u32,
+    pub range_attributes: MMIORangeAttribute,
 }
 
-impl TdispCodec for MMIORange {
-    fn tdisp_encode(&self, context: &mut TdispContext, bytes: &mut Writer) {
-        self.first_4k_page_with_offset_added.encode(bytes);
-        self.number_of_4k_pages.encode(bytes);
-        self.range_attribute.tdisp_encode(context, bytes);
-        self.range_id.encode(bytes);
-    }
-
-    fn tdisp_read(context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let first_4k_page_with_offset_added = u64::read(r)?;
-        let number_of_4k_pages = u32::read(r)?;
-        let range_attribute = MMIORangeAttribute::tdisp_read(context, r)?;
-        let range_id = u16::read(r)?;
-
-        Some(MMIORange {
-            first_4k_page_with_offset_added,
-            number_of_4k_pages,
-            range_attribute,
-            range_id,
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct TDIReport {
-    pub interface_info: InterfaceInfo,
-    pub msi_x_message_control: u16,
-    pub lnr_control: u16,
-    pub tph_control: u32,
-    pub mmio_range_count: u32,
-    pub mmio_range: [MMIORange; MAX_MMIO_RANGE_COUNT],
-    pub device_specific_info_len: u32,
-    pub device_specific_info: [u8; MAX_DEVICE_SPECIFIC_INFORMATION_LENGTH],
-}
-
-impl TdispCodec for TDIReport {
-    fn tdisp_encode(&self, context: &mut TdispContext, bytes: &mut Writer) {
-        self.interface_info.tdisp_encode(context, bytes);
-        self.msi_x_message_control.encode(bytes);
-        self.lnr_control.encode(bytes);
-        self.tph_control.encode(bytes);
-        self.mmio_range_count.encode(bytes);
-        for m in self.mmio_range.iter().take(self.mmio_range_count as usize) {
-            m.tdisp_encode(context, bytes);
-        }
-        self.device_specific_info_len.encode(bytes);
-        for d in self
-            .device_specific_info
-            .iter()
-            .take(self.device_specific_info_len as usize)
-        {
-            d.encode(bytes);
-        }
-    }
-
-    fn tdisp_read(context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let interface_info = InterfaceInfo::tdisp_read(context, r)?;
-        let msi_x_message_control = u16::read(r)?;
-        let lnr_control = u16::read(r)?;
-        let tph_control = u32::read(r)?;
-        let mmio_range_count = u32::read(r)?;
-        let mut mmio_range: [MMIORange; MAX_MMIO_RANGE_COUNT] =
-            [MMIORange::default(); MAX_MMIO_RANGE_COUNT];
-        for m in mmio_range.iter_mut().take(mmio_range_count as usize) {
-            *m = MMIORange::tdisp_read(context, r)?;
-        }
-        let device_specific_info_len = u32::read(r)?;
-        let mut device_specific_info: [u8; MAX_DEVICE_SPECIFIC_INFORMATION_LENGTH] =
-            [0u8; MAX_DEVICE_SPECIFIC_INFORMATION_LENGTH];
-        for d in device_specific_info
-            .iter_mut()
-            .take(device_specific_info_len as usize)
-        {
-            *d = u8::read(r)?;
-        }
-
-        Some(TDIReport {
-            interface_info,
-            msi_x_message_control,
-            lnr_control,
-            tph_control,
-            mmio_range_count,
-            mmio_range,
-            device_specific_info_len,
-            device_specific_info,
-        })
-    }
-}
-
-impl Default for TDIReport {
+impl Default for TdispMmioRange {
     fn default() -> Self {
         Self {
-            interface_info: Default::default(),
-            msi_x_message_control: Default::default(),
-            lnr_control: Default::default(),
-            tph_control: Default::default(),
-            mmio_range_count: Default::default(),
-            mmio_range: Default::default(),
-            device_specific_info_len: Default::default(),
-            device_specific_info: [0u8; MAX_DEVICE_SPECIFIC_INFORMATION_LENGTH],
+            first_page_with_offset_added: 0,
+            number_of_pages: 0,
+            range_attributes: MMIORangeAttribute::empty(),
         }
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestGetDeviceInterfaceState {}
+impl Codec for TdispMmioRange {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
 
-impl TdispCodec for MessagePayloadRequestGetDeviceInterfaceState {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
+        cnt += self.first_page_with_offset_added.encode(bytes)?;
+        cnt += self.number_of_pages.encode(bytes)?;
+        cnt += self.range_attributes.encode(bytes)?;
 
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadRequestGetDeviceInterfaceState {})
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseDeviceInterfaceState {
-    pub tdi_state: TdispStateMachine,
-}
-
-impl TdispCodec for MessagePayloadResponseDeviceInterfaceState {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.tdi_state.encode(bytes);
+        Ok(cnt)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let tdi_state = TdispStateMachine::read(r)?;
-        Some(MessagePayloadResponseDeviceInterfaceState { tdi_state })
-    }
-}
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let first_page_with_offset_added = u64::read(r)?;
+        let number_of_pages = u32::read(r)?;
+        let range_attributes = MMIORangeAttribute::read(r)?;
 
-pub const NONCE_LENGTH: usize = 32; // specification defined
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestStartInterface {
-    pub start_interface_nonce: [u8; NONCE_LENGTH],
-}
-
-impl TdispCodec for MessagePayloadRequestStartInterface {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        for b in self.start_interface_nonce.iter().take(NONCE_LENGTH) {
-            b.encode(bytes);
-        }
-    }
-
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let mut start_interface_nonce: [u8; NONCE_LENGTH] = [0u8; NONCE_LENGTH];
-        for b in start_interface_nonce.iter_mut().take(NONCE_LENGTH) {
-            *b = u8::read(r)?;
-        }
-        Some(MessagePayloadRequestStartInterface {
-            start_interface_nonce,
+        Some(Self {
+            first_page_with_offset_added,
+            number_of_pages,
+            range_attributes,
         })
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseStartInterface {}
+#[derive(Debug, Copy, Clone)]
+pub struct ReqSetMmioAttributeRequest {
+    pub message_header: TdispMessageHeader,
+    pub mmio_range: TdispMmioRange,
+}
 
-impl TdispCodec for MessagePayloadResponseStartInterface {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
+impl Codec for ReqSetMmioAttributeRequest {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
 
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadResponseStartInterface {})
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.mmio_range.encode(bytes)?;
+
+        Ok(cnt)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        let mmio_range = TdispMmioRange::read(r)?;
+
+        Some(Self {
+            message_header,
+            mmio_range,
+        })
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestStopInterface {}
+#[derive(Debug, Copy, Clone)]
+pub struct RspSetMmioAttributeResponse {
+    pub message_header: TdispMessageHeader,
+}
 
-impl TdispCodec for MessagePayloadRequestStopInterface {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
+impl Codec for RspSetMmioAttributeResponse {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        self.message_header.encode(bytes)
+    }
 
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadRequestStopInterface {})
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+
+        Some(Self { message_header })
     }
 }
 
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseStopInterface {}
-
-impl TdispCodec for MessagePayloadResponseStopInterface {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
-
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadResponseStopInterface {})
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestBindP2pStream {
-    pub p2p_stream_id: u8,
-}
-
-impl TdispCodec for MessagePayloadRequestBindP2pStream {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.p2p_stream_id.encode(bytes);
-    }
-
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let p2p_stream_id = u8::read(r)?;
-        Some(MessagePayloadRequestBindP2pStream { p2p_stream_id })
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseBindP2pStream {}
-
-impl TdispCodec for MessagePayloadResponseBindP2pStream {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
-
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadResponseBindP2pStream {})
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestUnbindP2pStream {
-    pub p2p_stream_id: u8,
-}
-
-impl TdispCodec for MessagePayloadRequestUnbindP2pStream {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.p2p_stream_id.encode(bytes);
-    }
-
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let p2p_stream_id = u8::read(r)?;
-        Some(MessagePayloadRequestUnbindP2pStream { p2p_stream_id })
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseUnbindP2pStream {}
-
-impl TdispCodec for MessagePayloadResponseUnbindP2pStream {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
-
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadResponseUnbindP2pStream {})
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadRequestSetMmioAttribute {
-    pub mmio_range: MMIORange,
-}
-
-impl TdispCodec for MessagePayloadRequestSetMmioAttribute {
-    fn tdisp_encode(&self, context: &mut TdispContext, bytes: &mut Writer) {
-        self.mmio_range.tdisp_encode(context, bytes);
-    }
-
-    fn tdisp_read(context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let mmio_range = MMIORange::tdisp_read(context, r)?;
-        Some(MessagePayloadRequestSetMmioAttribute { mmio_range })
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct MessagePayloadResponseSetMmioAttribute {}
-
-impl TdispCodec for MessagePayloadResponseSetMmioAttribute {
-    fn tdisp_encode(&self, _context: &mut TdispContext, _bytes: &mut Writer) {}
-
-    fn tdisp_read(_context: &mut TdispContext, _: &mut Reader) -> Option<Self> {
-        Some(MessagePayloadResponseSetMmioAttribute {})
-    }
-}
-
-#[derive(Debug)]
-pub struct MessagePayloadResponseTdispError {
-    pub error_code: GenericErrorResponseCode,
+#[derive(Debug, Copy, Clone)]
+pub struct RspTdispError {
+    pub message_header: TdispMessageHeader,
+    pub error_code: TdispErrorCode,
     pub error_data: u32,
-    pub extended_error_data: ExtendedErrorData,
 }
 
-impl TdispCodec for MessagePayloadResponseTdispError {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        (self.error_code.get_u16() as u32).encode(bytes);
-        self.error_data.encode(bytes);
-        if self.error_code == GenericErrorResponseCode::VendorSpecificError {
-            self.extended_error_data.registry_id.encode(bytes);
-            self.extended_error_data.vendor_id_len.encode(bytes);
-            for b in self
-                .extended_error_data
-                .vendor_id
-                .iter()
-                .take(self.extended_error_data.vendor_id_len as usize)
-            {
-                b.encode(bytes);
-            }
-            for b in self
-                .extended_error_data
-                .vendor_err_data
-                .iter()
-                .take(self.error_data as usize)
-            {
-                b.encode(bytes);
-            }
-        }
+impl Codec for RspTdispError {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.message_header.encode(bytes)?;
+        cnt += self.error_code.encode(bytes)?;
+        cnt += self.error_data.encode(bytes)?;
+
+        Ok(cnt)
     }
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let error_code = u32::read(r)?;
-        let error_data = u32::read(r)?;
-        let mut extended_error_data = ExtendedErrorData::default();
-
-        if GenericErrorResponseCode::VendorSpecificError.get_u16() as u32 == error_code {
-            extended_error_data.registry_id = u8::read(r)?;
-            extended_error_data.vendor_id_len = u8::read(r)?;
-            for b in extended_error_data
-                .vendor_id
-                .iter_mut()
-                .take(extended_error_data.vendor_id_len as usize)
-            {
-                *b = u8::read(r)?;
-            }
-            for b in extended_error_data
-                .vendor_err_data
-                .iter_mut()
-                .take(error_data as usize)
-            {
-                *b = u8::read(r)?;
-            }
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let message_header = TdispMessageHeader::read(r)?;
+        if message_header.message_type != TdispRequestResponseCode::TDISP_ERROR {
+            return None;
         }
-        let error_code = GenericErrorResponseCode::read_bytes(&error_code.to_le_bytes())?;
+        let error_code = TdispErrorCode::read(r)?;
+        let error_data = u32::read(r)?;
 
-        Some(MessagePayloadResponseTdispError {
+        Some(Self {
+            message_header,
             error_code,
             error_data,
-            extended_error_data,
         })
     }
 }
 
-#[derive(Debug)]
-pub struct MessagePayloadRequestVDM {
-    pub registry_id: u8,
-    pub vendor_id_len: u8,
-    pub vendor_id: [u8; MAX_VENDOR_ID_LEN],
-    //pub vendor_data: [u8; MAX_EXTENDED_ERROR_DATA_LENGTH],
-}
+pub const STANDARD_ID: RegistryOrStandardsBodyID = RegistryOrStandardsBodyID::PCISIG;
 
-impl Default for MessagePayloadRequestVDM {
-    fn default() -> Self {
-        Self {
-            registry_id: Default::default(),
-            vendor_id_len: Default::default(),
-            vendor_id: [0u8; MAX_VENDOR_ID_LEN],
-        }
-    }
-}
+#[inline]
+pub const fn pci_sig_vendor_id() -> VendorIDStruct {
+    let mut vendor_idstruct = VendorIDStruct {
+        len: 2,
+        vendor_id: [0u8; MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN],
+    };
 
-impl TdispCodec for MessagePayloadRequestVDM {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.registry_id.encode(bytes);
-        self.vendor_id_len.encode(bytes);
-        for b in self.vendor_id.iter().take(self.vendor_id_len as usize) {
-            b.encode(bytes);
-        }
-    }
+    vendor_idstruct.vendor_id[0] = 0x01;
 
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let registry_id = u8::read(r)?;
-        let vendor_id_len = u8::read(r)?;
-        let mut vendor_id: [u8; MAX_VENDOR_ID_LEN] = [0u8; MAX_VENDOR_ID_LEN];
-        for b in vendor_id.iter_mut().take(vendor_id_len as usize) {
-            *b = u8::read(r)?;
-        }
-
-        Some(MessagePayloadRequestVDM {
-            registry_id,
-            vendor_id_len,
-            vendor_id,
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct MessagePayloadResponseVDM {
-    pub registry_id: u8,
-    pub vendor_id_len: u8,
-    pub vendor_id: [u8; MAX_VENDOR_ID_LEN],
-    // pub vendor_data: [u8; MAX_EXTENDED_ERROR_DATA_LENGTH],
-}
-
-impl Default for MessagePayloadResponseVDM {
-    fn default() -> Self {
-        Self {
-            registry_id: Default::default(),
-            vendor_id_len: Default::default(),
-            vendor_id: [0u8; MAX_VENDOR_ID_LEN],
-        }
-    }
-}
-
-impl TdispCodec for MessagePayloadResponseVDM {
-    fn tdisp_encode(&self, _context: &mut TdispContext, bytes: &mut Writer) {
-        self.registry_id.encode(bytes);
-        self.vendor_id_len.encode(bytes);
-        for b in self.vendor_id.iter().take(self.vendor_id_len as usize) {
-            b.encode(bytes);
-        }
-    }
-
-    fn tdisp_read(_context: &mut TdispContext, r: &mut Reader) -> Option<Self> {
-        let registry_id = u8::read(r)?;
-        let vendor_id_len = u8::read(r)?;
-        let mut vendor_id: [u8; MAX_VENDOR_ID_LEN] = [0u8; MAX_VENDOR_ID_LEN];
-        for b in vendor_id.iter_mut().take(vendor_id_len as usize) {
-            *b = u8::read(r)?;
-        }
-
-        Some(MessagePayloadResponseVDM {
-            registry_id,
-            vendor_id_len,
-            vendor_id,
-        })
-    }
+    vendor_idstruct
 }

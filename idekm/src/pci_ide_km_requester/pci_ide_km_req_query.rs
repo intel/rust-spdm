@@ -10,7 +10,7 @@ use spdmlib::{
 };
 
 use crate::pci_idekm::{
-    vendor_id, QueryDataObject, QueryRespDataObject, PCI_IDE_KM_IDE_REG_BLOCK_MAX_COUNT,
+    pci_sig_vendor_id, QueryDataObject, QueryRespDataObject, PCI_IDE_KM_IDE_REG_BLOCK_MAX_COUNT,
     STANDARD_ID,
 };
 
@@ -49,7 +49,7 @@ impl IdekmReqContext {
             .send_spdm_vendor_defined_request(
                 Some(session_id),
                 STANDARD_ID,
-                vendor_id(),
+                pci_sig_vendor_id(),
                 vendor_defined_req_payload_struct,
             )
             .await?;

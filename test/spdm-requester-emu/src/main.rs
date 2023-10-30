@@ -39,6 +39,19 @@ use pcidoe_transport::PciDoeTransportEncap;
 use spdm_emu::socket_io_transport::SocketIoTransport;
 use spdm_emu::spdm_emu::*;
 use std::net::TcpStream;
+use tdisp::pci_tdisp::FunctionId;
+use tdisp::pci_tdisp::InterfaceId;
+use tdisp::pci_tdisp::LockInterfaceFlag;
+use tdisp::pci_tdisp::TdiState;
+use tdisp::pci_tdisp::MAX_DEVICE_REPORT_BUFFER;
+use tdisp::pci_tdisp::START_INTERFACE_NONCE_LEN;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_get_capabilities;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_get_interface_report;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_get_interface_state;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_get_version;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_lock_interface;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_start_interface;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_stop_interface;
 
 use tokio::runtime::Runtime;
 
@@ -402,7 +415,7 @@ async fn test_spdm(
     }
 }
 
-async fn test_idekm(
+async fn test_idekm_tdisp(
     socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
 ) {
@@ -1080,6 +1093,173 @@ async fn test_idekm(
         .unwrap();
     println!("Successful KEY_SET_STOP at Key Set 0 | TX | CPL!");
 
+    // tdisp test
+    let interface_id = InterfaceId {
+        function_id: FunctionId {
+            requester_id: 0x1234,
+            requester_segment: 0,
+            requester_segment_valid: false,
+        },
+    };
+
+    let mut negotiated_version = None;
+
+    pci_tdisp_req_get_version(
+        &mut context,
+        session_id,
+        interface_id,
+        &mut negotiated_version,
+    )
+    .await
+    .unwrap();
+    println!("Successful Get Tdisp Version!");
+
+    assert!(negotiated_version.is_some());
+    assert_eq!(
+        negotiated_version.unwrap(),
+        tdisp::pci_tdisp::TdispVersion {
+            major_version: 1,
+            minor_version: 0
+        }
+    );
+    let negotiated_version = negotiated_version.unwrap();
+
+    let tsm_caps = 0;
+    let mut dsm_caps = 0u32;
+    let mut lock_interface_flags_supported = LockInterfaceFlag::empty();
+    let mut dev_addr_width = 0u8;
+    let mut num_req_this = 0u8;
+    let mut num_req_all = 0u8;
+    let mut req_msgs_supported = [0u8; 16];
+    pci_tdisp_req_get_capabilities(
+        &mut context,
+        session_id,
+        tsm_caps,
+        negotiated_version,
+        interface_id,
+        &mut dsm_caps,
+        &mut lock_interface_flags_supported,
+        &mut dev_addr_width,
+        &mut num_req_this,
+        &mut num_req_all,
+        &mut req_msgs_supported,
+    )
+    .await
+    .unwrap();
+    println!("Successful Get Tdisp Capabilities!");
+
+    let mut tdi_state = TdiState::ERROR;
+    pci_tdisp_req_get_interface_state(
+        &mut context,
+        session_id,
+        negotiated_version,
+        interface_id,
+        &mut tdi_state,
+    )
+    .await
+    .unwrap();
+    assert_eq!(tdi_state, TdiState::CONFIG_UNLOCKED);
+    println!("Successful Get Tdisp State: {:X?}!", tdi_state);
+
+    let flags = LockInterfaceFlag::NO_FW_UPDATE;
+    let default_stream_id = 0;
+    let mmio_reporting_offset = 0xFFFFFF00;
+    let bind_p2p_address_mask = 0;
+    let mut start_interface_nonce = [0u8; START_INTERFACE_NONCE_LEN];
+    let mut tdisp_error_code = None;
+    pci_tdisp_req_lock_interface(
+        &mut context,
+        session_id,
+        negotiated_version,
+        interface_id,
+        flags,
+        default_stream_id,
+        mmio_reporting_offset,
+        bind_p2p_address_mask,
+        &mut start_interface_nonce,
+        &mut tdisp_error_code,
+    )
+    .await
+    .unwrap();
+    assert!(tdisp_error_code.is_none());
+    println!(
+        "Successful Lock Interface, start_interface_nonce: {:X?}!",
+        start_interface_nonce
+    );
+
+    pci_tdisp_req_get_interface_state(
+        &mut context,
+        session_id,
+        negotiated_version,
+        interface_id,
+        &mut tdi_state,
+    )
+    .await
+    .unwrap();
+    assert_eq!(tdi_state, TdiState::CONFIG_LOCKED);
+    println!("Successful Get Tdisp State: {:X?}!", tdi_state);
+
+    let mut report = [0u8; MAX_DEVICE_REPORT_BUFFER];
+    let mut report_size = 0usize;
+    pci_tdisp_req_get_interface_report(
+        &mut context,
+        session_id,
+        negotiated_version,
+        interface_id,
+        &mut report,
+        &mut report_size,
+        &mut tdisp_error_code,
+    )
+    .await
+    .unwrap();
+    assert!(tdisp_error_code.is_none());
+    println!(
+        "Successful Get Interface Report, report: {:X?}!",
+        &report[..report_size]
+    );
+
+    pci_tdisp_req_start_interface(
+        &mut context,
+        session_id,
+        negotiated_version,
+        interface_id,
+        &start_interface_nonce,
+        &mut tdisp_error_code,
+    )
+    .await
+    .unwrap();
+    assert!(tdisp_error_code.is_none());
+    println!("Successful Start Interface!");
+
+    pci_tdisp_req_get_interface_state(
+        &mut context,
+        session_id,
+        negotiated_version,
+        interface_id,
+        &mut tdi_state,
+    )
+    .await
+    .unwrap();
+    assert_eq!(tdi_state, TdiState::RUN);
+    println!("Successful Get Tdisp State: {:X?}!", tdi_state);
+
+    pci_tdisp_req_stop_interface(&mut context, session_id, negotiated_version, interface_id)
+        .await
+        .unwrap();
+    println!("Successful Stop Interface!");
+
+    pci_tdisp_req_get_interface_state(
+        &mut context,
+        session_id,
+        negotiated_version,
+        interface_id,
+        &mut tdi_state,
+    )
+    .await
+    .unwrap();
+    assert_eq!(tdi_state, TdiState::CONFIG_UNLOCKED);
+    println!("Successful Get Tdisp State: {:X?}!", tdi_state);
+
     // end spdm session
     context.end_session(session_id).await.unwrap();
 }
@@ -1153,7 +1333,7 @@ fn emu_main() {
         transport_encap.clone(),
     ));
 
-    rt.block_on(test_idekm(
+    rt.block_on(test_idekm_tdisp(
         socket_io_transport.clone(),
         transport_encap.clone(),
     ));

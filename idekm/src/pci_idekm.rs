@@ -555,7 +555,7 @@ impl Codec for KGoStopAckDataObject {
 pub const STANDARD_ID: RegistryOrStandardsBodyID = RegistryOrStandardsBodyID::PCISIG;
 
 #[inline]
-pub const fn vendor_id() -> VendorIDStruct {
+pub const fn pci_sig_vendor_id() -> VendorIDStruct {
     let mut vendor_idstruct = VendorIDStruct {
         len: 2,
         vendor_id: [0u8; MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN],

@@ -51,11 +51,25 @@ impl RegistryOrStandardsBodyID {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct VendorIDStruct {
     pub len: u8,
     pub vendor_id: [u8; MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN],
 }
+
+impl PartialEq for VendorIDStruct {
+    fn eq(&self, vid: &VendorIDStruct) -> bool {
+        if self.len as usize > MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN
+            || vid.len as usize > MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN
+        {
+            false
+        } else {
+            self.vendor_id[..self.len as usize] == vid.vendor_id[..vid.len as usize]
+        }
+    }
+}
+
+impl Eq for VendorIDStruct {}
 
 impl Codec for VendorIDStruct {
     fn encode(&self, bytes: &mut Writer) -> Result<usize, codec::EncodeErr> {
@@ -253,9 +267,13 @@ impl SpdmCodec for SpdmVendorDefinedResponsePayload {
 
 #[derive(Clone, Copy)]
 pub struct VendorDefinedStruct {
-    pub vendor_defined_request_handler:
-        fn(usize, &VendorDefinedReqPayloadStruct) -> SpdmResult<VendorDefinedRspPayloadStruct>,
+    pub vendor_defined_request_handler: fn(
+        usize,
+        &VendorIDStruct,
+        &VendorDefinedReqPayloadStruct,
+    ) -> SpdmResult<VendorDefinedRspPayloadStruct>,
     pub vendor_context: usize, // interpreted/managed by User
+    pub vendor_id: VendorIDStruct,
 }
 
 static VENDOR_DEFNIED: OnceCell<VendorDefinedStruct> = OnceCell::uninit();
@@ -263,12 +281,17 @@ static VENDOR_DEFNIED: OnceCell<VendorDefinedStruct> = OnceCell::uninit();
 static VENDOR_DEFNIED_DEFAULT: VendorDefinedStruct = VendorDefinedStruct {
     vendor_defined_request_handler:
         |_vendor_context: usize,
+         _vendor_id: &VendorIDStruct,
          _vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct|
          -> SpdmResult<VendorDefinedRspPayloadStruct> {
             log::info!("not implement vendor defined struct!!!\n");
             unimplemented!()
         },
     vendor_context: 0,
+    vendor_id: VendorIDStruct {
+        len: 0,
+        vendor_id: [0u8; MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN],
+    },
 };
 
 pub fn register_vendor_defined_struct(context: VendorDefinedStruct) -> bool {
@@ -279,7 +302,11 @@ pub fn vendor_defined_request_handler(
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     if let Ok(vds) = VENDOR_DEFNIED.try_get_or_init(|| VENDOR_DEFNIED_DEFAULT) {
-        (vds.vendor_defined_request_handler)(vds.vendor_context, vendor_defined_req_payload_struct)
+        (vds.vendor_defined_request_handler)(
+            vds.vendor_context,
+            &vds.vendor_id,
+            vendor_defined_req_payload_struct,
+        )
     } else {
         Err(SPDM_STATUS_INVALID_STATE_LOCAL)
     }

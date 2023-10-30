@@ -2,17 +2,29 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-#![forbid(unsafe_code)]
+mod spdm_device_idekm_example;
+use idekm::pci_ide_km_responder::pci_ide_km_rsp_dispatcher;
+use idekm::pci_idekm::IDE_PROTOCOL_ID;
+use spdm_device_idekm_example::init_device_idekm_instance;
 
-mod spdm_device_example;
-use spdm_device_example::init_device_instance;
+mod spdm_device_tdisp_example;
+use spdm_device_tdisp_example::init_device_tdisp_instance;
 
-use idekm::pci_ide_km_responder::PCI_IDE_KM_INSTANCE;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use spdm_emu::watchdog_impl_sample::init_watchdog;
 use spdmlib::common::{SecuredMessageVersion, SpdmOpaqueSupport};
 use spdmlib::config::{MAX_ROOT_CERT_SUPPORT, RECEIVER_BUFFER_SIZE};
+use spdmlib::error::{SpdmResult, SPDM_STATUS_INVALID_MSG_FIELD};
+use spdmlib::message::{
+    VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct, VendorDefinedStruct,
+    VendorIDStruct,
+};
+use tdisp::pci_tdisp::{
+    pci_sig_vendor_id, FunctionId, InterfaceId, LockInterfaceFlag, TdiState,
+    START_INTERFACE_NONCE_LEN, TDISP_PROTOCOL_ID,
+};
+use tdisp::pci_tdisp_responder::pci_tdisp_rsp_dispatcher;
 
 use std::net::{TcpListener, TcpStream};
 use std::u32;
@@ -35,6 +47,8 @@ use spin::Mutex;
 extern crate alloc;
 use alloc::sync::Arc;
 use core::ops::DerefMut;
+
+use crate::spdm_device_tdisp_example::DeviceContext;
 
 async fn process_socket_message(
     stream: Arc<Mutex<TcpStream>>,
@@ -263,7 +277,38 @@ async fn handle_message(
     };
 
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
-    spdmlib::message::vendor::register_vendor_defined_struct(PCI_IDE_KM_INSTANCE);
+    let tdisp_rsp_context = DeviceContext {
+        bus: 0x2a,
+        device: 0x00,
+        function: 0x00,
+        negotiated_version: None,
+        interface_id: InterfaceId {
+            function_id: FunctionId {
+                requester_id: 0x1234,
+                requester_segment: 0,
+                requester_segment_valid: false,
+            },
+        },
+        dsm_caps: 0,
+        dev_addr_width: 52,
+        num_req_this: 1,
+        num_req_all: 1,
+        flags: LockInterfaceFlag::empty(),
+        tdi_state: TdiState::CONFIG_UNLOCKED,
+        default_stream_id: 0,
+        mmio_reporting_offset: 0,
+        bind_p2p_address_mask: 0,
+        start_interface_nonce: [0u8; START_INTERFACE_NONCE_LEN],
+    };
+
+    let device_context_handle = &tdisp_rsp_context as *const DeviceContext as usize;
+
+    spdmlib::message::vendor::register_vendor_defined_struct(VendorDefinedStruct {
+        vendor_defined_request_handler: pci_idekm_tdisp_rsp_dispatcher,
+        vendor_context: device_context_handle,
+        vendor_id: pci_sig_vendor_id(),
+    });
+
     init_watchdog();
     let mut context = responder::ResponderContext::new(
         socket_io_transport,
@@ -421,9 +466,30 @@ pub async fn send_pci_discovery(
     true
 }
 
+fn pci_idekm_tdisp_rsp_dispatcher(
+    vendor_context: usize,
+    vendor_id: &VendorIDStruct,
+    vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
+) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+    if vendor_defined_req_payload_struct.req_length < 1 || *vendor_id != pci_sig_vendor_id() {
+        return Err(SPDM_STATUS_INVALID_MSG_FIELD);
+    }
+
+    match vendor_defined_req_payload_struct.vendor_defined_req_payload[0] {
+        IDE_PROTOCOL_ID => {
+            pci_ide_km_rsp_dispatcher(vendor_context, vendor_id, vendor_defined_req_payload_struct)
+        }
+        TDISP_PROTOCOL_ID => {
+            pci_tdisp_rsp_dispatcher(vendor_context, vendor_id, vendor_defined_req_payload_struct)
+        }
+        _ => Err(SPDM_STATUS_INVALID_MSG_FIELD),
+    }
+}
+
 fn main() {
     use std::thread;
-    init_device_instance();
+    init_device_idekm_instance();
+    init_device_tdisp_instance();
 
     thread::Builder::new()
         .stack_size(EMU_STACK_SIZE)

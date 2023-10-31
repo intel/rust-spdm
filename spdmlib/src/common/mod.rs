@@ -199,6 +199,16 @@ impl SpdmContext {
         self.reset_negotiate_info();
         self.reset_peer_info();
 
+        #[cfg(feature = "mut-auth")]
+        {
+            self.encap_context = SpdmEncapContext::default();
+        }
+
+        #[cfg(feature = "mandatory-mut-auth")]
+        {
+            self.mut_auth_done = false;
+        }
+
         for s in &mut self.session {
             s.set_default();
         }

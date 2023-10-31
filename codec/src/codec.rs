@@ -318,17 +318,22 @@ impl Codec for u128 {
     }
 }
 
-impl<T: Codec + Copy, const N: usize> Codec for [T; N] {
+impl<T: Codec + Copy + Default, const N: usize> Codec for [T; N] {
     fn encode(&self, bytes: &mut Writer) -> Result<usize, EncodeErr> {
         let used = bytes.used();
-        for d in self.as_ref() {
+        for d in self.iter() {
             let _ = d.encode(bytes)?;
         }
         Ok(bytes.used() - used)
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        Some([T::read(reader)?; N])
+        let mut target = [T::default(); N];
+        for t in target.iter_mut() {
+            *t = T::read(reader)?;
+        }
+
+        Some(target)
     }
 }
 

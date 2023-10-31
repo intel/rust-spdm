@@ -344,6 +344,29 @@ mod tests {
     use crate::u24;
 
     #[test]
+    fn test_u128() {
+        let u8_slice = &mut [0u8; 16];
+        {
+            let mut writer = Writer::init(u8_slice);
+            let value = 0x1234567890FFFEFEFFFFFE1234567890u128;
+            assert_eq!(value.encode(&mut writer), Ok(16));
+        }
+        let mut ser_data = [
+            0x12u8, 0x34, 0x56, 0x78, 0x90, 0xFF, 0xFE, 0xFE, 0xFF, 0xFF, 0xFE, 0x12, 0x34, 0x56,
+            0x78, 0x90,
+        ];
+        ser_data.reverse();
+
+        let mut reader = Reader::init(u8_slice);
+        assert_eq!(16, reader.left());
+        assert_eq!(u8_slice, &ser_data);
+        assert_eq!(
+            u128::read(&mut reader).unwrap(),
+            0x1234567890FFFEFEFFFFFE1234567890u128
+        );
+    }
+
+    #[test]
     fn test_u64() {
         let u8_slice = &mut [0u8; 8];
         u8_slice[1] = 1;

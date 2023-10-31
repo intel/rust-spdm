@@ -254,14 +254,21 @@ impl SpdmCodec for SpdmVendorDefinedResponsePayload {
 #[derive(Clone, Copy)]
 pub struct VendorDefinedStruct {
     pub vendor_defined_request_handler:
-        fn(&VendorDefinedReqPayloadStruct) -> SpdmResult<VendorDefinedRspPayloadStruct>,
+        fn(usize, &VendorDefinedReqPayloadStruct) -> SpdmResult<VendorDefinedRspPayloadStruct>,
+    pub vendor_context: usize, // interpreted/managed by User
 }
 
 static VENDOR_DEFNIED: OnceCell<VendorDefinedStruct> = OnceCell::uninit();
 
 static VENDOR_DEFNIED_DEFAULT: VendorDefinedStruct = VendorDefinedStruct {
-    vendor_defined_request_handler: |_vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct|
-     -> SpdmResult<VendorDefinedRspPayloadStruct> { log::info!("not implement vendor defined struct!!!\n"); unimplemented!() },
+    vendor_defined_request_handler:
+        |_vendor_context: usize,
+         _vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct|
+         -> SpdmResult<VendorDefinedRspPayloadStruct> {
+            log::info!("not implement vendor defined struct!!!\n");
+            unimplemented!()
+        },
+    vendor_context: 0,
 };
 
 pub fn register_vendor_defined_struct(context: VendorDefinedStruct) -> bool {
@@ -272,7 +279,7 @@ pub fn vendor_defined_request_handler(
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     if let Ok(vds) = VENDOR_DEFNIED.try_get_or_init(|| VENDOR_DEFNIED_DEFAULT) {
-        (vds.vendor_defined_request_handler)(vendor_defined_req_payload_struct)
+        (vds.vendor_defined_request_handler)(vds.vendor_context, vendor_defined_req_payload_struct)
     } else {
         Err(SPDM_STATUS_INVALID_STATE_LOCAL)
     }

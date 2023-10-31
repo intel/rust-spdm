@@ -39,20 +39,25 @@ fn test_case0_handle_spdm_vendor_defined_request() {
         vendor_defined_req_payload: [0; config::MAX_SPDM_MSG_SIZE - 7 - 2],
     };
 
-    let vendor_defined_func: for<'r> fn(&'r vendor::VendorDefinedReqPayloadStruct) -> Result<_, _> =
-        |_vendor_defined_req_payload_struct| -> SpdmResult<VendorDefinedRspPayloadStruct> {
-            let mut vendor_defined_res_payload_struct = VendorDefinedRspPayloadStruct {
-                rsp_length: 0,
-                vendor_defined_rsp_payload: [0; config::MAX_SPDM_MSG_SIZE - 7 - 2],
-            };
-            vendor_defined_res_payload_struct.rsp_length = 8;
-            vendor_defined_res_payload_struct.vendor_defined_rsp_payload[0..8]
-                .clone_from_slice(b"deadbeef");
-            Ok(vendor_defined_res_payload_struct)
+    let vendor_defined_func: for<'r> fn(
+        usize,
+        &'r vendor::VendorDefinedReqPayloadStruct,
+    ) -> Result<_, _> = |_: usize,
+                         _vendor_defined_req_payload_struct|
+     -> SpdmResult<VendorDefinedRspPayloadStruct> {
+        let mut vendor_defined_res_payload_struct = VendorDefinedRspPayloadStruct {
+            rsp_length: 0,
+            vendor_defined_rsp_payload: [0; config::MAX_SPDM_MSG_SIZE - 7 - 2],
         };
+        vendor_defined_res_payload_struct.rsp_length = 8;
+        vendor_defined_res_payload_struct.vendor_defined_rsp_payload[0..8]
+            .clone_from_slice(b"deadbeef");
+        Ok(vendor_defined_res_payload_struct)
+    };
 
     register_vendor_defined_struct(VendorDefinedStruct {
         vendor_defined_request_handler: vendor_defined_func,
+        vendor_context: 0,
     });
 
     if let Ok(vendor_defined_res_payload_struct) =

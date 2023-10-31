@@ -9,8 +9,8 @@ use crate::error::{
     SpdmResult, SpdmStatus, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_INVALID_STATE_LOCAL,
 };
 use codec::{enum_builder, Codec, Reader, Writer};
-
 use conquer_once::spin::OnceCell;
+use zeroize::ZeroizeOnDrop;
 
 // config::MAX_SPDM_MSG_SIZE - 7 - 2
 // SPDM0274 1.2.1: Table 56, table 57 VENDOR_DEFINED_RESPONSE message format
@@ -82,7 +82,7 @@ impl Codec for VendorIDStruct {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ZeroizeOnDrop)]
 pub struct VendorDefinedReqPayloadStruct {
     pub req_length: u16,
     pub vendor_defined_req_payload: [u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
@@ -117,7 +117,7 @@ impl Codec for VendorDefinedReqPayloadStruct {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, ZeroizeOnDrop)]
 pub struct VendorDefinedRspPayloadStruct {
     pub rsp_length: u16,
     pub vendor_defined_rsp_payload: [u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],

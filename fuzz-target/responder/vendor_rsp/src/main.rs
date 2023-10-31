@@ -54,8 +54,10 @@ async fn fuzz_handle_spdm_vendor_defined_request(data: Arc<Vec<u8>>) {
         .runtime_info
         .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-    let vendor_defined_func: for<'r> fn(&'r VendorDefinedReqPayloadStruct) -> Result<_, _> =
-        |_vendor_defined_req_payload_struct| -> SpdmResult<VendorDefinedRspPayloadStruct> {
+    let vendor_defined_func: for<'r> fn(usize, &'r VendorDefinedReqPayloadStruct) -> Result<_, _> =
+        |_: usize,
+         _vendor_defined_req_payload_struct|
+         -> SpdmResult<VendorDefinedRspPayloadStruct> {
             let mut vendor_defined_res_payload_struct = VendorDefinedRspPayloadStruct {
                 rsp_length: 0,
                 vendor_defined_rsp_payload: [0; config::MAX_SPDM_MSG_SIZE - 7 - 2],
@@ -68,6 +70,7 @@ async fn fuzz_handle_spdm_vendor_defined_request(data: Arc<Vec<u8>>) {
 
     register_vendor_defined_struct(VendorDefinedStruct {
         vendor_defined_request_handler: vendor_defined_func,
+        vendor_context: 0,
     });
 
     let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];

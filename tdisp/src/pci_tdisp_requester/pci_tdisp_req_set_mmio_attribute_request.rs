@@ -13,18 +13,18 @@ use spdmlib::{
 
 use crate::{
     common::{InternalError, TdispResult, PCI_VENDOR_ID_STRUCT},
-    context::{MessagePayloadRequestVDM, TdispMessage, TdispRequestResponseCode},
+    context::{MessagePayloadRequestSetMmioAttribute, TdispMessage, TdispRequestResponseCode},
     tdisp_codec::TdispCodec,
 };
 
 use super::*;
 
 impl<'a> TdispRequester<'a> {
-    pub fn send_receive_vdm_request(
+    pub fn pci_tdisp_req_set_mmio_attribute_request(
         &mut self,
         spdm_requester: &mut RequesterContext,
     ) -> TdispResult {
-        let mut tdisp_message = TdispMessage::<MessagePayloadRequestVDM>::default();
+        let mut tdisp_message = TdispMessage::<MessagePayloadRequestSetMmioAttribute>::default();
         tdisp_message.tdisp_message_header.interface_id = self.tdisp_requester_context.tdi;
         tdisp_message.tdisp_message_header.tdisp_version = self.tdisp_requester_context.version_sel;
         let mut vendor_defined_req_payload =
@@ -41,7 +41,8 @@ impl<'a> TdispRequester<'a> {
         self.tdisp_requester_context
             .request_message
             .copy_from_slice(&vendor_defined_req_payload);
-        self.tdisp_requester_context.request_code = TdispRequestResponseCode::RequestVdmRequest;
+        self.tdisp_requester_context.request_code =
+            TdispRequestResponseCode::RequestSetMmioAttributeRequest;
 
         match spdm_requester.send_spdm_vendor_defined_request(
             self.tdisp_requester_context.spdm_session_id,
@@ -56,18 +57,18 @@ impl<'a> TdispRequester<'a> {
                 } = vdrp;
 
                 self.tdisp_requester_context.response_code =
-                    TdispRequestResponseCode::ResponseVdmResponse;
+                    TdispRequestResponseCode::ResponseSetMmioAttributeResponse;
                 self.tdisp_requester_context
                     .response_message
                     .copy_from_slice(&vendor_defined_rsp_payload);
 
-                self.handle_spdm_version_response(spdm_requester)
+                self.handle_set_mmio_attribute_response(spdm_requester)
             }
             Err(_) => Err(InternalError::Unrecoverable),
         }
     }
 
-    fn handle_spdm_version_response(
+    fn handle_set_mmio_attribute_response(
         &mut self,
         _spdm_requester: &mut RequesterContext,
     ) -> TdispResult {

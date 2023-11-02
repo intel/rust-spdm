@@ -13,18 +13,18 @@ use spdmlib::{
 
 use crate::{
     common::{InternalError, TdispResult, PCI_VENDOR_ID_STRUCT},
-    context::{MessagePayloadRequestUnbindP2pStream, TdispMessage, TdispRequestResponseCode},
+    context::{MessagePayloadRequestGetCapabilities, TdispMessage, TdispRequestResponseCode},
     tdisp_codec::TdispCodec,
 };
 
 use super::*;
 
 impl<'a> TdispRequester<'a> {
-    pub fn send_receive_unbind_p2p_stream(
+    pub fn pci_tdisp_req_get_tdisp_capabilities(
         &mut self,
         spdm_requester: &mut RequesterContext,
     ) -> TdispResult {
-        let mut tdisp_message = TdispMessage::<MessagePayloadRequestUnbindP2pStream>::default();
+        let mut tdisp_message = TdispMessage::<MessagePayloadRequestGetCapabilities>::default();
         tdisp_message.tdisp_message_header.interface_id = self.tdisp_requester_context.tdi;
         tdisp_message.tdisp_message_header.tdisp_version = self.tdisp_requester_context.version_sel;
         let mut vendor_defined_req_payload =
@@ -42,7 +42,7 @@ impl<'a> TdispRequester<'a> {
             .request_message
             .copy_from_slice(&vendor_defined_req_payload);
         self.tdisp_requester_context.request_code =
-            TdispRequestResponseCode::RequestUnbindP2pStreamRequest;
+            TdispRequestResponseCode::RequestGetTdispCapabilities;
 
         match spdm_requester.send_spdm_vendor_defined_request(
             self.tdisp_requester_context.spdm_session_id,
@@ -57,18 +57,18 @@ impl<'a> TdispRequester<'a> {
                 } = vdrp;
 
                 self.tdisp_requester_context.response_code =
-                    TdispRequestResponseCode::ResponseUnbindP2pStreamResponse;
+                    TdispRequestResponseCode::ResponseTdispCapabilities;
                 self.tdisp_requester_context
                     .response_message
                     .copy_from_slice(&vendor_defined_rsp_payload);
 
-                self.handle_unbind_p2p_stream_response(spdm_requester)
+                self.handle_get_tdisp_capabilities_response(spdm_requester)
             }
             Err(_) => Err(InternalError::Unrecoverable),
         }
     }
 
-    fn handle_unbind_p2p_stream_response(
+    fn handle_get_tdisp_capabilities_response(
         &mut self,
         _spdm_requester: &mut RequesterContext,
     ) -> TdispResult {

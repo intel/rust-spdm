@@ -13,7 +13,7 @@ use crate::{
 use super::*;
 
 impl<'a> TdispResponder<'a> {
-    pub fn handle_tdisp_version(
+    pub fn pci_tdisp_rsp_tdisp_version(
         &mut self,
         vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
     ) -> SpdmResult<VendorDefinedRspPayloadStruct> {

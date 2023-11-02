@@ -13,18 +13,18 @@ use spdmlib::{
 
 use crate::{
     common::{InternalError, TdispResult, PCI_VENDOR_ID_STRUCT},
-    context::{MessagePayloadRequestStopInterface, TdispMessage, TdispRequestResponseCode},
+    context::{MessagePayloadRequestVDM, TdispMessage, TdispRequestResponseCode},
     tdisp_codec::TdispCodec,
 };
 
 use super::*;
 
 impl<'a> TdispRequester<'a> {
-    pub fn send_receive_stop_interface(
+    pub fn pci_tdisp_req_vdm_request(
         &mut self,
         spdm_requester: &mut RequesterContext,
     ) -> TdispResult {
-        let mut tdisp_message = TdispMessage::<MessagePayloadRequestStopInterface>::default();
+        let mut tdisp_message = TdispMessage::<MessagePayloadRequestVDM>::default();
         tdisp_message.tdisp_message_header.interface_id = self.tdisp_requester_context.tdi;
         tdisp_message.tdisp_message_header.tdisp_version = self.tdisp_requester_context.version_sel;
         let mut vendor_defined_req_payload =
@@ -41,8 +41,7 @@ impl<'a> TdispRequester<'a> {
         self.tdisp_requester_context
             .request_message
             .copy_from_slice(&vendor_defined_req_payload);
-        self.tdisp_requester_context.request_code =
-            TdispRequestResponseCode::RequestStopInterfaceRequest;
+        self.tdisp_requester_context.request_code = TdispRequestResponseCode::RequestVdmRequest;
 
         match spdm_requester.send_spdm_vendor_defined_request(
             self.tdisp_requester_context.spdm_session_id,
@@ -57,18 +56,18 @@ impl<'a> TdispRequester<'a> {
                 } = vdrp;
 
                 self.tdisp_requester_context.response_code =
-                    TdispRequestResponseCode::ResponseStopInterfaceResponse;
+                    TdispRequestResponseCode::ResponseVdmResponse;
                 self.tdisp_requester_context
                     .response_message
                     .copy_from_slice(&vendor_defined_rsp_payload);
 
-                self.handle_stop_interface_response(spdm_requester)
+                self.handle_spdm_version_response(spdm_requester)
             }
             Err(_) => Err(InternalError::Unrecoverable),
         }
     }
 
-    fn handle_stop_interface_response(
+    fn handle_spdm_version_response(
         &mut self,
         _spdm_requester: &mut RequesterContext,
     ) -> TdispResult {

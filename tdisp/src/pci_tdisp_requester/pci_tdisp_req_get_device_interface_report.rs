@@ -22,7 +22,7 @@ use crate::{
 use super::*;
 
 impl<'a> TdispRequester<'a> {
-    pub fn send_receive_get_device_interface_report(
+    pub fn pci_tdisp_req_get_device_interface_report(
         &mut self,
         spdm_requester: &mut RequesterContext,
     ) -> TdispResult {

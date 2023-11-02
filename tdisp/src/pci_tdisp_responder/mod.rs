@@ -21,18 +21,18 @@ use self::context::{
     ExtendedErrorData, GenericErrorResponseCode, InterfaceId, MessagePayloadResponseTdispError,
 };
 
-pub mod bind_p2p_stream_request_rsp;
-pub mod device_interface_report_rsp;
-pub mod device_interface_state_rsp;
-pub mod lock_interface_request_rsp;
-pub mod set_mmio_attribute_request_rsp;
-pub mod start_interface_request_rsp;
-pub mod stop_interface_request_rsp;
-pub mod tdisp_capabilities_rsp;
-pub mod tdisp_error_rsp;
-pub mod tdisp_version_rsp;
-pub mod unbind_p2p_stream_request_rsp;
-pub mod vdm_response;
+pub mod pci_tdisp_rsp_bind_p2p_stream_request;
+pub mod pci_tdisp_rsp_device_interface_report;
+pub mod pci_tdisp_rsp_device_interface_state;
+pub mod pci_tdisp_rsp_lock_interface_request;
+pub mod pci_tdisp_rsp_set_mmio_attribute_request;
+pub mod pci_tdisp_rsp_start_interface_request;
+pub mod pci_tdisp_rsp_stop_interface_request;
+pub mod pci_tdisp_rsp_tdisp_capabilities;
+pub mod pci_tdisp_rsp_tdisp_error;
+pub mod pci_tdisp_rsp_tdisp_version;
+pub mod pci_tdisp_rsp_unbind_p2p_stream_request;
+pub mod pci_tdisp_rsp_vdm_response;
 
 pub static mut TDISP_RESPONDER: Option<TdispResponder> = None;
 

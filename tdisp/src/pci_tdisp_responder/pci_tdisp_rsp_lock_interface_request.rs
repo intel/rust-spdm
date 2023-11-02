@@ -38,7 +38,7 @@ use super::*;
 // BIND_P2P
 // ALL_REQUEST_REDIRECT
 impl<'a> TdispResponder<'a> {
-    pub fn handle_lock_interface_request(
+    pub fn pci_tdisp_rsp_lock_interface_request(
         &mut self,
         vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
     ) -> SpdmResult<VendorDefinedRspPayloadStruct> {

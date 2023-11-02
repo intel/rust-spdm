@@ -13,18 +13,18 @@ use spdmlib::{
 
 use crate::{
     common::{InternalError, TdispResult, PCI_VENDOR_ID_STRUCT},
-    context::{MessagePayloadRequestSetMmioAttribute, TdispMessage, TdispRequestResponseCode},
+    context::{MessagePayloadRequestBindP2pStream, TdispMessage, TdispRequestResponseCode},
     tdisp_codec::TdispCodec,
 };
 
 use super::*;
 
 impl<'a> TdispRequester<'a> {
-    pub fn send_receive_set_mmio_attribute(
+    pub fn pci_tdisp_req_bind_p2p_stream_request(
         &mut self,
         spdm_requester: &mut RequesterContext,
     ) -> TdispResult {
-        let mut tdisp_message = TdispMessage::<MessagePayloadRequestSetMmioAttribute>::default();
+        let mut tdisp_message = TdispMessage::<MessagePayloadRequestBindP2pStream>::default();
         tdisp_message.tdisp_message_header.interface_id = self.tdisp_requester_context.tdi;
         tdisp_message.tdisp_message_header.tdisp_version = self.tdisp_requester_context.version_sel;
         let mut vendor_defined_req_payload =
@@ -42,7 +42,7 @@ impl<'a> TdispRequester<'a> {
             .request_message
             .copy_from_slice(&vendor_defined_req_payload);
         self.tdisp_requester_context.request_code =
-            TdispRequestResponseCode::RequestSetMmioAttributeRequest;
+            TdispRequestResponseCode::RequestBindP2pStreamRequest;
 
         match spdm_requester.send_spdm_vendor_defined_request(
             self.tdisp_requester_context.spdm_session_id,
@@ -57,18 +57,18 @@ impl<'a> TdispRequester<'a> {
                 } = vdrp;
 
                 self.tdisp_requester_context.response_code =
-                    TdispRequestResponseCode::ResponseSetMmioAttributeResponse;
+                    TdispRequestResponseCode::ResponseBindP2pStreamResponse;
                 self.tdisp_requester_context
                     .response_message
                     .copy_from_slice(&vendor_defined_rsp_payload);
 
-                self.handle_set_mmio_attribute_response(spdm_requester)
+                self.handle_bind_p2p_stream_response(spdm_requester)
             }
             Err(_) => Err(InternalError::Unrecoverable),
         }
     }
 
-    fn handle_set_mmio_attribute_response(
+    fn handle_bind_p2p_stream_response(
         &mut self,
         _spdm_requester: &mut RequesterContext,
     ) -> TdispResult {

@@ -4,28 +4,19 @@
 
 use spdmlib::error::*;
 
-use crate::{
-    context::{MessagePayloadRequestUnbindP2pStream, MessagePayloadResponseUnbindP2pStream},
-    state_machine::TDIState,
-};
+use crate::context::{MessagePayloadRequestGetCapabilities, MessagePayloadResponseCapabilities};
 
 use super::*;
 
-// security check
-// Interface ID in the request is not hosted by the device
-// TDI does not support binding peer-to-peer streams
-// DONE - TDI is not in RUN
-// Stream ID specified was not previously bound to this TDI
-
 impl<'a> TdispResponder<'a> {
-    pub fn handle_unbind_p2p_stream_request(
+    pub fn pci_tdisp_rsp_tdisp_capabilities(
         &mut self,
         vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
     ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
         let mut reader =
             Reader::init(&vendor_defined_req_payload_struct.vendor_defined_req_payload);
         let tmh = TdispMessageHeader::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
-        let mpr = MessagePayloadRequestUnbindP2pStream::tdisp_read(
+        let mpr = MessagePayloadRequestGetCapabilities::tdisp_read(
             &mut self.tdisp_requester_context,
             &mut reader,
         );
@@ -33,11 +24,6 @@ impl<'a> TdispResponder<'a> {
             self.handle_tdisp_error(
                 vendor_defined_req_payload_struct,
                 MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_REQUEST,
-            )
-        } else if self.tdisp_requester_context.state_machine.current_state != TDIState::Run {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_INTERFACE_STATE,
             )
         } else {
             let mut vendor_defined_rsp_payload_struct: VendorDefinedRspPayloadStruct =
@@ -51,11 +37,17 @@ impl<'a> TdispResponder<'a> {
 
             let tmhr = TdispMessageHeader {
                 tdisp_version: self.tdisp_requester_context.version_sel,
-                message_type: TdispRequestResponseCode::ResponseUnbindP2pStreamResponse,
+                message_type: TdispRequestResponseCode::ResponseTdispCapabilities,
                 interface_id: self.tdisp_requester_context.tdi,
             };
 
-            let mprr = MessagePayloadResponseUnbindP2pStream::default();
+            let mprr = MessagePayloadResponseCapabilities::default();
+            // mprr.dev_addr_width
+            // mprr.dsm_caps
+            // mprr.lock_interface_flags_supported
+            // mprr.num_req_all
+            // mprr.num_req_this
+            // mprr.req_msgs_supported
 
             tmhr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
             mprr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);

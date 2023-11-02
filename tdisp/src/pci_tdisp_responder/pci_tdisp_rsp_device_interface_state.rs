@@ -4,19 +4,27 @@
 
 use spdmlib::error::*;
 
-use crate::context::{MessagePayloadRequestGetCapabilities, MessagePayloadResponseCapabilities};
+use crate::{
+    context::{
+        MessagePayloadRequestGetDeviceInterfaceState, MessagePayloadResponseDeviceInterfaceState,
+    },
+    state_machine::TdispStateMachine,
+};
 
 use super::*;
 
+// security check
+// Interface ID in the request is not hosted by the device.
+
 impl<'a> TdispResponder<'a> {
-    pub fn handle_tdisp_capabilities(
+    pub fn pci_tdisp_rsp_device_interface_state(
         &mut self,
         vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
     ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
         let mut reader =
             Reader::init(&vendor_defined_req_payload_struct.vendor_defined_req_payload);
         let tmh = TdispMessageHeader::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
-        let mpr = MessagePayloadRequestGetCapabilities::tdisp_read(
+        let mpr = MessagePayloadRequestGetDeviceInterfaceState::tdisp_read(
             &mut self.tdisp_requester_context,
             &mut reader,
         );
@@ -37,17 +45,15 @@ impl<'a> TdispResponder<'a> {
 
             let tmhr = TdispMessageHeader {
                 tdisp_version: self.tdisp_requester_context.version_sel,
-                message_type: TdispRequestResponseCode::ResponseTdispCapabilities,
+                message_type: TdispRequestResponseCode::ResponseDeviceInterfaceState,
                 interface_id: self.tdisp_requester_context.tdi,
             };
 
-            let mprr = MessagePayloadResponseCapabilities::default();
-            // mprr.dev_addr_width
-            // mprr.dsm_caps
-            // mprr.lock_interface_flags_supported
-            // mprr.num_req_all
-            // mprr.num_req_this
-            // mprr.req_msgs_supported
+            let mprr = MessagePayloadResponseDeviceInterfaceState {
+                tdi_state: TdispStateMachine {
+                    current_state: self.tdisp_requester_context.state_machine.current_state,
+                },
+            };
 
             tmhr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
             mprr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);

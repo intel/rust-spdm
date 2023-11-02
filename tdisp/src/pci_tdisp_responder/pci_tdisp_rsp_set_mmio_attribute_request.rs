@@ -21,7 +21,7 @@ use super::*;
 // The MMIO range specified in the request is not associated with TDI
 
 impl<'a> TdispResponder<'a> {
-    pub fn handle_set_mmio_attribute_request(
+    pub fn pci_tdisp_rsp_set_mmio_attribute_request(
         &mut self,
         vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
     ) -> SpdmResult<VendorDefinedRspPayloadStruct> {

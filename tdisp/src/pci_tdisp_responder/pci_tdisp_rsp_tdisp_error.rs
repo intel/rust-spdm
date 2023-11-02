@@ -9,7 +9,7 @@ use crate::{context::MessagePayloadResponseTdispError, tdisp_codec::TdispCodec};
 use super::*;
 
 impl<'a> TdispResponder<'a> {
-    pub fn handle_tdisp_error(
+    pub fn pci_tdisp_rsp_tdisp_error(
         &mut self,
         vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
         message_payload_response_tdisp_error: MessagePayloadResponseTdispError,

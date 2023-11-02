@@ -21,7 +21,7 @@ use super::*;
 // Reclaim and scrub private resources (e.g., memory encryption keys for device attached memories, etc.) assigned to the TDI
 
 impl<'a> TdispResponder<'a> {
-    pub fn handle_stop_interface_request(
+    pub fn pci_tdisp_rsp_stop_interface_request(
         &mut self,
         vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
     ) -> SpdmResult<VendorDefinedRspPayloadStruct> {

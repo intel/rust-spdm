@@ -1,69 +1,138 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use spdmlib::error::*;
-
-use crate::{
-    context::{MessagePayloadRequestBindP2pStream, MessagePayloadResponseBindP2pStream},
-    state_machine::TDIState,
+use codec::{Codec, Writer};
+use conquer_once::spin::OnceCell;
+use spdmlib::{
+    error::{
+        SpdmResult, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_INVALID_MSG_FIELD,
+        SPDM_STATUS_INVALID_STATE_LOCAL,
+    },
+    message::{
+        VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct,
+        MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE,
+    },
 };
 
-use super::*;
+use crate::pci_tdisp::{
+    InterfaceId, ReqBindP2PStreamRequest, RspBindP2PStreamResponse, TdispErrorCode,
+    TdispMessageHeader, TdispRequestResponseCode, TdispVersion,
+};
 
-// security check
-// Interface ID in the request is not hosted by the device
-// TDI does not support binding peer-to-peer streams
-// DONE - TDI is not in RUN
-// Stream ID specified does not have IDE keys programmed for all sub streams
-// All IDE keys of the stream identified by the Stream ID were not configured over the SPDM session on which the LOCK_INTERFACE_REQUEST was received
-// Multiple IDE configuration registers have been programmed with the same stream ID
-// IDE configuration register for this stream is configured as the default stream
-// Address and/or RID association registers of this streams IDE configuration registers overlap with other IDE configuration registers
-impl<'a> TdispResponder<'a> {
-    pub fn pci_tdisp_rsp_bind_p2p_stream_request(
-        &mut self,
-        vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
-    ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
-        let mut reader =
-            Reader::init(&vendor_defined_req_payload_struct.vendor_defined_req_payload);
-        let tmh = TdispMessageHeader::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
-        let mpr = MessagePayloadRequestBindP2pStream::tdisp_read(
-            &mut self.tdisp_requester_context,
-            &mut reader,
-        );
-        if tmh.is_none() || mpr.is_none() {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_REQUEST,
-            )
-        } else if self.tdisp_requester_context.state_machine.current_state != TDIState::Run {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_INTERFACE_STATE,
-            )
-        } else {
-            let mut vendor_defined_rsp_payload_struct: VendorDefinedRspPayloadStruct =
-                VendorDefinedRspPayloadStruct {
-                    rsp_length: 0,
-                    vendor_defined_rsp_payload: [0u8;
-                        spdmlib::config::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
-                };
-            let mut writer =
-                Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+use super::pci_tdisp_rsp_tdisp_error::write_error;
 
-            let tmhr = TdispMessageHeader {
-                tdisp_version: self.tdisp_requester_context.version_sel,
-                message_type: TdispRequestResponseCode::ResponseBindP2pStreamResponse,
-                interface_id: self.tdisp_requester_context.tdi,
-            };
+static PCI_TDISP_DEVICE_BING_P2P_STREAM_INSTANCE: OnceCell<PciTdispDeviceBindP2pStream> =
+    OnceCell::uninit();
 
-            let mprr = MessagePayloadResponseBindP2pStream::default();
+#[derive(Clone)]
+pub struct PciTdispDeviceBindP2pStream {
+    pub pci_tdisp_device_bind_p2p_stream_cb: fn(
+        //IN
+        vendor_context: usize,
+        p2p_stream_id: u8,
+        //OUT
+        negotiated_version: &mut TdispVersion,
+        interface_id: &mut InterfaceId,
+        tdisp_error_code: &mut Option<TdispErrorCode>,
+    ) -> SpdmResult,
+}
 
-            tmhr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
-            mprr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
+pub fn register(context: PciTdispDeviceBindP2pStream) -> bool {
+    PCI_TDISP_DEVICE_BING_P2P_STREAM_INSTANCE
+        .try_init_once(|| context)
+        .is_ok()
+}
 
-            Ok(vendor_defined_rsp_payload_struct)
-        }
+static UNIMPLETEMTED: PciTdispDeviceBindP2pStream = PciTdispDeviceBindP2pStream {
+    pci_tdisp_device_bind_p2p_stream_cb: |//IN
+                                          _vendor_context: usize,
+                                          _p2p_stream_id: u8,
+                                          //OUT
+                                          _negotiated_version: &mut TdispVersion,
+                                          _interface_id: &mut InterfaceId,
+                                          _tdisp_error_code: &mut Option<TdispErrorCode>|
+     -> SpdmResult { unimplemented!() },
+};
+
+pub(crate) fn pci_tdisp_device_bind_p2p_stream(
+    //IN
+    vendor_context: usize,
+    p2p_stream_id: u8,
+    //OUT
+    negotiated_version: &mut TdispVersion,
+    interface_id: &mut InterfaceId,
+    tdisp_error_code: &mut Option<TdispErrorCode>,
+) -> SpdmResult {
+    (PCI_TDISP_DEVICE_BING_P2P_STREAM_INSTANCE
+        .try_get_or_init(|| UNIMPLETEMTED.clone())
+        .ok()
+        .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
+        .pci_tdisp_device_bind_p2p_stream_cb)(
+        vendor_context,
+        p2p_stream_id,
+        negotiated_version,
+        interface_id,
+        tdisp_error_code,
+    )
+}
+
+pub(crate) fn pci_tdisp_rsp_bind_p2p_stream(
+    vendor_context: usize,
+    vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
+) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+    let req_bind_p2_pstream_request = ReqBindP2PStreamRequest::read_bytes(
+        &vendor_defined_req_payload_struct.vendor_defined_req_payload
+            [..vendor_defined_req_payload_struct.req_length as usize],
+    )
+    .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
+
+    let mut negotiated_version = TdispVersion::default();
+    let mut interface_id = InterfaceId::default();
+    let mut tdisp_error_code = None;
+
+    pci_tdisp_device_bind_p2p_stream(
+        vendor_context,
+        req_bind_p2_pstream_request.p2p_stream_id,
+        &mut negotiated_version,
+        &mut interface_id,
+        &mut tdisp_error_code,
+    )?;
+
+    let mut vendor_defined_rsp_payload_struct = VendorDefinedRspPayloadStruct {
+        rsp_length: 0,
+        vendor_defined_rsp_payload: [0u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
+    };
+
+    if let Some(tdisp_error_code) = tdisp_error_code {
+        let len = write_error(
+            vendor_context,
+            tdisp_error_code,
+            0,
+            &[],
+            &mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload,
+        )?;
+        vendor_defined_rsp_payload_struct.rsp_length = len as u16;
+        return Ok(vendor_defined_rsp_payload_struct);
+    }
+
+    let mut writer =
+        Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+
+    let cnt = RspBindP2PStreamResponse {
+        message_header: TdispMessageHeader {
+            interface_id,
+            message_type: TdispRequestResponseCode::BIND_P2P_STREAM_RESPONSE,
+            tdisp_version: negotiated_version,
+        },
+    }
+    .encode(&mut writer)
+    .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
+
+    if cnt > u16::MAX as usize {
+        Err(SPDM_STATUS_INVALID_STATE_LOCAL)
+    } else {
+        vendor_defined_rsp_payload_struct.rsp_length = cnt as u16;
+        Ok(vendor_defined_rsp_payload_struct)
     }
 }

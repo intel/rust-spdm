@@ -1,54 +1,54 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use spdmlib::error::*;
+use conquer_once::spin::OnceCell;
+use spdmlib::{
+    error::{SpdmResult, SPDM_STATUS_INVALID_STATE_LOCAL},
+    message::{VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct},
+};
 
-use crate::context::{MessagePayloadRequestVDM, MessagePayloadResponseVDM};
+static PCI_TDISP_DEVICE_VDM_RESPONSE_INSTANCE: OnceCell<PciTdispDeviceVdmResponse> =
+    OnceCell::uninit();
 
-use super::*;
-
-impl<'a> TdispResponder<'a> {
-    pub fn pci_tdisp_rsp_vdm_response(
-        &mut self,
+#[derive(Clone)]
+pub struct PciTdispDeviceVdmResponse {
+    pub pci_tdisp_device_vdm_response_cb: fn(
+        //IN
+        vendor_context: usize,
         vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
-    ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
-        let mut reader =
-            Reader::init(&vendor_defined_req_payload_struct.vendor_defined_req_payload);
-        let tmh = TdispMessageHeader::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
-        let mpr =
-            MessagePayloadRequestVDM::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
-        if tmh.is_none() || mpr.is_none() {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_REQUEST,
-            )
-        } else {
-            let mut vendor_defined_rsp_payload_struct: VendorDefinedRspPayloadStruct =
-                VendorDefinedRspPayloadStruct {
-                    rsp_length: 0,
-                    vendor_defined_rsp_payload: [0u8;
-                        spdmlib::config::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
-                };
-            let mut writer =
-                Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+    ) -> SpdmResult<VendorDefinedRspPayloadStruct>,
+}
 
-            let tmhr = TdispMessageHeader {
-                tdisp_version: self.tdisp_requester_context.version_sel,
-                message_type: TdispRequestResponseCode::ResponseVdmResponse,
-                interface_id: self.tdisp_requester_context.tdi,
-            };
+pub fn register(context: PciTdispDeviceVdmResponse) -> bool {
+    PCI_TDISP_DEVICE_VDM_RESPONSE_INSTANCE
+        .try_init_once(|| context)
+        .is_ok()
+}
 
-            let mprr = MessagePayloadResponseVDM::default();
-            // mprr.registry_id
-            // mprr.vendor_id
-            // mprr.vendor_id_len
-            // vendor_data
+static UNIMPLETEMTED: PciTdispDeviceVdmResponse = PciTdispDeviceVdmResponse {
+    pci_tdisp_device_vdm_response_cb:
+        |//IN
+         _vendor_context: usize,
+         _vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct|
+         -> SpdmResult<VendorDefinedRspPayloadStruct> { unimplemented!() },
+};
 
-            tmhr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
-            mprr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
+pub(crate) fn pci_tdisp_device_vdm_response(
+    //IN
+    vendor_context: usize,
+    vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
+) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+    (PCI_TDISP_DEVICE_VDM_RESPONSE_INSTANCE
+        .try_get_or_init(|| UNIMPLETEMTED.clone())
+        .ok()
+        .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
+        .pci_tdisp_device_vdm_response_cb)(vendor_context, vendor_defined_req_payload_struct)
+}
 
-            Ok(vendor_defined_rsp_payload_struct)
-        }
-    }
+pub(crate) fn pci_tdisp_rsp_vdm_response(
+    vendor_context: usize,
+    vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
+) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+    pci_tdisp_device_vdm_response(vendor_context, vendor_defined_req_payload_struct)
 }

@@ -1,72 +1,185 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use spdmlib::error::*;
-
-use crate::{
-    context::{
-        MessagePayloadRequestGetDeviceInterfaceReport, MessagePayloadResponseDeviceInterfaceReport,
+use codec::{Codec, Writer};
+use conquer_once::spin::OnceCell;
+use spdmlib::{
+    error::{
+        SpdmResult, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_INVALID_MSG_FIELD,
+        SPDM_STATUS_INVALID_STATE_LOCAL,
     },
-    state_machine::TDIState,
+    message::{
+        VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct,
+        MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE,
+    },
 };
 
-use super::*;
+use crate::pci_tdisp::{
+    InterfaceId, ReqGetDeviceInterfaceReport, RspDeviceInterfaceReport, TdispErrorCode,
+    TdispMessageHeader, TdispRequestResponseCode, TdispVersion, MAX_DEVICE_REPORT_BUFFER,
+    MAX_PORTION_LENGTH,
+};
 
-// security check
-// Interface ID in the request is not hosted by the device
-// DONE - TDI is not in CONFIG_LOCKED or RUN
-// Invalid offset specified
+use super::pci_tdisp_rsp_tdisp_error::write_error;
 
-impl<'a> TdispResponder<'a> {
-    pub fn pci_tdisp_rsp_device_interface_report(
-        &mut self,
-        vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
-    ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
-        let mut reader =
-            Reader::init(&vendor_defined_req_payload_struct.vendor_defined_req_payload);
-        let tmh = TdispMessageHeader::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
-        let mpr = MessagePayloadRequestGetDeviceInterfaceReport::tdisp_read(
-            &mut self.tdisp_requester_context,
-            &mut reader,
-        );
-        if tmh.is_none() || mpr.is_none() {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_REQUEST,
-            )
-        } else if self.tdisp_requester_context.state_machine.current_state != TDIState::Run
-            || self.tdisp_requester_context.state_machine.current_state != TDIState::ConfigLocked
-        {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_INTERFACE_STATE,
-            )
+static PCI_TDISP_DEVICE_INTERFACE_REPORT_INSTANCE: OnceCell<PciTdispDeviceInterfaceReport> =
+    OnceCell::uninit();
+
+#[derive(Clone)]
+#[allow(clippy::type_complexity)]
+pub struct PciTdispDeviceInterfaceReport {
+    pub pci_tdisp_device_interface_report_cb: fn(
+        // INT
+        vendor_context: usize,
+        // OUT
+        negotiated_version: &mut TdispVersion,
+        interface_id: &mut InterfaceId,
+        tdi_report: &mut [u8; MAX_DEVICE_REPORT_BUFFER],
+        tdi_report_size: &mut usize,
+        tdisp_error_code: &mut Option<TdispErrorCode>,
+    ) -> SpdmResult,
+}
+
+pub fn register(context: PciTdispDeviceInterfaceReport) -> bool {
+    PCI_TDISP_DEVICE_INTERFACE_REPORT_INSTANCE
+        .try_init_once(|| context)
+        .is_ok()
+}
+
+static UNIMPLETEMTED: PciTdispDeviceInterfaceReport = PciTdispDeviceInterfaceReport {
+    pci_tdisp_device_interface_report_cb: |_: usize,
+                                           _: &mut TdispVersion,
+                                           _: &mut InterfaceId,
+                                           _: &mut [u8; MAX_DEVICE_REPORT_BUFFER],
+                                           _: &mut usize,
+                                           _: &mut Option<TdispErrorCode>|
+     -> SpdmResult { unimplemented!() },
+};
+
+pub(crate) fn pci_tdisp_device_interface_report(
+    // INT
+    vendor_context: usize,
+    // OUT
+    negotiated_version: &mut TdispVersion,
+    interface_id: &mut InterfaceId,
+    tdi_report: &mut [u8; MAX_DEVICE_REPORT_BUFFER],
+    tdi_report_size: &mut usize,
+    tdisp_error_code: &mut Option<TdispErrorCode>,
+) -> SpdmResult {
+    (PCI_TDISP_DEVICE_INTERFACE_REPORT_INSTANCE
+        .try_get_or_init(|| UNIMPLETEMTED.clone())
+        .ok()
+        .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
+        .pci_tdisp_device_interface_report_cb)(
+        vendor_context,
+        negotiated_version,
+        interface_id,
+        tdi_report,
+        tdi_report_size,
+        tdisp_error_code,
+    )
+}
+
+pub(crate) fn pci_tdisp_rsp_interface_report(
+    vendor_context: usize,
+    vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
+) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+    let req_get_device_interface_report = ReqGetDeviceInterfaceReport::read_bytes(
+        &vendor_defined_req_payload_struct.vendor_defined_req_payload
+            [..vendor_defined_req_payload_struct.req_length as usize],
+    )
+    .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
+
+    let mut negotiated_version = TdispVersion::default();
+    let mut interface_id = InterfaceId::default();
+    let mut tdi_report = [0u8; MAX_DEVICE_REPORT_BUFFER];
+    let mut tdi_report_size = 0usize;
+    let mut tdisp_error_code_code = None;
+
+    // device need to check tdi state
+    pci_tdisp_device_interface_report(
+        vendor_context,
+        &mut negotiated_version,
+        &mut interface_id,
+        &mut tdi_report,
+        &mut tdi_report_size,
+        &mut tdisp_error_code_code,
+    )?;
+
+    let mut vendor_defined_rsp_payload_struct = VendorDefinedRspPayloadStruct {
+        rsp_length: 0,
+        vendor_defined_rsp_payload: [0u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
+    };
+
+    if let Some(tdisp_error_code_code) = tdisp_error_code_code {
+        let len = write_error(
+            vendor_context,
+            tdisp_error_code_code,
+            0,
+            &[],
+            &mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload,
+        )?;
+        vendor_defined_rsp_payload_struct.rsp_length = len as u16;
+        return Ok(vendor_defined_rsp_payload_struct);
+    }
+
+    let portion_length = if req_get_device_interface_report.length as usize > MAX_PORTION_LENGTH {
+        MAX_PORTION_LENGTH as u16
+    } else {
+        req_get_device_interface_report.length
+    };
+
+    let portion_length = if req_get_device_interface_report.offset as usize
+        + portion_length as usize
+        > tdi_report_size
+    {
+        let remainder = (tdi_report_size - req_get_device_interface_report.offset as usize) as u16;
+        if remainder > portion_length {
+            portion_length
         } else {
-            let mut vendor_defined_rsp_payload_struct: VendorDefinedRspPayloadStruct =
-                VendorDefinedRspPayloadStruct {
-                    rsp_length: 0,
-                    vendor_defined_rsp_payload: [0u8;
-                        spdmlib::config::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
-                };
-            let mut writer =
-                Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
-
-            let tmhr = TdispMessageHeader {
-                tdisp_version: self.tdisp_requester_context.version_sel,
-                message_type: TdispRequestResponseCode::ResponseDeviceInterfaceReport,
-                interface_id: self.tdisp_requester_context.tdi,
-            };
-
-            let mprr = MessagePayloadResponseDeviceInterfaceReport::default();
-            // mprr.portion_length
-            // mprr.reminder_length
-            // mprr.report_bytes
-
-            tmhr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
-            mprr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
-
-            Ok(vendor_defined_rsp_payload_struct)
+            remainder
         }
+    } else {
+        portion_length
+    };
+
+    let remainder_length = if tdi_report_size
+        > req_get_device_interface_report.offset as usize + portion_length as usize
+    {
+        (tdi_report_size
+            - req_get_device_interface_report.offset as usize
+            - portion_length as usize) as u16
+    } else {
+        0
+    };
+
+    let mut writer =
+        Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+
+    let mut report = [0u8; MAX_PORTION_LENGTH];
+    report[..portion_length as usize].copy_from_slice(
+        &tdi_report[req_get_device_interface_report.offset as usize
+            ..req_get_device_interface_report.offset as usize + portion_length as usize],
+    );
+
+    let cnt = RspDeviceInterfaceReport {
+        message_header: TdispMessageHeader {
+            interface_id,
+            message_type: TdispRequestResponseCode::DEVICE_INTERFACE_REPORT,
+            tdisp_version: negotiated_version,
+        },
+        portion_length,
+        remainder_length,
+        report,
+    }
+    .encode(&mut writer)
+    .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
+
+    if cnt > u16::MAX as usize {
+        Err(SPDM_STATUS_INVALID_STATE_LOCAL)
+    } else {
+        vendor_defined_rsp_payload_struct.rsp_length = cnt as u16;
+        Ok(vendor_defined_rsp_payload_struct)
     }
 }

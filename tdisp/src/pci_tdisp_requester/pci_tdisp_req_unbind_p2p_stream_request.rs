@@ -1,77 +1,89 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use codec::Codec;
 use codec::Writer;
-use core::convert::TryInto;
+use spdmlib::error::SPDM_STATUS_BUFFER_FULL;
+use spdmlib::error::SPDM_STATUS_ERROR_PEER;
+use spdmlib::error::SPDM_STATUS_INVALID_MSG_FIELD;
 use spdmlib::{
-    message::{
-        RegistryOrStandardsBodyID, VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct,
-    },
+    error::SpdmResult,
+    message::{VendorDefinedReqPayloadStruct, MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE},
     requester::RequesterContext,
 };
 
-use crate::{
-    common::{InternalError, TdispResult, PCI_VENDOR_ID_STRUCT},
-    context::{MessagePayloadRequestUnbindP2pStream, TdispMessage, TdispRequestResponseCode},
-    tdisp_codec::TdispCodec,
+use crate::pci_tdisp::vendor_id;
+use crate::pci_tdisp::ReqUnBindP2PStreamRequest;
+use crate::pci_tdisp::RspTdispError;
+use crate::pci_tdisp::RspUnBindP2PStreamResponse;
+use crate::pci_tdisp::STANDARD_ID;
+use crate::pci_tdisp::{
+    InterfaceId, TdispErrorCode, TdispMessageHeader, TdispRequestResponseCode, TdispVersion,
 };
 
-use super::*;
+pub async fn pci_tdisp_req_unbind_p2p_stream_request(
+    // IN
+    spdm_requester: &mut RequesterContext,
+    session_id: u32,
+    negotiated_version: TdispVersion,
+    interface_id: InterfaceId,
+    p2p_stream_id: u8,
+    // OUT
+    tdisp_error_code: &mut Option<TdispErrorCode>,
+) -> SpdmResult {
+    let mut vendor_defined_req_payload_struct = VendorDefinedReqPayloadStruct {
+        req_length: 0,
+        vendor_defined_req_payload: [0u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
+    };
 
-impl<'a> TdispRequester<'a> {
-    pub fn pci_tdisp_req_unbind_p2p_stream_request(
-        &mut self,
-        spdm_requester: &mut RequesterContext,
-    ) -> TdispResult {
-        let mut tdisp_message = TdispMessage::<MessagePayloadRequestUnbindP2pStream>::default();
-        tdisp_message.tdisp_message_header.interface_id = self.tdisp_requester_context.tdi;
-        tdisp_message.tdisp_message_header.tdisp_version = self.tdisp_requester_context.version_sel;
-        let mut vendor_defined_req_payload =
-            [0u8; spdmlib::config::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE];
-        let mut writer = Writer::init(&mut vendor_defined_req_payload);
-        tdisp_message.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
-        let req_length: u16 = writer.used().try_into().unwrap();
+    let mut writer =
+        Writer::init(&mut vendor_defined_req_payload_struct.vendor_defined_req_payload);
 
-        let vdrp = VendorDefinedReqPayloadStruct {
-            req_length,
-            vendor_defined_req_payload,
-        };
+    vendor_defined_req_payload_struct.req_length = ReqUnBindP2PStreamRequest {
+        message_header: TdispMessageHeader {
+            interface_id,
+            message_type: TdispRequestResponseCode::UNBIND_P2P_STREAM_REQUEST,
+            tdisp_version: negotiated_version,
+        },
+        p2p_stream_id,
+    }
+    .encode(&mut writer)
+    .map_err(|_| SPDM_STATUS_BUFFER_FULL)?
+        as u16;
 
-        self.tdisp_requester_context
-            .request_message
-            .copy_from_slice(&vendor_defined_req_payload);
-        self.tdisp_requester_context.request_code =
-            TdispRequestResponseCode::RequestUnbindP2pStreamRequest;
+    let vendor_defined_rsp_payload_struct = spdm_requester
+        .send_spdm_vendor_defined_request(
+            Some(session_id),
+            STANDARD_ID,
+            vendor_id(),
+            vendor_defined_req_payload_struct,
+        )
+        .await?;
 
-        match spdm_requester.send_spdm_vendor_defined_request(
-            self.tdisp_requester_context.spdm_session_id,
-            RegistryOrStandardsBodyID::PCISIG,
-            PCI_VENDOR_ID_STRUCT,
-            vdrp,
-        ) {
-            Ok(vdrp) => {
-                let VendorDefinedRspPayloadStruct {
-                    rsp_length: _,
-                    vendor_defined_rsp_payload,
-                } = vdrp;
-
-                self.tdisp_requester_context.response_code =
-                    TdispRequestResponseCode::ResponseUnbindP2pStreamResponse;
-                self.tdisp_requester_context
-                    .response_message
-                    .copy_from_slice(&vendor_defined_rsp_payload);
-
-                self.handle_unbind_p2p_stream_response(spdm_requester)
-            }
-            Err(_) => Err(InternalError::Unrecoverable),
-        }
+    if let Ok(tdisp_error) = RspTdispError::read_bytes(
+        &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload
+            [..vendor_defined_rsp_payload_struct.rsp_length as usize],
+    )
+    .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)
+    {
+        *tdisp_error_code = Some(tdisp_error.error_code);
+        return Err(SPDM_STATUS_ERROR_PEER);
     }
 
-    fn handle_unbind_p2p_stream_response(
-        &mut self,
-        _spdm_requester: &mut RequesterContext,
-    ) -> TdispResult {
-        Ok(())
+    let rsp_un_bind_p2_pstream_response = RspUnBindP2PStreamResponse::read_bytes(
+        &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload
+            [..vendor_defined_rsp_payload_struct.rsp_length as usize],
+    )
+    .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
+
+    if rsp_un_bind_p2_pstream_response.message_header.tdisp_version != negotiated_version
+        || rsp_un_bind_p2_pstream_response.message_header.message_type
+            != TdispRequestResponseCode::UNBIND_P2P_STREAM_RESPONSE
+        || rsp_un_bind_p2_pstream_response.message_header.interface_id != interface_id
+    {
+        return Err(SPDM_STATUS_INVALID_MSG_FIELD);
     }
+
+    Ok(())
 }

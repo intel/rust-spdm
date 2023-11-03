@@ -1,58 +1,184 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use spdmlib::error::*;
+use codec::{Codec, Writer};
+use conquer_once::spin::OnceCell;
+use spdmlib::{
+    error::{
+        SpdmResult, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_INVALID_MSG_FIELD,
+        SPDM_STATUS_INVALID_STATE_LOCAL,
+    },
+    message::{
+        VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct,
+        MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE,
+    },
+};
 
-use crate::context::{MessagePayloadRequestGetCapabilities, MessagePayloadResponseCapabilities};
+use crate::pci_tdisp::{
+    InterfaceId, LockInterfaceFlag, ReqGetTdispCapabilities, RspTdispCapabilities, TdispErrorCode,
+    TdispMessageHeader, TdispRequestResponseCode, TdispVersion,
+};
 
-use super::*;
+use super::pci_tdisp_rsp_tdisp_error::write_error;
 
-impl<'a> TdispResponder<'a> {
-    pub fn pci_tdisp_rsp_tdisp_capabilities(
-        &mut self,
-        vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
-    ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
-        let mut reader =
-            Reader::init(&vendor_defined_req_payload_struct.vendor_defined_req_payload);
-        let tmh = TdispMessageHeader::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
-        let mpr = MessagePayloadRequestGetCapabilities::tdisp_read(
-            &mut self.tdisp_requester_context,
-            &mut reader,
-        );
-        if tmh.is_none() || mpr.is_none() {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_REQUEST,
-            )
-        } else {
-            let mut vendor_defined_rsp_payload_struct: VendorDefinedRspPayloadStruct =
-                VendorDefinedRspPayloadStruct {
-                    rsp_length: 0,
-                    vendor_defined_rsp_payload: [0u8;
-                        spdmlib::config::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
-                };
-            let mut writer =
-                Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+static PCI_TDISP_DEVICE_CAPABILITIES_INSTANCE: OnceCell<PciTdispDeviceCapabilities> =
+    OnceCell::uninit();
 
-            let tmhr = TdispMessageHeader {
-                tdisp_version: self.tdisp_requester_context.version_sel,
-                message_type: TdispRequestResponseCode::ResponseTdispCapabilities,
-                interface_id: self.tdisp_requester_context.tdi,
-            };
+#[derive(Clone)]
+pub struct PciTdispDeviceCapabilities {
+    #[allow(clippy::type_complexity)]
+    pub pci_tdisp_device_capabilities_cb: fn(
+        // IN
+        vendor_context: usize,
+        tsm_caps: u32,
+        // OUT
+        negotiated_version: &mut TdispVersion,
+        interface_id: &mut InterfaceId,
+        dsm_caps: &mut u32,
+        req_msgs_supported: &mut [u8; 16],
+        lock_interface_flags_supported: &mut LockInterfaceFlag,
+        dev_addr_width: &mut u8,
+        num_req_this: &mut u8,
+        num_req_all: &mut u8,
+        tdisp_error_code: &mut Option<TdispErrorCode>,
+    ) -> SpdmResult,
+}
 
-            let mprr = MessagePayloadResponseCapabilities::default();
-            // mprr.dev_addr_width
-            // mprr.dsm_caps
-            // mprr.lock_interface_flags_supported
-            // mprr.num_req_all
-            // mprr.num_req_this
-            // mprr.req_msgs_supported
+pub fn register(context: PciTdispDeviceCapabilities) -> bool {
+    PCI_TDISP_DEVICE_CAPABILITIES_INSTANCE
+        .try_init_once(|| context)
+        .is_ok()
+}
 
-            tmhr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
-            mprr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
+static UNIMPLETEMTED: PciTdispDeviceCapabilities = PciTdispDeviceCapabilities {
+    pci_tdisp_device_capabilities_cb: |// IN
+                                       _vendor_context: usize,
+                                       _tsm_caps: u32,
+                                       // OUT
+                                       _negotiated_version: &mut TdispVersion,
+                                       _interface_id: &mut InterfaceId,
+                                       _dsm_caps: &mut u32,
+                                       _req_msgs_supported: &mut [u8; 16],
+                                       _lock_interface_flags_supported: &mut LockInterfaceFlag,
+                                       _dev_addr_width: &mut u8,
+                                       _num_req_this: &mut u8,
+                                       _num_req_all: &mut u8,
+                                       _tdisp_error_code: &mut Option<TdispErrorCode>|
+     -> SpdmResult { unimplemented!() },
+};
 
-            Ok(vendor_defined_rsp_payload_struct)
-        }
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn pci_tdisp_device_capabilities(
+    // IN
+    vendor_context: usize,
+    tsm_caps: u32,
+    // OUT
+    negotiated_version: &mut TdispVersion,
+    interface_id: &mut InterfaceId,
+    dsm_caps: &mut u32,
+    req_msgs_supported: &mut [u8; 16],
+    lock_interface_flags_supported: &mut LockInterfaceFlag,
+    dev_addr_width: &mut u8,
+    num_req_this: &mut u8,
+    num_req_all: &mut u8,
+    tdisp_error_code: &mut Option<TdispErrorCode>,
+) -> SpdmResult {
+    (PCI_TDISP_DEVICE_CAPABILITIES_INSTANCE
+        .try_get_or_init(|| UNIMPLETEMTED.clone())
+        .ok()
+        .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
+        .pci_tdisp_device_capabilities_cb)(
+        // IN
+        vendor_context,
+        tsm_caps,
+        // OUT
+        negotiated_version,
+        interface_id,
+        dsm_caps,
+        req_msgs_supported,
+        lock_interface_flags_supported,
+        dev_addr_width,
+        num_req_this,
+        num_req_all,
+        tdisp_error_code,
+    )
+}
+
+pub(crate) fn pci_tdisp_rsp_capabilities(
+    vendor_context: usize,
+    vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
+) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+    let req_get_tdisp_capabilities = ReqGetTdispCapabilities::read_bytes(
+        &vendor_defined_req_payload_struct.vendor_defined_req_payload
+            [..vendor_defined_req_payload_struct.req_length as usize],
+    )
+    .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
+
+    let mut negotiated_version = TdispVersion::default();
+    let mut interface_id = InterfaceId::default();
+    let mut dsm_caps = 0u32;
+    let mut req_msgs_supported = [0u8; 16];
+    let mut lock_interface_flags_supported = LockInterfaceFlag::empty();
+    let mut dev_addr_width = 0u8;
+    let mut num_req_this = 0u8;
+    let mut num_req_all = 0u8;
+    let mut tdisp_error_code = None;
+
+    pci_tdisp_device_capabilities(
+        vendor_context,
+        req_get_tdisp_capabilities.tsm_caps,
+        &mut negotiated_version,
+        &mut interface_id,
+        &mut dsm_caps,
+        &mut req_msgs_supported,
+        &mut lock_interface_flags_supported,
+        &mut dev_addr_width,
+        &mut num_req_this,
+        &mut num_req_all,
+        &mut tdisp_error_code,
+    )?;
+
+    let mut vendor_defined_rsp_payload_struct = VendorDefinedRspPayloadStruct {
+        rsp_length: 0,
+        vendor_defined_rsp_payload: [0u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
+    };
+
+    if let Some(tdisp_error_code) = tdisp_error_code {
+        let len = write_error(
+            vendor_context,
+            tdisp_error_code,
+            0,
+            &[],
+            &mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload,
+        )?;
+        vendor_defined_rsp_payload_struct.rsp_length = len as u16;
+        return Ok(vendor_defined_rsp_payload_struct);
+    }
+
+    let mut writer =
+        Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+
+    let cnt = RspTdispCapabilities {
+        message_header: TdispMessageHeader {
+            interface_id,
+            message_type: TdispRequestResponseCode::TDISP_CAPABILITIES,
+            tdisp_version: negotiated_version,
+        },
+        dsm_caps,
+        req_msgs_supported,
+        lock_interface_flags_supported,
+        dev_addr_width,
+        num_req_this,
+        num_req_all,
+    }
+    .encode(&mut writer)
+    .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
+
+    if cnt > u16::MAX as usize {
+        Err(SPDM_STATUS_INVALID_STATE_LOCAL)
+    } else {
+        vendor_defined_rsp_payload_struct.rsp_length = cnt as u16;
+        Ok(vendor_defined_rsp_payload_struct)
     }
 }

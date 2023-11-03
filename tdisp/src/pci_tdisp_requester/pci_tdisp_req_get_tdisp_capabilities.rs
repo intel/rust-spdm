@@ -1,77 +1,92 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use codec::Codec;
 use codec::Writer;
-use core::convert::TryInto;
+use spdmlib::error::SPDM_STATUS_BUFFER_FULL;
+use spdmlib::error::SPDM_STATUS_INVALID_MSG_FIELD;
 use spdmlib::{
-    message::{
-        RegistryOrStandardsBodyID, VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct,
-    },
+    error::SpdmResult,
+    message::{VendorDefinedReqPayloadStruct, MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE},
     requester::RequesterContext,
 };
 
-use crate::{
-    common::{InternalError, TdispResult, PCI_VENDOR_ID_STRUCT},
-    context::{MessagePayloadRequestGetCapabilities, TdispMessage, TdispRequestResponseCode},
-    tdisp_codec::TdispCodec,
-};
+use crate::pci_tdisp::vendor_id;
+use crate::pci_tdisp::InterfaceId;
+use crate::pci_tdisp::LockInterfaceFlag;
+use crate::pci_tdisp::ReqGetTdispCapabilities;
+use crate::pci_tdisp::RspTdispCapabilities;
+use crate::pci_tdisp::TdispMessageHeader;
+use crate::pci_tdisp::TdispRequestResponseCode;
+use crate::pci_tdisp::TdispVersion;
+use crate::pci_tdisp::STANDARD_ID;
 
-use super::*;
+#[allow(clippy::too_many_arguments)]
+pub async fn pci_tdisp_req_get_tdisp_capabilities(
+    // IN
+    spdm_requester: &mut RequesterContext,
+    session_id: u32,
+    tsm_caps: u32,
+    negotiated_version: TdispVersion,
+    interface_id: InterfaceId,
+    // OUT
+    dsm_caps: &mut u32,
+    lock_interface_flags_supported: &mut LockInterfaceFlag,
+    dev_addr_width: &mut u8,
+    num_req_this: &mut u8,
+    num_req_all: &mut u8,
+    req_msgs_supported: &mut [u8; 16],
+) -> SpdmResult {
+    let mut vendor_defined_req_payload_struct = VendorDefinedReqPayloadStruct {
+        req_length: 0,
+        vendor_defined_req_payload: [0u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
+    };
 
-impl<'a> TdispRequester<'a> {
-    pub fn pci_tdisp_req_get_tdisp_capabilities(
-        &mut self,
-        spdm_requester: &mut RequesterContext,
-    ) -> TdispResult {
-        let mut tdisp_message = TdispMessage::<MessagePayloadRequestGetCapabilities>::default();
-        tdisp_message.tdisp_message_header.interface_id = self.tdisp_requester_context.tdi;
-        tdisp_message.tdisp_message_header.tdisp_version = self.tdisp_requester_context.version_sel;
-        let mut vendor_defined_req_payload =
-            [0u8; spdmlib::config::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE];
-        let mut writer = Writer::init(&mut vendor_defined_req_payload);
-        tdisp_message.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
-        let req_length: u16 = writer.used().try_into().unwrap();
+    let mut writer =
+        Writer::init(&mut vendor_defined_req_payload_struct.vendor_defined_req_payload);
 
-        let vdrp = VendorDefinedReqPayloadStruct {
-            req_length,
-            vendor_defined_req_payload,
-        };
+    vendor_defined_req_payload_struct.req_length = ReqGetTdispCapabilities {
+        message_header: TdispMessageHeader {
+            interface_id,
+            message_type: TdispRequestResponseCode::GET_TDISP_CAPABILITIES,
+            tdisp_version: negotiated_version,
+        },
+        tsm_caps,
+    }
+    .encode(&mut writer)
+    .map_err(|_| SPDM_STATUS_BUFFER_FULL)?
+        as u16;
+    let vendor_defined_rsp_payload_struct = spdm_requester
+        .send_spdm_vendor_defined_request(
+            Some(session_id),
+            STANDARD_ID,
+            vendor_id(),
+            vendor_defined_req_payload_struct,
+        )
+        .await?;
 
-        self.tdisp_requester_context
-            .request_message
-            .copy_from_slice(&vendor_defined_req_payload);
-        self.tdisp_requester_context.request_code =
-            TdispRequestResponseCode::RequestGetTdispCapabilities;
+    let rsp_tdisp_capabilities = RspTdispCapabilities::read_bytes(
+        &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload
+            [..vendor_defined_rsp_payload_struct.rsp_length as usize],
+    )
+    .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-        match spdm_requester.send_spdm_vendor_defined_request(
-            self.tdisp_requester_context.spdm_session_id,
-            RegistryOrStandardsBodyID::PCISIG,
-            PCI_VENDOR_ID_STRUCT,
-            vdrp,
-        ) {
-            Ok(vdrp) => {
-                let VendorDefinedRspPayloadStruct {
-                    rsp_length: _,
-                    vendor_defined_rsp_payload,
-                } = vdrp;
-
-                self.tdisp_requester_context.response_code =
-                    TdispRequestResponseCode::ResponseTdispCapabilities;
-                self.tdisp_requester_context
-                    .response_message
-                    .copy_from_slice(&vendor_defined_rsp_payload);
-
-                self.handle_get_tdisp_capabilities_response(spdm_requester)
-            }
-            Err(_) => Err(InternalError::Unrecoverable),
-        }
+    if rsp_tdisp_capabilities.message_header.tdisp_version != negotiated_version
+        || rsp_tdisp_capabilities.message_header.message_type
+            != TdispRequestResponseCode::TDISP_CAPABILITIES
+        || rsp_tdisp_capabilities.message_header.interface_id != interface_id
+    {
+        return Err(SPDM_STATUS_INVALID_MSG_FIELD);
     }
 
-    fn handle_get_tdisp_capabilities_response(
-        &mut self,
-        _spdm_requester: &mut RequesterContext,
-    ) -> TdispResult {
-        Ok(())
-    }
+    *dsm_caps = rsp_tdisp_capabilities.dsm_caps;
+    req_msgs_supported.copy_from_slice(&rsp_tdisp_capabilities.req_msgs_supported);
+    *lock_interface_flags_supported = rsp_tdisp_capabilities.lock_interface_flags_supported;
+    *lock_interface_flags_supported = rsp_tdisp_capabilities.lock_interface_flags_supported;
+    *dev_addr_width = rsp_tdisp_capabilities.dev_addr_width;
+    *num_req_this = rsp_tdisp_capabilities.num_req_this;
+    *num_req_all = rsp_tdisp_capabilities.num_req_all;
+
+    Ok(())
 }

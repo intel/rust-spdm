@@ -1,106 +1,164 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use spdmlib::error::*;
-
-use crate::{
-    context::{MessagePayloadRequestLockInterface, MessagePayloadResponseLockInterface},
-    state_machine::TDIState,
+use codec::{Codec, Writer};
+use conquer_once::spin::OnceCell;
+use spdmlib::{
+    error::{
+        SpdmResult, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_INVALID_MSG_FIELD,
+        SPDM_STATUS_INVALID_STATE_LOCAL,
+    },
+    message::{
+        VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct,
+        MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE,
+    },
 };
 
-use super::*;
+use crate::pci_tdisp::{
+    InterfaceId, LockInterfaceFlag, ReqLockInterfaceRequest, RspLockInterfaceResponse,
+    TdispErrorCode, TdispMessageHeader, TdispRequestResponseCode, TdispVersion,
+    START_INTERFACE_NONCE_LEN,
+};
 
-// security check
-// Interface ID specified in the request is not hosted by the device.
-// DONE - TDI is not in CONFIG_UNLOCKED.
-// For TDIs where IDE is required:
-// The default Stream does not match the Stream ID indicated
-// The default stream does not have IDE keys programmed for all sub-streams
-// All IDE keys of the default stream were not configured over the SPDM session on which the LOCK_INTERFACE_REQUEST was received
-// Multiple IDE configuration registers in the device have been configured as the default stream
-// The default Stream is associated with a TC other than TC0
-// Phantom Functions Enabled
-// Device PF BARs configured with overlapping addresses
-// Expansion ROM base address, if supported, configured t// overlap with a BAR
-// Resizable BAR control registers programmed with an unsupported BAR size
-// VF BARs are configured with address overlapping another VF BAR, a PF BAR or Expansion ROM BAR
-// Unsupported system page size is configured in the system page size register of SR-IOV capability
-// Cache Line Size configured for LN requester capability (deprecated in PCIe Revision 6.0), if supported and enabled, does not match the system cache line size specified in the LOCK_INTERFACE_REQUEST or is configured t// a value not supported by the device.
-// ST mode selected in TPH Requester Extended Capability, if supported and enabled, does not correspond t// a mode supported by the function hosting the TDI.
-// Other device determined errors in the device or TDI configurations
+use super::pci_tdisp_rsp_tdisp_error::write_error;
 
-// The LOCK_INTERFACE_REQUEST binds and configures the following parameters into the TDI
-// MMIO_REPORTING_OFFSET
-// NO_FW_UPDATE
-// System cache line size
-// MSI-X table and PBA
-// BIND_P2P
-// ALL_REQUEST_REDIRECT
-impl<'a> TdispResponder<'a> {
-    pub fn pci_tdisp_rsp_lock_interface_request(
-        &mut self,
-        vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
-    ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
-        let mut reader =
-            Reader::init(&vendor_defined_req_payload_struct.vendor_defined_req_payload);
-        let tmh = TdispMessageHeader::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
-        let mpr = MessagePayloadRequestLockInterface::tdisp_read(
-            &mut self.tdisp_requester_context,
-            &mut reader,
-        );
-        if tmh.is_none() || mpr.is_none() {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_REQUEST,
-            )
-        } else if self.tdisp_requester_context.state_machine.current_state
-            != TDIState::ConfigUnlocked
-        {
-            self.handle_tdisp_error(
-                vendor_defined_req_payload_struct,
-                MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_INTERFACE_STATE,
-            )
-        } else {
-            let mut vendor_defined_rsp_payload_struct: VendorDefinedRspPayloadStruct =
-                VendorDefinedRspPayloadStruct {
-                    rsp_length: 0,
-                    vendor_defined_rsp_payload: [0u8;
-                        spdmlib::config::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
-                };
-            let mut writer =
-                Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+static PCI_TDISP_DEVICE_LOCK_INTERFACE_INSTANCE: OnceCell<PciTdispDeviceLockInterface> =
+    OnceCell::uninit();
 
-            let tmhr = TdispMessageHeader {
-                tdisp_version: self.tdisp_requester_context.version_sel,
-                message_type: TdispRequestResponseCode::ResponseLockInterfaceResponse,
-                interface_id: self.tdisp_requester_context.tdi,
-            };
+#[derive(Clone)]
+pub struct PciTdispDeviceLockInterface {
+    #[allow(clippy::type_complexity)]
+    pub pci_tdisp_device_lock_interface_cb: fn(
+        // IN
+        vendor_context: usize,
+        flags: &LockInterfaceFlag,
+        default_stream_id: u8,
+        mmio_reporting_offset: u64,
+        bind_p2p_address_mask: u64,
+        // OUT
+        negotiated_version: &mut TdispVersion,
+        interface_id: &mut InterfaceId,
+        start_interface_nonce: &mut [u8; START_INTERFACE_NONCE_LEN],
+        tdisp_error_code: &mut Option<TdispErrorCode>,
+    ) -> SpdmResult,
+}
 
-            let mprr = MessagePayloadResponseLockInterface::default();
-            // mprr.start_interface_nonce
+pub fn register(context: PciTdispDeviceLockInterface) -> bool {
+    PCI_TDISP_DEVICE_LOCK_INTERFACE_INSTANCE
+        .try_init_once(|| context)
+        .is_ok()
+}
 
-            tmhr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
-            mprr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
+static UNIMPLETEMTED: PciTdispDeviceLockInterface = PciTdispDeviceLockInterface {
+    pci_tdisp_device_lock_interface_cb:
+        |// IN
+         _vendor_context: usize,
+         _flags: &LockInterfaceFlag,
+         _default_stream_id: u8,
+         _mmio_reporting_offset: u64,
+         _bind_p2p_address_mask: u64,
+         // OUT
+         _negotiated_version: &mut TdispVersion,
+         _interface_id: &mut InterfaceId,
+         _start_interface_nonce: &mut [u8; START_INTERFACE_NONCE_LEN],
+         _tdisp_error_code: &mut Option<TdispErrorCode>|
+         -> SpdmResult { unimplemented!() },
+};
 
-            match self.tdisp_requester_context.configuration.init_config() {
-                Ok(_) => match self.tdisp_requester_context.configuration.lock_config() {
-                    Ok(_) => {
-                        self.tdisp_requester_context
-                            .state_machine
-                            .to_state_config_locked();
-                        Ok(vendor_defined_rsp_payload_struct)
-                    }
-                    Err(_) => self.handle_tdisp_error(
-                        vendor_defined_req_payload_struct,
-                        MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_DEVICE_CONFIGURATION,
-                    ),
-                },
-                Err(_) => self.handle_tdisp_error(
-                    vendor_defined_req_payload_struct,
-                    MESSAGE_PAYLOAD_RESPONSE_TDISP_ERROR_INVALID_DEVICE_CONFIGURATION,
-                ),
-            }
-        }
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn pci_tdisp_device_lock_interface(
+    // IN
+    vendor_context: usize,
+    flags: &LockInterfaceFlag,
+    default_stream_id: u8,
+    mmio_reporting_offset: u64,
+    bind_p2p_address_mask: u64,
+    // OUT
+    negotiated_version: &mut TdispVersion,
+    interface_id: &mut InterfaceId,
+    start_interface_nonce: &mut [u8; START_INTERFACE_NONCE_LEN],
+    tdisp_error_code: &mut Option<TdispErrorCode>,
+) -> SpdmResult {
+    (PCI_TDISP_DEVICE_LOCK_INTERFACE_INSTANCE
+        .try_get_or_init(|| UNIMPLETEMTED.clone())
+        .ok()
+        .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
+        .pci_tdisp_device_lock_interface_cb)(
+        vendor_context,
+        flags,
+        default_stream_id,
+        mmio_reporting_offset,
+        bind_p2p_address_mask,
+        negotiated_version,
+        interface_id,
+        start_interface_nonce,
+        tdisp_error_code,
+    )
+}
+
+pub(crate) fn pci_tdisp_rsp_lock_interface(
+    vendor_context: usize,
+    vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
+) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+    let req_lock_interface_request = ReqLockInterfaceRequest::read_bytes(
+        &vendor_defined_req_payload_struct.vendor_defined_req_payload
+            [..vendor_defined_req_payload_struct.req_length as usize],
+    )
+    .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
+
+    let mut vendor_defined_rsp_payload_struct = VendorDefinedRspPayloadStruct {
+        rsp_length: 0,
+        vendor_defined_rsp_payload: [0u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
+    };
+
+    let mut negotiated_version = TdispVersion::default();
+    let mut interface_id = InterfaceId::default();
+    let mut start_interface_nonce = [0u8; START_INTERFACE_NONCE_LEN];
+    let mut tdisp_error_code = None;
+
+    pci_tdisp_device_lock_interface(
+        vendor_context,
+        &req_lock_interface_request.flags,
+        req_lock_interface_request.default_stream_id,
+        req_lock_interface_request.mmio_reporting_offset,
+        req_lock_interface_request.bind_p2p_address_mask,
+        &mut negotiated_version,
+        &mut interface_id,
+        &mut start_interface_nonce,
+        &mut tdisp_error_code,
+    )?;
+
+    if let Some(tdisp_error_code) = tdisp_error_code {
+        let len = write_error(
+            vendor_context,
+            tdisp_error_code,
+            0,
+            &[],
+            &mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload,
+        )?;
+        vendor_defined_rsp_payload_struct.rsp_length = len as u16;
+        return Ok(vendor_defined_rsp_payload_struct);
+    }
+
+    let mut writer =
+        Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+
+    let cnt = RspLockInterfaceResponse {
+        message_header: TdispMessageHeader {
+            interface_id,
+            message_type: TdispRequestResponseCode::LOCK_INTERFACE_RESPONSE,
+            tdisp_version: negotiated_version,
+        },
+        start_interface_nonce,
+    }
+    .encode(&mut writer)
+    .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
+
+    if cnt > u16::MAX as usize {
+        Err(SPDM_STATUS_INVALID_STATE_LOCAL)
+    } else {
+        vendor_defined_rsp_payload_struct.rsp_length = cnt as u16;
+        Ok(vendor_defined_rsp_payload_struct)
     }
 }

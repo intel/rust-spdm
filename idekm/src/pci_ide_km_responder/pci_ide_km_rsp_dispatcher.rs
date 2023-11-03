@@ -19,7 +19,7 @@ pub const PCI_IDE_KM_INSTANCE: VendorDefinedStruct = VendorDefinedStruct {
     vendor_context: 0,
 };
 
-fn pci_ide_km_rsp_dispatcher(
+pub fn pci_ide_km_rsp_dispatcher(
     _vendor_context: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {

@@ -15,6 +15,7 @@ members = [
     "executor",
     "sys_time",
     "idekm",
+    "tdisp",
     "test/spdm-requester-emu",
     "test/spdm-responder-emu",
     "test/spdmlib-test",
@@ -65,7 +66,6 @@ exclude = [
     "external/ring",
     "external/webpki",
     "fuzz-target/",
-    "tdisp"
 ]
 
 resolver = "2"

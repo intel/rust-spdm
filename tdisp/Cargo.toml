@@ -1,7 +1,7 @@
 [package]
 name = "tdisp"
 license = "BSD-2-Clause-Patent"
-version = "0.1.0"
+version = "0.2.0"
 authors = [
     "Jiewen Yao <jiewen.yao@intel.com>",
     "Xiaoyu Lu <xiaoyux.lu@intel.com>",
@@ -16,8 +16,8 @@ edition = "2018"
 [dependencies]
 codec = { path = "../codec" }
 bitflags = "1.2.1"
-zeroize = { version = "1.5.0", features = ["zeroize_derive"]}
 spdmlib = { path = "../spdmlib", default-features = false, features = ["spdm-ring"]}
-
+conquer-once = { version = "0.3.2", default-features = false }
+spin = { version = "0.9.8" }
 
 [features]

@@ -1,53 +1,97 @@
-// Copyright (c) 2022 Intel Corporation
+// Copyright (c) 2023 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use spdmlib::error::*;
+use codec::{Codec, Writer};
+use conquer_once::spin::OnceCell;
+use spdmlib::{
+    error::{SpdmResult, SPDM_STATUS_BUFFER_FULL, SPDM_STATUS_INVALID_STATE_LOCAL},
+    message::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE,
+};
 
-use crate::{context::MessagePayloadResponseTdispError, tdisp_codec::TdispCodec};
+use crate::pci_tdisp::{
+    InterfaceId, RspTdispError, TdispErrorCode, TdispMessageHeader, TdispRequestResponseCode,
+    TdispVersion,
+};
 
-use super::*;
+static PCI_TDISP_DEVICE_ERROR_INSTANCE: OnceCell<PciTdispDeviceError> = OnceCell::uninit();
 
-impl<'a> TdispResponder<'a> {
-    pub fn pci_tdisp_rsp_tdisp_error(
-        &mut self,
-        vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
-        message_payload_response_tdisp_error: MessagePayloadResponseTdispError,
-    ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
-        let mut reader =
-            Reader::init(&vendor_defined_req_payload_struct.vendor_defined_req_payload);
-        let _tmh = TdispMessageHeader::tdisp_read(&mut self.tdisp_requester_context, &mut reader);
+#[derive(Clone)]
+pub struct PciTdispDeviceError {
+    #[allow(clippy::type_complexity)]
+    pub pci_tdisp_device_error_cb: fn(
+        // IN
+        vendor_context: usize,
+        // OUT
+        negotiated_version: &mut TdispVersion,
+        interface_id: &mut InterfaceId,
+    ) -> SpdmResult,
+}
 
-        let mut vendor_defined_rsp_payload_struct: VendorDefinedRspPayloadStruct =
-            VendorDefinedRspPayloadStruct {
-                rsp_length: 0,
-                vendor_defined_rsp_payload: [0u8;
-                    spdmlib::config::MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
-            };
-        let mut writer =
-            Writer::init(&mut vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload);
+pub fn register(context: PciTdispDeviceError) -> bool {
+    PCI_TDISP_DEVICE_ERROR_INSTANCE
+        .try_init_once(|| context)
+        .is_ok()
+}
 
-        let tmhr = TdispMessageHeader {
-            tdisp_version: self.tdisp_requester_context.version_sel,
-            message_type: TdispRequestResponseCode::ResponseTdispError,
-            interface_id: self.tdisp_requester_context.tdi,
-        };
+static UNIMPLETEMTED: PciTdispDeviceError = PciTdispDeviceError {
+    pci_tdisp_device_error_cb: |// IN
+                                _vendor_context: usize,
+                                // OUT
+                                _negotiated_version: &mut TdispVersion,
+                                _interface_id: &mut InterfaceId|
+     -> SpdmResult { unimplemented!() },
+};
 
-        tmhr.tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
+pub(crate) fn pci_tdisp_device_error(
+    // IN
+    vendor_context: usize,
+    // OUT
+    negotiated_version: &mut TdispVersion,
+    interface_id: &mut InterfaceId,
+) -> SpdmResult {
+    (PCI_TDISP_DEVICE_ERROR_INSTANCE
+        .try_get_or_init(|| UNIMPLETEMTED.clone())
+        .ok()
+        .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
+        .pci_tdisp_device_error_cb)(
+        // IN
+        vendor_context,
+        // OUT
+        negotiated_version,
+        interface_id,
+    )
+}
 
-        message_payload_response_tdisp_error
-            .tdisp_encode(&mut self.tdisp_requester_context, &mut writer);
+pub(crate) fn write_error(
+    vendor_context: usize,
+    error_code: TdispErrorCode,
+    error_data: u32,
+    ext_error_data: &[u8],
+    vendor_defined_rsp_payload: &mut [u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
+) -> SpdmResult<usize> {
+    let mut writer = Writer::init(vendor_defined_rsp_payload);
 
-        match self
-            .tdisp_requester_context
-            .configuration
-            .erase_confidential_config()
-        {
-            Ok(_) => {
-                self.tdisp_requester_context.state_machine.to_state_error();
-                Ok(vendor_defined_rsp_payload_struct)
-            }
-            Err(_) => panic!("Confidential data leaking"),
-        }
+    let mut negotiated_version = TdispVersion::default();
+    let mut interface_id = InterfaceId::default();
+
+    pci_tdisp_device_error(vendor_context, &mut negotiated_version, &mut interface_id)?;
+
+    let len1 = RspTdispError {
+        message_header: TdispMessageHeader {
+            interface_id,
+            message_type: TdispRequestResponseCode::TDISP_ERROR,
+            tdisp_version: negotiated_version,
+        },
+        error_code,
+        error_data,
+    }
+    .encode(&mut writer)
+    .map_err(|_| SPDM_STATUS_BUFFER_FULL)?;
+
+    if let Some(len2) = writer.extend_from_slice(ext_error_data) {
+        Ok(len1 + len2)
+    } else {
+        Err(SPDM_STATUS_BUFFER_FULL)
     }
 }

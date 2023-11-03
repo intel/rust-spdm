@@ -29,7 +29,6 @@ pub async fn pci_tdisp_req_start_interface_request(
     // IN
     spdm_requester: &mut RequesterContext,
     session_id: u32,
-    negotiated_version: TdispVersion,
     interface_id: InterfaceId,
     start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
     // OUT
@@ -47,7 +46,10 @@ pub async fn pci_tdisp_req_start_interface_request(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::START_INTERFACE_REQUEST,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
         start_interface_nonce: *start_interface_nonce,
     }
@@ -80,7 +82,11 @@ pub async fn pci_tdisp_req_start_interface_request(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    if rsp_start_interface_response.message_header.tdisp_version != negotiated_version
+    if rsp_start_interface_response.message_header.tdisp_version
+        != (TdispVersion {
+            major_version: 1,
+            minor_version: 0,
+        })
         || rsp_start_interface_response.message_header.message_type
             != TdispRequestResponseCode::START_INTERFACE_RESPONSE
         || rsp_start_interface_response.message_header.interface_id != interface_id

@@ -23,7 +23,6 @@ pub struct PciTdispDeviceError {
         // IN
         vendor_context: usize,
         // OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
     ) -> SpdmResult,
 }
@@ -38,7 +37,6 @@ static UNIMPLETEMTED: PciTdispDeviceError = PciTdispDeviceError {
     pci_tdisp_device_error_cb: |// IN
                                 _vendor_context: usize,
                                 // OUT
-                                _negotiated_version: &mut TdispVersion,
                                 _interface_id: &mut InterfaceId|
      -> SpdmResult { unimplemented!() },
 };
@@ -47,7 +45,6 @@ pub(crate) fn pci_tdisp_device_error(
     // IN
     vendor_context: usize,
     // OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
 ) -> SpdmResult {
     (PCI_TDISP_DEVICE_ERROR_INSTANCE
@@ -58,7 +55,6 @@ pub(crate) fn pci_tdisp_device_error(
         // IN
         vendor_context,
         // OUT
-        negotiated_version,
         interface_id,
     )
 }
@@ -72,16 +68,18 @@ pub(crate) fn write_error(
 ) -> SpdmResult<usize> {
     let mut writer = Writer::init(vendor_defined_rsp_payload);
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
 
-    pci_tdisp_device_error(vendor_context, &mut negotiated_version, &mut interface_id)?;
+    pci_tdisp_device_error(vendor_context, &mut interface_id)?;
 
     let len1 = RspTdispError {
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::TDISP_ERROR,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
         error_code,
         error_data,

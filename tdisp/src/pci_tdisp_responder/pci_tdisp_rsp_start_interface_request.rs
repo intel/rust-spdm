@@ -32,7 +32,6 @@ pub struct PciTdispDeviceStartInterface {
         vendor_context: usize,
         start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
         //OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
         tdisp_error_code: &mut Option<TdispErrorCode>,
     ) -> SpdmResult,
@@ -50,7 +49,6 @@ static UNIMPLETEMTED: PciTdispDeviceStartInterface = PciTdispDeviceStartInterfac
          _vendor_context: usize,
          _start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
          //OUT
-         _negotiated_version: &mut TdispVersion,
          _interface_id: &mut InterfaceId,
          _tdisp_error_code: &mut Option<TdispErrorCode>|
          -> SpdmResult { unimplemented!() },
@@ -61,7 +59,6 @@ pub(crate) fn pci_tdisp_device_start_interface(
     vendor_context: usize,
     start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
     //OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
@@ -72,7 +69,6 @@ pub(crate) fn pci_tdisp_device_start_interface(
         .pci_tdisp_device_start_interface_cb)(
         vendor_context,
         start_interface_nonce,
-        negotiated_version,
         interface_id,
         tdisp_error_code,
     )
@@ -88,14 +84,12 @@ pub(crate) fn pci_tdisp_rsp_start_interface(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_start_interface(
         vendor_context,
         &req_start_interface_request.start_interface_nonce,
-        &mut negotiated_version,
         &mut interface_id,
         &mut tdisp_error_code,
     )?;
@@ -124,7 +118,10 @@ pub(crate) fn pci_tdisp_rsp_start_interface(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::START_INTERFACE_RESPONSE,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
     }
     .encode(&mut writer)

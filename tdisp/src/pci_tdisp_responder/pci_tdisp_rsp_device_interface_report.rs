@@ -30,10 +30,9 @@ static PCI_TDISP_DEVICE_INTERFACE_REPORT_INSTANCE: OnceCell<PciTdispDeviceInterf
 #[allow(clippy::type_complexity)]
 pub struct PciTdispDeviceInterfaceReport {
     pub pci_tdisp_device_interface_report_cb: fn(
-        // INT
+        // IN
         vendor_context: usize,
         // OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
         tdi_report: &mut [u8; MAX_DEVICE_REPORT_BUFFER],
         tdi_report_size: &mut usize,
@@ -49,7 +48,6 @@ pub fn register(context: PciTdispDeviceInterfaceReport) -> bool {
 
 static UNIMPLETEMTED: PciTdispDeviceInterfaceReport = PciTdispDeviceInterfaceReport {
     pci_tdisp_device_interface_report_cb: |_: usize,
-                                           _: &mut TdispVersion,
                                            _: &mut InterfaceId,
                                            _: &mut [u8; MAX_DEVICE_REPORT_BUFFER],
                                            _: &mut usize,
@@ -58,10 +56,9 @@ static UNIMPLETEMTED: PciTdispDeviceInterfaceReport = PciTdispDeviceInterfaceRep
 };
 
 pub(crate) fn pci_tdisp_device_interface_report(
-    // INT
+    // IN
     vendor_context: usize,
     // OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
     tdi_report: &mut [u8; MAX_DEVICE_REPORT_BUFFER],
     tdi_report_size: &mut usize,
@@ -73,7 +70,6 @@ pub(crate) fn pci_tdisp_device_interface_report(
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_interface_report_cb)(
         vendor_context,
-        negotiated_version,
         interface_id,
         tdi_report,
         tdi_report_size,
@@ -91,7 +87,6 @@ pub(crate) fn pci_tdisp_rsp_interface_report(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
     let mut tdi_report = [0u8; MAX_DEVICE_REPORT_BUFFER];
     let mut tdi_report_size = 0usize;
@@ -100,7 +95,6 @@ pub(crate) fn pci_tdisp_rsp_interface_report(
     // device need to check tdi state
     pci_tdisp_device_interface_report(
         vendor_context,
-        &mut negotiated_version,
         &mut interface_id,
         &mut tdi_report,
         &mut tdi_report_size,
@@ -167,7 +161,10 @@ pub(crate) fn pci_tdisp_rsp_interface_report(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::DEVICE_INTERFACE_REPORT,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
         portion_length,
         remainder_length,

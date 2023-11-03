@@ -23,8 +23,6 @@ pub async fn pci_tdisp_req_get_tdisp_version(
     spdm_requester: &mut RequesterContext,
     session_id: u32,
     interface_id: InterfaceId,
-    // OUT
-    negotiated_version: &mut Option<TdispVersion>,
 ) -> SpdmResult {
     let mut vendor_defined_req_payload_struct = VendorDefinedReqPayloadStruct {
         req_length: 0,
@@ -65,13 +63,8 @@ pub async fn pci_tdisp_req_get_tdisp_version(
                 minor_version: 0,
             })
     {
-        *negotiated_version = Some(TdispVersion {
-            major_version: 1,
-            minor_version: 0,
-        });
         Ok(())
     } else {
-        *negotiated_version = None;
         Err(SPDM_STATUS_INVALID_MSG_FIELD)
     }
 }

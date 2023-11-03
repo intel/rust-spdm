@@ -32,7 +32,6 @@ pub struct PciTdispDeviceUnBindP2pStream {
         vendor_context: usize,
         p2p_stream_id: u8,
         //OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
         tdisp_error_code: &mut Option<TdispErrorCode>,
     ) -> SpdmResult,
@@ -49,7 +48,6 @@ static UNIMPLETEMTED: PciTdispDeviceUnBindP2pStream = PciTdispDeviceUnBindP2pStr
                                             _vendor_context: usize,
                                             _p2p_stream_id: u8,
                                             //OUT
-                                            _negotiated_version: &mut TdispVersion,
                                             _interface_id: &mut InterfaceId,
                                             _tdisp_error_code: &mut Option<TdispErrorCode>|
      -> SpdmResult { unimplemented!() },
@@ -60,7 +58,6 @@ pub(crate) fn pci_tdisp_device_unbind_p2p_stream(
     vendor_context: usize,
     p2p_stream_id: u8,
     //OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
@@ -71,7 +68,6 @@ pub(crate) fn pci_tdisp_device_unbind_p2p_stream(
         .pci_tdisp_device_unbind_p2p_stream_cb)(
         vendor_context,
         p2p_stream_id,
-        negotiated_version,
         interface_id,
         tdisp_error_code,
     )
@@ -87,14 +83,12 @@ pub(crate) fn pci_tdisp_rsp_unbind_p2p_stream(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_unbind_p2p_stream(
         vendor_context,
         req_un_bind_p2_pstream_request.p2p_stream_id,
-        &mut negotiated_version,
         &mut interface_id,
         &mut tdisp_error_code,
     )?;
@@ -123,7 +117,10 @@ pub(crate) fn pci_tdisp_rsp_unbind_p2p_stream(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::UNBIND_P2P_STREAM_RESPONSE,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
     }
     .encode(&mut writer)

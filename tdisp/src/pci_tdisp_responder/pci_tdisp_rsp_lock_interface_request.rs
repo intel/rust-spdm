@@ -37,7 +37,6 @@ pub struct PciTdispDeviceLockInterface {
         mmio_reporting_offset: u64,
         bind_p2p_address_mask: u64,
         // OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
         start_interface_nonce: &mut [u8; START_INTERFACE_NONCE_LEN],
         tdisp_error_code: &mut Option<TdispErrorCode>,
@@ -59,7 +58,6 @@ static UNIMPLETEMTED: PciTdispDeviceLockInterface = PciTdispDeviceLockInterface 
          _mmio_reporting_offset: u64,
          _bind_p2p_address_mask: u64,
          // OUT
-         _negotiated_version: &mut TdispVersion,
          _interface_id: &mut InterfaceId,
          _start_interface_nonce: &mut [u8; START_INTERFACE_NONCE_LEN],
          _tdisp_error_code: &mut Option<TdispErrorCode>|
@@ -75,7 +73,6 @@ pub(crate) fn pci_tdisp_device_lock_interface(
     mmio_reporting_offset: u64,
     bind_p2p_address_mask: u64,
     // OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
     start_interface_nonce: &mut [u8; START_INTERFACE_NONCE_LEN],
     tdisp_error_code: &mut Option<TdispErrorCode>,
@@ -90,7 +87,6 @@ pub(crate) fn pci_tdisp_device_lock_interface(
         default_stream_id,
         mmio_reporting_offset,
         bind_p2p_address_mask,
-        negotiated_version,
         interface_id,
         start_interface_nonce,
         tdisp_error_code,
@@ -112,7 +108,6 @@ pub(crate) fn pci_tdisp_rsp_lock_interface(
         vendor_defined_rsp_payload: [0u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
     };
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
     let mut start_interface_nonce = [0u8; START_INTERFACE_NONCE_LEN];
     let mut tdisp_error_code = None;
@@ -123,7 +118,6 @@ pub(crate) fn pci_tdisp_rsp_lock_interface(
         req_lock_interface_request.default_stream_id,
         req_lock_interface_request.mmio_reporting_offset,
         req_lock_interface_request.bind_p2p_address_mask,
-        &mut negotiated_version,
         &mut interface_id,
         &mut start_interface_nonce,
         &mut tdisp_error_code,
@@ -148,7 +142,10 @@ pub(crate) fn pci_tdisp_rsp_lock_interface(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::LOCK_INTERFACE_RESPONSE,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
         start_interface_nonce,
     }

@@ -31,7 +31,6 @@ pub struct PciTdispDeviceInterfaceState {
         // IN
         vendor_context: usize,
         // OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
         tdi_state: &mut TdiState,
         tdisp_error_code: &mut Option<TdispErrorCode>,
@@ -46,7 +45,6 @@ pub fn register(context: PciTdispDeviceInterfaceState) -> bool {
 
 static UNIMPLETEMTED: PciTdispDeviceInterfaceState = PciTdispDeviceInterfaceState {
     pci_tdisp_device_interface_state_cb: |_: usize,
-                                          _: &mut TdispVersion,
                                           _: &mut InterfaceId,
                                           _: &mut TdiState,
                                           _: &mut Option<TdispErrorCode>|
@@ -57,7 +55,6 @@ pub(crate) fn pci_tdisp_device_interface_state(
     // IN
     vendor_context: usize,
     // OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
     tdi_state: &mut TdiState,
     tdisp_error_code: &mut Option<TdispErrorCode>,
@@ -68,7 +65,6 @@ pub(crate) fn pci_tdisp_device_interface_state(
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_interface_state_cb)(
         vendor_context,
-        negotiated_version,
         interface_id,
         tdi_state,
         tdisp_error_code,
@@ -85,14 +81,12 @@ pub(crate) fn pci_tdisp_rsp_interface_state(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
     let mut tdi_state = TdiState::ERROR;
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_interface_state(
         vendor_context,
-        &mut negotiated_version,
         &mut interface_id,
         &mut tdi_state,
         &mut tdisp_error_code,
@@ -122,7 +116,10 @@ pub(crate) fn pci_tdisp_rsp_interface_state(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::DEVICE_INTERFACE_STATE,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
         tdi_state,
     }

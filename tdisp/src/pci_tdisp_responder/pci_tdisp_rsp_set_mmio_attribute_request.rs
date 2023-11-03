@@ -32,7 +32,6 @@ pub struct PciTdispDeviceSetMmioAttribute {
         vendor_context: usize,
         mmio_range: &TdispMmioRange,
         //OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
         tdisp_error_code: &mut Option<TdispErrorCode>,
     ) -> SpdmResult,
@@ -49,7 +48,6 @@ static UNIMPLETEMTED: PciTdispDeviceSetMmioAttribute = PciTdispDeviceSetMmioAttr
                                              _vendor_context: usize,
                                              _mmio_range: &TdispMmioRange,
                                              //OUT
-                                             _negotiated_version: &mut TdispVersion,
                                              _interface_id: &mut InterfaceId,
                                              _tdisp_error_code: &mut Option<TdispErrorCode>|
      -> SpdmResult { unimplemented!() },
@@ -60,7 +58,6 @@ pub(crate) fn pci_tdisp_device_set_mmio_attribute(
     vendor_context: usize,
     mmio_range: &TdispMmioRange,
     //OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
@@ -71,7 +68,6 @@ pub(crate) fn pci_tdisp_device_set_mmio_attribute(
         .pci_tdisp_device_set_mmio_attribute_cb)(
         vendor_context,
         mmio_range,
-        negotiated_version,
         interface_id,
         tdisp_error_code,
     )
@@ -87,14 +83,12 @@ pub(crate) fn pci_tdisp_rsp_set_mmio_attribute(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_set_mmio_attribute(
         vendor_context,
         &req_set_mmio_attribute_request.mmio_range,
-        &mut negotiated_version,
         &mut interface_id,
         &mut tdisp_error_code,
     )?;
@@ -123,7 +117,10 @@ pub(crate) fn pci_tdisp_rsp_set_mmio_attribute(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::SET_MMIO_ATTRIBUTE_RESPONSE,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
     }
     .encode(&mut writer)

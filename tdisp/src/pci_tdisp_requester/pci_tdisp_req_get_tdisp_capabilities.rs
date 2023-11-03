@@ -28,7 +28,6 @@ pub async fn pci_tdisp_req_get_tdisp_capabilities(
     spdm_requester: &mut RequesterContext,
     session_id: u32,
     tsm_caps: u32,
-    negotiated_version: TdispVersion,
     interface_id: InterfaceId,
     // OUT
     dsm_caps: &mut u32,
@@ -50,7 +49,10 @@ pub async fn pci_tdisp_req_get_tdisp_capabilities(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::GET_TDISP_CAPABILITIES,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
         tsm_caps,
     }
@@ -72,7 +74,11 @@ pub async fn pci_tdisp_req_get_tdisp_capabilities(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    if rsp_tdisp_capabilities.message_header.tdisp_version != negotiated_version
+    if rsp_tdisp_capabilities.message_header.tdisp_version
+        != (TdispVersion {
+            major_version: 1,
+            minor_version: 0,
+        })
         || rsp_tdisp_capabilities.message_header.message_type
             != TdispRequestResponseCode::TDISP_CAPABILITIES
         || rsp_tdisp_capabilities.message_header.interface_id != interface_id

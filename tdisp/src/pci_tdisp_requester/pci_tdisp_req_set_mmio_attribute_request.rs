@@ -27,7 +27,6 @@ pub async fn pci_tdisp_req_set_mmio_attribute_request(
     // IN
     spdm_requester: &mut RequesterContext,
     session_id: u32,
-    negotiated_version: TdispVersion,
     interface_id: InterfaceId,
     mmio_range: TdispMmioRange,
     // OUT
@@ -45,7 +44,10 @@ pub async fn pci_tdisp_req_set_mmio_attribute_request(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::SET_MMIO_ATTRIBUTE_REQUEST,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
         mmio_range,
     }
@@ -78,7 +80,11 @@ pub async fn pci_tdisp_req_set_mmio_attribute_request(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    if rsp_set_mmio_attribute_response.message_header.tdisp_version != negotiated_version
+    if rsp_set_mmio_attribute_response.message_header.tdisp_version
+        != (TdispVersion {
+            major_version: 1,
+            minor_version: 0,
+        })
         || rsp_set_mmio_attribute_response.message_header.message_type
             != TdispRequestResponseCode::SET_MMIO_ATTRIBUTE_RESPONSE
         || rsp_set_mmio_attribute_response.message_header.interface_id != interface_id

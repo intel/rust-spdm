@@ -10,6 +10,7 @@ edition = "2018"
 spdm-emu = { path = "../spdm-emu", default-features = false }
 spdmlib = { path = "../../spdmlib", default-features = false }
 idekm  = { path = "../../idekm", default-features = false }
+tdisp  = { path = "../../tdisp", default-features = false }
 codec = { path = "../../codec" }
 mctp_transport = { path = "../../mctp_transport" }
 pcidoe_transport = { path = "../../pcidoe_transport" }

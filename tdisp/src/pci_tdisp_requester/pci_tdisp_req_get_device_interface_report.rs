@@ -30,7 +30,6 @@ pub async fn pci_tdisp_req_get_device_interface_report(
     // IN
     spdm_requester: &mut RequesterContext,
     session_id: u32,
-    negotiated_version: TdispVersion,
     interface_id: InterfaceId,
     // OUT
     report: &mut [u8; MAX_DEVICE_REPORT_BUFFER],
@@ -55,7 +54,10 @@ pub async fn pci_tdisp_req_get_device_interface_report(
             message_header: TdispMessageHeader {
                 interface_id,
                 message_type: TdispRequestResponseCode::GET_DEVICE_INTERFACE_REPORT,
-                tdisp_version: negotiated_version,
+                tdisp_version: TdispVersion {
+                    major_version: 1,
+                    minor_version: 0,
+                },
             },
             offset,
             length,
@@ -89,7 +91,11 @@ pub async fn pci_tdisp_req_get_device_interface_report(
         )
         .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-        if rsp_device_interface_report.message_header.tdisp_version != negotiated_version
+        if rsp_device_interface_report.message_header.tdisp_version
+            != (TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            })
             || rsp_device_interface_report.message_header.message_type
                 != TdispRequestResponseCode::DEVICE_INTERFACE_REPORT
             || rsp_device_interface_report.message_header.interface_id != interface_id

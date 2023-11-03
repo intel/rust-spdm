@@ -11,7 +11,7 @@ use spdmlib::{
     },
 };
 
-use crate::pci_tdisp::{TdispErrorCode, TdispRequestResponseCode};
+use crate::pci_tdisp::{TdispErrorCode, TdispRequestResponseCode, TDISP_PROTOCOL_ID};
 
 use super::{
     pci_tdisp_rsp_bind_p2p_stream_request::pci_tdisp_rsp_bind_p2p_stream,
@@ -31,7 +31,9 @@ pub fn pci_tdisp_rsp_dispatcher(
     vendor_context: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
-    if vendor_defined_req_payload_struct.req_length < 3 {
+    if vendor_defined_req_payload_struct.req_length < 3
+        || vendor_defined_req_payload_struct.vendor_defined_req_payload[0] != TDISP_PROTOCOL_ID
+    {
         return Err(SPDM_STATUS_INVALID_MSG_FIELD);
     }
 
@@ -69,9 +71,6 @@ pub fn pci_tdisp_rsp_dispatcher(
             TdispRequestResponseCode::UNBIND_P2P_STREAM_REQUEST => {
                 pci_tdisp_rsp_unbind_p2p_stream(vendor_context, vendor_defined_req_payload_struct)
             }
-            TdispRequestResponseCode::VDM_REQUEST => {
-                pci_tdisp_rsp_vdm_response(vendor_context, vendor_defined_req_payload_struct)
-            }
             _ => {
                 let mut vendor_defined_rsp_payload_struct = VendorDefinedRspPayloadStruct {
                     rsp_length: 0,
@@ -90,6 +89,6 @@ pub fn pci_tdisp_rsp_dispatcher(
             }
         }
     } else {
-        Err(SPDM_STATUS_INVALID_MSG_FIELD)
+        pci_tdisp_rsp_vdm_response(vendor_context, vendor_defined_req_payload_struct)
     }
 }

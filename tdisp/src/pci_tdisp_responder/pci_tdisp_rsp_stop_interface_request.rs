@@ -31,7 +31,6 @@ pub struct PciTdispDeviceStopInterface {
         // IN
         vendor_context: usize,
         // OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
         tdisp_error_code: &mut Option<TdispErrorCode>,
     ) -> SpdmResult,
@@ -47,7 +46,6 @@ static UNIMPLETEMTED: PciTdispDeviceStopInterface = PciTdispDeviceStopInterface 
     pci_tdisp_device_stop_interface_cb: |// IN
                                          _vendor_context: usize,
                                          // OUT
-                                         _negotiated_version: &mut TdispVersion,
                                          _interface_id: &mut InterfaceId,
                                          _tdisp_error_code: &mut Option<TdispErrorCode>|
      -> SpdmResult { unimplemented!() },
@@ -57,7 +55,6 @@ pub(crate) fn pci_tdisp_device_stop_interface(
     // IN
     vendor_context: usize,
     // OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
@@ -65,12 +62,7 @@ pub(crate) fn pci_tdisp_device_stop_interface(
         .try_get_or_init(|| UNIMPLETEMTED.clone())
         .ok()
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
-        .pci_tdisp_device_stop_interface_cb)(
-        vendor_context,
-        negotiated_version,
-        interface_id,
-        tdisp_error_code,
-    )
+        .pci_tdisp_device_stop_interface_cb)(vendor_context, interface_id, tdisp_error_code)
 }
 
 pub(crate) fn pci_tdisp_rsp_stop_interface(
@@ -83,16 +75,10 @@ pub(crate) fn pci_tdisp_rsp_stop_interface(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
     let mut tdisp_error_code = None;
 
-    pci_tdisp_device_stop_interface(
-        vendor_context,
-        &mut negotiated_version,
-        &mut interface_id,
-        &mut tdisp_error_code,
-    )?;
+    pci_tdisp_device_stop_interface(vendor_context, &mut interface_id, &mut tdisp_error_code)?;
 
     let mut vendor_defined_rsp_payload_struct = VendorDefinedRspPayloadStruct {
         rsp_length: 0,
@@ -118,7 +104,10 @@ pub(crate) fn pci_tdisp_rsp_stop_interface(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::STOP_INTERFACE_RESPONSE,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
     }
     .encode(&mut writer)

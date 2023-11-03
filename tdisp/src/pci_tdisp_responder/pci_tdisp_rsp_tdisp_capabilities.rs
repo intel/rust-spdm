@@ -33,7 +33,6 @@ pub struct PciTdispDeviceCapabilities {
         vendor_context: usize,
         tsm_caps: u32,
         // OUT
-        negotiated_version: &mut TdispVersion,
         interface_id: &mut InterfaceId,
         dsm_caps: &mut u32,
         req_msgs_supported: &mut [u8; 16],
@@ -56,7 +55,6 @@ static UNIMPLETEMTED: PciTdispDeviceCapabilities = PciTdispDeviceCapabilities {
                                        _vendor_context: usize,
                                        _tsm_caps: u32,
                                        // OUT
-                                       _negotiated_version: &mut TdispVersion,
                                        _interface_id: &mut InterfaceId,
                                        _dsm_caps: &mut u32,
                                        _req_msgs_supported: &mut [u8; 16],
@@ -74,7 +72,6 @@ pub(crate) fn pci_tdisp_device_capabilities(
     vendor_context: usize,
     tsm_caps: u32,
     // OUT
-    negotiated_version: &mut TdispVersion,
     interface_id: &mut InterfaceId,
     dsm_caps: &mut u32,
     req_msgs_supported: &mut [u8; 16],
@@ -93,7 +90,6 @@ pub(crate) fn pci_tdisp_device_capabilities(
         vendor_context,
         tsm_caps,
         // OUT
-        negotiated_version,
         interface_id,
         dsm_caps,
         req_msgs_supported,
@@ -115,7 +111,6 @@ pub(crate) fn pci_tdisp_rsp_capabilities(
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 
-    let mut negotiated_version = TdispVersion::default();
     let mut interface_id = InterfaceId::default();
     let mut dsm_caps = 0u32;
     let mut req_msgs_supported = [0u8; 16];
@@ -128,7 +123,6 @@ pub(crate) fn pci_tdisp_rsp_capabilities(
     pci_tdisp_device_capabilities(
         vendor_context,
         req_get_tdisp_capabilities.tsm_caps,
-        &mut negotiated_version,
         &mut interface_id,
         &mut dsm_caps,
         &mut req_msgs_supported,
@@ -163,7 +157,10 @@ pub(crate) fn pci_tdisp_rsp_capabilities(
         message_header: TdispMessageHeader {
             interface_id,
             message_type: TdispRequestResponseCode::TDISP_CAPABILITIES,
-            tdisp_version: negotiated_version,
+            tdisp_version: TdispVersion {
+                major_version: 1,
+                minor_version: 0,
+            },
         },
         dsm_caps,
         req_msgs_supported,

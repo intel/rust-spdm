@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+use codec::Codec;
 use common::SpdmDeviceIo;
 use common::SpdmTransportEncap;
 
@@ -39,6 +40,21 @@ use pcidoe_transport::PciDoeTransportEncap;
 use spdm_emu::socket_io_transport::SocketIoTransport;
 use spdm_emu::spdm_emu::*;
 use std::net::TcpStream;
+use tdisp::pci_tdisp::FunctionId;
+use tdisp::pci_tdisp::InterfaceId;
+use tdisp::pci_tdisp::InterfaceInfo;
+use tdisp::pci_tdisp::LockInterfaceFlag;
+use tdisp::pci_tdisp::TdiState;
+use tdisp::pci_tdisp::TdispMmioRange;
+use tdisp::pci_tdisp::MAX_DEVICE_REPORT_BUFFER;
+use tdisp::pci_tdisp::START_INTERFACE_NONCE_LEN;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_get_device_interface_report;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_get_device_interface_state;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_get_tdisp_capabilities;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_get_tdisp_version;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_lock_interface_request;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_start_interface_request;
+use tdisp::pci_tdisp_requester::pci_tdisp_req_stop_interface_request;
 
 use tokio::runtime::Runtime;
 
@@ -402,7 +418,7 @@ async fn test_spdm(
     }
 }
 
-async fn test_idekm(
+async fn test_idekm_tdisp(
     socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
 ) {
@@ -1080,6 +1096,149 @@ async fn test_idekm(
         .unwrap();
     println!("Successful KEY_SET_STOP at Key Set 0 | TX | CPL!");
 
+    // tdisp test
+    let interface_id = InterfaceId {
+        function_id: FunctionId {
+            requester_id: 0x1234,
+            requester_segment: 0,
+            requester_segment_valid: false,
+        },
+    };
+
+    pci_tdisp_req_get_tdisp_version(&mut context, session_id, interface_id)
+        .await
+        .unwrap();
+    println!("Successful Get Tdisp Version!");
+
+    let tsm_caps = 0;
+    let mut dsm_caps = 0u32;
+    let mut lock_interface_flags_supported = LockInterfaceFlag::empty();
+    let mut dev_addr_width = 0u8;
+    let mut num_req_this = 0u8;
+    let mut num_req_all = 0u8;
+    let mut req_msgs_supported = [0u8; 16];
+    pci_tdisp_req_get_tdisp_capabilities(
+        &mut context,
+        session_id,
+        tsm_caps,
+        interface_id,
+        &mut dsm_caps,
+        &mut lock_interface_flags_supported,
+        &mut dev_addr_width,
+        &mut num_req_this,
+        &mut num_req_all,
+        &mut req_msgs_supported,
+    )
+    .await
+    .unwrap();
+    println!("Successful Get Tdisp Capabilities!");
+
+    let mut tdi_state = TdiState::ERROR;
+    pci_tdisp_req_get_device_interface_state(
+        &mut context,
+        session_id,
+        interface_id,
+        &mut tdi_state,
+    )
+    .await
+    .unwrap();
+    assert_eq!(tdi_state, TdiState::CONFIG_UNLOCKED);
+    println!("Successful Get Tdisp State: {:X?}!", tdi_state);
+
+    let flags = LockInterfaceFlag::NO_FW_UPDATE;
+    let default_stream_id = 0;
+    let mmio_reporting_offset = 0xFFFFFF00;
+    let bind_p2p_address_mask = 0;
+    let mut start_interface_nonce = [0u8; START_INTERFACE_NONCE_LEN];
+    let mut tdisp_error_code = None;
+    pci_tdisp_req_lock_interface_request(
+        &mut context,
+        session_id,
+        interface_id,
+        flags,
+        default_stream_id,
+        mmio_reporting_offset,
+        bind_p2p_address_mask,
+        &mut start_interface_nonce,
+        &mut tdisp_error_code,
+    )
+    .await
+    .unwrap();
+    assert!(tdisp_error_code.is_none());
+    println!(
+        "Successful Lock Interface, start_interface_nonce: {:X?}!",
+        start_interface_nonce
+    );
+
+    pci_tdisp_req_get_device_interface_state(
+        &mut context,
+        session_id,
+        interface_id,
+        &mut tdi_state,
+    )
+    .await
+    .unwrap();
+    assert_eq!(tdi_state, TdiState::CONFIG_LOCKED);
+    println!("Successful Get Tdisp State: {:X?}!", tdi_state);
+
+    let mut report = [0u8; MAX_DEVICE_REPORT_BUFFER];
+    let mut report_size = 0usize;
+    pci_tdisp_req_get_device_interface_report(
+        &mut context,
+        session_id,
+        interface_id,
+        &mut report,
+        &mut report_size,
+        &mut tdisp_error_code,
+    )
+    .await
+    .unwrap();
+    assert!(tdisp_error_code.is_none());
+    let tdi_report = TdiReportStructure::read_bytes(&report).unwrap();
+    println!(
+        "Successful Get Interface Report, tdi_report: {:X?}!",
+        tdi_report
+    );
+
+    pci_tdisp_req_start_interface_request(
+        &mut context,
+        session_id,
+        interface_id,
+        &start_interface_nonce,
+        &mut tdisp_error_code,
+    )
+    .await
+    .unwrap();
+    assert!(tdisp_error_code.is_none());
+    println!("Successful Start Interface!");
+
+    pci_tdisp_req_get_device_interface_state(
+        &mut context,
+        session_id,
+        interface_id,
+        &mut tdi_state,
+    )
+    .await
+    .unwrap();
+    assert_eq!(tdi_state, TdiState::RUN);
+    println!("Successful Get Tdisp State: {:X?}!", tdi_state);
+
+    pci_tdisp_req_stop_interface_request(&mut context, session_id, interface_id)
+        .await
+        .unwrap();
+    println!("Successful Stop Interface!");
+
+    pci_tdisp_req_get_device_interface_state(
+        &mut context,
+        session_id,
+        interface_id,
+        &mut tdi_state,
+    )
+    .await
+    .unwrap();
+    assert_eq!(tdi_state, TdiState::CONFIG_UNLOCKED);
+    println!("Successful Get Tdisp State: {:X?}!", tdi_state);
+
     // end spdm session
     context.end_session(session_id).await.unwrap();
 }
@@ -1153,7 +1312,7 @@ fn emu_main() {
         transport_encap.clone(),
     ));
 
-    rt.block_on(test_idekm(
+    rt.block_on(test_idekm_tdisp(
         socket_io_transport.clone(),
         transport_encap.clone(),
     ));
@@ -1170,4 +1329,99 @@ fn main() {
         .unwrap()
         .join()
         .unwrap();
+}
+
+pub const MMIO_RANGE_COUNT: usize = 4;
+pub const DEVICE_SPECIFIC_INFO: &[u8; 9] = b"tdisp emu";
+pub const DEVICE_SPECIFIC_INFO_LEN: usize = DEVICE_SPECIFIC_INFO.len();
+
+#[derive(Debug, Copy, Clone)]
+pub struct TdiReportStructure {
+    pub interface_info: InterfaceInfo,
+    pub msi_x_message_control: u16,
+    pub lnr_control: u16,
+    pub tph_control: u32,
+    pub mmio_range_count: u32,
+    pub mmio_range: [TdispMmioRange; MMIO_RANGE_COUNT],
+    pub device_specific_info_len: u32,
+    pub device_specific_info: [u8; DEVICE_SPECIFIC_INFO_LEN],
+}
+
+impl Default for TdiReportStructure {
+    fn default() -> Self {
+        Self {
+            interface_info: InterfaceInfo::default(),
+            msi_x_message_control: 0u16,
+            lnr_control: 0u16,
+            tph_control: 0u32,
+            mmio_range_count: 0u32,
+            mmio_range: [TdispMmioRange::default(); MMIO_RANGE_COUNT],
+            device_specific_info_len: 0u32,
+            device_specific_info: [0u8; DEVICE_SPECIFIC_INFO_LEN],
+        }
+    }
+}
+
+impl Codec for TdiReportStructure {
+    fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
+        let mut cnt = 0;
+
+        cnt += self.interface_info.encode(bytes)?;
+        cnt += 0u16.encode(bytes)?;
+        cnt += self.msi_x_message_control.encode(bytes)?;
+        cnt += self.lnr_control.encode(bytes)?;
+        cnt += self.tph_control.encode(bytes)?;
+        cnt += self.mmio_range_count.encode(bytes)?;
+        for mr in self.mmio_range.iter().take(self.mmio_range_count as usize) {
+            cnt += mr.encode(bytes)?;
+        }
+        cnt += self.device_specific_info_len.encode(bytes)?;
+        for dsi in self
+            .device_specific_info
+            .iter()
+            .take(self.device_specific_info_len as usize)
+        {
+            cnt += dsi.encode(bytes)?;
+        }
+
+        Ok(cnt)
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let interface_info = InterfaceInfo::read(r)?;
+        u16::read(r)?;
+        let msi_x_message_control = u16::read(r)?;
+        let lnr_control = u16::read(r)?;
+        let tph_control = u32::read(r)?;
+        let mmio_range_count = u32::read(r)?;
+        if mmio_range_count as usize > MMIO_RANGE_COUNT {
+            return None;
+        }
+        let mut mmio_range = [TdispMmioRange::default(); MMIO_RANGE_COUNT];
+        for mr in mmio_range.iter_mut().take(mmio_range_count as usize) {
+            *mr = TdispMmioRange::read(r)?;
+        }
+        let device_specific_info_len = u32::read(r)?;
+        if device_specific_info_len as usize > DEVICE_SPECIFIC_INFO_LEN {
+            return None;
+        }
+        let mut device_specific_info = [0u8; DEVICE_SPECIFIC_INFO_LEN];
+        for dsi in device_specific_info
+            .iter_mut()
+            .take(device_specific_info_len as usize)
+        {
+            *dsi = u8::read(r)?;
+        }
+
+        Some(Self {
+            interface_info,
+            msi_x_message_control,
+            lnr_control,
+            tph_control,
+            mmio_range_count,
+            mmio_range,
+            device_specific_info_len,
+            device_specific_info,
+        })
+    }
 }

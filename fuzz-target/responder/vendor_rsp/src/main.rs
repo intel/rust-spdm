@@ -5,7 +5,7 @@
 use fuzzlib::spdmlib::error::SpdmResult;
 use fuzzlib::spdmlib::message::{
     register_vendor_defined_struct, VendorDefinedReqPayloadStruct, VendorDefinedRspPayloadStruct,
-    VendorDefinedStruct,
+    VendorDefinedStruct, VendorIDStruct,
 };
 use fuzzlib::*;
 use spdmlib::common::SpdmConnectionState;
@@ -54,19 +54,23 @@ async fn fuzz_handle_spdm_vendor_defined_request(data: Arc<Vec<u8>>) {
         .runtime_info
         .set_connection_state(SpdmConnectionState::SpdmConnectionNegotiated);
 
-    let vendor_defined_func: for<'r> fn(usize, &'r VendorDefinedReqPayloadStruct) -> Result<_, _> =
-        |_: usize,
-         _vendor_defined_req_payload_struct|
-         -> SpdmResult<VendorDefinedRspPayloadStruct> {
-            let mut vendor_defined_res_payload_struct = VendorDefinedRspPayloadStruct {
-                rsp_length: 0,
-                vendor_defined_rsp_payload: [0; config::MAX_SPDM_MSG_SIZE - 7 - 2],
-            };
-            vendor_defined_res_payload_struct.rsp_length = 8;
-            vendor_defined_res_payload_struct.vendor_defined_rsp_payload[0..8]
-                .clone_from_slice(b"deadbeef");
-            Ok(vendor_defined_res_payload_struct)
+    let vendor_defined_func: for<'r> fn(
+        usize,
+        &VendorIDStruct,
+        &'r VendorDefinedReqPayloadStruct,
+    ) -> Result<_, _> = |_: usize,
+                         _: &VendorIDStruct,
+                         _vendor_defined_req_payload_struct|
+     -> SpdmResult<VendorDefinedRspPayloadStruct> {
+        let mut vendor_defined_res_payload_struct = VendorDefinedRspPayloadStruct {
+            rsp_length: 0,
+            vendor_defined_rsp_payload: [0; config::MAX_SPDM_MSG_SIZE - 7 - 2],
         };
+        vendor_defined_res_payload_struct.rsp_length = 8;
+        vendor_defined_res_payload_struct.vendor_defined_rsp_payload[0..8]
+            .clone_from_slice(b"deadbeef");
+        Ok(vendor_defined_res_payload_struct)
+    };
 
     register_vendor_defined_struct(VendorDefinedStruct {
         vendor_defined_request_handler: vendor_defined_func,

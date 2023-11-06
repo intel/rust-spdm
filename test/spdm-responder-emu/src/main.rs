@@ -304,7 +304,7 @@ async fn handle_message(
     let device_context_handle = &tdisp_rsp_context as *const DeviceContext as usize;
     spdmlib::message::vendor::register_vendor_defined_struct(VendorDefinedStruct {
         vendor_defined_request_handler: pci_idekm_tdisp_rsp_dispatcher,
-        vendor_context: device_context_handle,
+        vdm_handle: device_context_handle,
     });
     init_watchdog();
     let mut context = responder::ResponderContext::new(
@@ -315,7 +315,7 @@ async fn handle_message(
     );
     loop {
         raw_packet.zeroize();
-        let res = context.process_message(false, &[0], raw_packet).await;
+        let res = context.process_message(false, 0, raw_packet).await;
         match res {
             Ok(spdm_result) => match spdm_result {
                 Ok(_) => continue,
@@ -464,7 +464,7 @@ pub async fn send_pci_discovery(
 }
 
 fn pci_idekm_tdisp_rsp_dispatcher(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     if vendor_defined_req_payload_struct.req_length < 1 {
@@ -472,11 +472,9 @@ fn pci_idekm_tdisp_rsp_dispatcher(
     }
 
     match vendor_defined_req_payload_struct.vendor_defined_req_payload[0] {
-        IDE_PROTOCOL_ID => {
-            pci_ide_km_rsp_dispatcher(vendor_context, vendor_defined_req_payload_struct)
-        }
+        IDE_PROTOCOL_ID => pci_ide_km_rsp_dispatcher(vdm_handle, vendor_defined_req_payload_struct),
         TDISP_PROTOCOL_ID => {
-            pci_tdisp_rsp_dispatcher(vendor_context, vendor_defined_req_payload_struct)
+            pci_tdisp_rsp_dispatcher(vdm_handle, vendor_defined_req_payload_struct)
         }
         _ => Err(SPDM_STATUS_INVALID_MSG_FIELD),
     }

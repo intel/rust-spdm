@@ -28,7 +28,7 @@ use super::{
 };
 
 pub fn pci_tdisp_rsp_dispatcher(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     if vendor_defined_req_payload_struct.req_length < 3
@@ -42,34 +42,34 @@ pub fn pci_tdisp_rsp_dispatcher(
     ) {
         match request_response_code {
             TdispRequestResponseCode::GET_TDISP_VERSION => {
-                pci_tdisp_rsp_version(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_version(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::GET_TDISP_CAPABILITIES => {
-                pci_tdisp_rsp_capabilities(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_capabilities(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::LOCK_INTERFACE_REQUEST => {
-                pci_tdisp_rsp_lock_interface(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_lock_interface(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::GET_DEVICE_INTERFACE_REPORT => {
-                pci_tdisp_rsp_interface_report(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_interface_report(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::GET_DEVICE_INTERFACE_STATE => {
-                pci_tdisp_rsp_interface_state(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_interface_state(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::START_INTERFACE_REQUEST => {
-                pci_tdisp_rsp_start_interface(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_start_interface(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::STOP_INTERFACE_REQUEST => {
-                pci_tdisp_rsp_stop_interface(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_stop_interface(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::SET_MMIO_ATTRIBUTE_REQUEST => {
-                pci_tdisp_rsp_set_mmio_attribute(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_set_mmio_attribute(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::BIND_P2P_STREAM_REQUEST => {
-                pci_tdisp_rsp_bind_p2p_stream(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_bind_p2p_stream(vdm_handle, vendor_defined_req_payload_struct)
             }
             TdispRequestResponseCode::UNBIND_P2P_STREAM_REQUEST => {
-                pci_tdisp_rsp_unbind_p2p_stream(vendor_context, vendor_defined_req_payload_struct)
+                pci_tdisp_rsp_unbind_p2p_stream(vdm_handle, vendor_defined_req_payload_struct)
             }
             _ => {
                 let mut vendor_defined_rsp_payload_struct = VendorDefinedRspPayloadStruct {
@@ -78,7 +78,7 @@ pub fn pci_tdisp_rsp_dispatcher(
                 };
 
                 let len = write_error(
-                    vendor_context,
+                    vdm_handle,
                     TdispErrorCode::UNSUPPORTED_REQUEST,
                     0,
                     &[],
@@ -89,6 +89,6 @@ pub fn pci_tdisp_rsp_dispatcher(
             }
         }
     } else {
-        pci_tdisp_rsp_vdm_response(vendor_context, vendor_defined_req_payload_struct)
+        pci_tdisp_rsp_vdm_response(vdm_handle, vendor_defined_req_payload_struct)
     }
 }

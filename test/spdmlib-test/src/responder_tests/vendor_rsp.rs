@@ -57,7 +57,7 @@ fn test_case0_handle_spdm_vendor_defined_request() {
 
     register_vendor_defined_struct(VendorDefinedStruct {
         vendor_defined_request_handler: vendor_defined_func,
-        vendor_context: 0,
+        vdm_handle: 0,
     });
 
     if let Ok(vendor_defined_res_payload_struct) =

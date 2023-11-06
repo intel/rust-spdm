@@ -70,7 +70,7 @@ async fn fuzz_handle_spdm_vendor_defined_request(data: Arc<Vec<u8>>) {
 
     register_vendor_defined_struct(VendorDefinedStruct {
         vendor_defined_request_handler: vendor_defined_func,
-        vendor_context: 0,
+        vdm_handle: 0,
     });
 
     let mut response_buffer = [0u8; spdmlib::config::MAX_SPDM_MSG_SIZE];

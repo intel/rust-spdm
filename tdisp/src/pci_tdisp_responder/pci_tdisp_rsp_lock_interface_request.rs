@@ -31,7 +31,7 @@ pub struct PciTdispDeviceLockInterface {
     #[allow(clippy::type_complexity)]
     pub pci_tdisp_device_lock_interface_cb: fn(
         // IN
-        vendor_context: usize,
+        vdm_handle: usize,
         flags: &LockInterfaceFlag,
         default_stream_id: u8,
         mmio_reporting_offset: u64,
@@ -52,7 +52,7 @@ pub fn register(context: PciTdispDeviceLockInterface) -> bool {
 static UNIMPLETEMTED: PciTdispDeviceLockInterface = PciTdispDeviceLockInterface {
     pci_tdisp_device_lock_interface_cb:
         |// IN
-         _vendor_context: usize,
+         _vdm_handle: usize,
          _flags: &LockInterfaceFlag,
          _default_stream_id: u8,
          _mmio_reporting_offset: u64,
@@ -67,7 +67,7 @@ static UNIMPLETEMTED: PciTdispDeviceLockInterface = PciTdispDeviceLockInterface 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn pci_tdisp_device_lock_interface(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     flags: &LockInterfaceFlag,
     default_stream_id: u8,
     mmio_reporting_offset: u64,
@@ -82,7 +82,7 @@ pub(crate) fn pci_tdisp_device_lock_interface(
         .ok()
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_lock_interface_cb)(
-        vendor_context,
+        vdm_handle,
         flags,
         default_stream_id,
         mmio_reporting_offset,
@@ -94,7 +94,7 @@ pub(crate) fn pci_tdisp_device_lock_interface(
 }
 
 pub(crate) fn pci_tdisp_rsp_lock_interface(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     let req_lock_interface_request = ReqLockInterfaceRequest::read_bytes(
@@ -113,7 +113,7 @@ pub(crate) fn pci_tdisp_rsp_lock_interface(
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_lock_interface(
-        vendor_context,
+        vdm_handle,
         &req_lock_interface_request.flags,
         req_lock_interface_request.default_stream_id,
         req_lock_interface_request.mmio_reporting_offset,
@@ -125,7 +125,7 @@ pub(crate) fn pci_tdisp_rsp_lock_interface(
 
     if let Some(tdisp_error_code) = tdisp_error_code {
         let len = write_error(
-            vendor_context,
+            vdm_handle,
             tdisp_error_code,
             0,
             &[],

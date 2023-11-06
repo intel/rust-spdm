@@ -30,7 +30,7 @@ pub struct PciTdispDeviceCapabilities {
     #[allow(clippy::type_complexity)]
     pub pci_tdisp_device_capabilities_cb: fn(
         // IN
-        vendor_context: usize,
+        vdm_handle: usize,
         tsm_caps: u32,
         // OUT
         interface_id: &mut InterfaceId,
@@ -52,7 +52,7 @@ pub fn register(context: PciTdispDeviceCapabilities) -> bool {
 
 static UNIMPLETEMTED: PciTdispDeviceCapabilities = PciTdispDeviceCapabilities {
     pci_tdisp_device_capabilities_cb: |// IN
-                                       _vendor_context: usize,
+                                       _vdm_handle: usize,
                                        _tsm_caps: u32,
                                        // OUT
                                        _interface_id: &mut InterfaceId,
@@ -69,7 +69,7 @@ static UNIMPLETEMTED: PciTdispDeviceCapabilities = PciTdispDeviceCapabilities {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn pci_tdisp_device_capabilities(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     tsm_caps: u32,
     // OUT
     interface_id: &mut InterfaceId,
@@ -87,7 +87,7 @@ pub(crate) fn pci_tdisp_device_capabilities(
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_capabilities_cb)(
         // IN
-        vendor_context,
+        vdm_handle,
         tsm_caps,
         // OUT
         interface_id,
@@ -102,7 +102,7 @@ pub(crate) fn pci_tdisp_device_capabilities(
 }
 
 pub(crate) fn pci_tdisp_rsp_capabilities(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     let req_get_tdisp_capabilities = ReqGetTdispCapabilities::read_bytes(
@@ -121,7 +121,7 @@ pub(crate) fn pci_tdisp_rsp_capabilities(
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_capabilities(
-        vendor_context,
+        vdm_handle,
         req_get_tdisp_capabilities.tsm_caps,
         &mut interface_id,
         &mut dsm_caps,
@@ -140,7 +140,7 @@ pub(crate) fn pci_tdisp_rsp_capabilities(
 
     if let Some(tdisp_error_code) = tdisp_error_code {
         let len = write_error(
-            vendor_context,
+            vdm_handle,
             tdisp_error_code,
             0,
             &[],

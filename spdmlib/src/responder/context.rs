@@ -189,7 +189,7 @@ impl ResponderContext {
     pub async fn process_message(
         &mut self,
         crypto_request: bool,
-        auxiliary_app_data: &[u8],
+        app_handle: usize, // interpreted/managed by User
         raw_packet: &mut [u8; RECEIVER_BUFFER_SIZE],
     ) -> Result<SpdmResult, usize> {
         let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
@@ -267,7 +267,7 @@ impl ResponderContext {
                                 let (status, send_buffer) = self.dispatch_secured_app_message(
                                     session_id,
                                     &spdm_buffer[..decode_size],
-                                    auxiliary_app_data,
+                                    app_handle,
                                     &mut writer,
                                 );
                                 if let Some(send_buffer) = send_buffer {
@@ -491,12 +491,12 @@ impl ResponderContext {
         &mut self,
         session_id: u32,
         bytes: &[u8],
-        auxiliary_app_data: &[u8],
+        app_handle: usize,
         writer: &'a mut Writer,
     ) -> (SpdmResult, Option<&'a [u8]>) {
         debug!("dispatching secured app message\n");
 
-        dispatch_secured_app_message_cb(self, session_id, bytes, auxiliary_app_data, writer)
+        dispatch_secured_app_message_cb(self, session_id, bytes, app_handle, writer)
     }
 
     pub fn dispatch_message<'a>(

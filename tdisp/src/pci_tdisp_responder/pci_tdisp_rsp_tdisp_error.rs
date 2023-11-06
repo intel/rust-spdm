@@ -21,7 +21,7 @@ pub struct PciTdispDeviceError {
     #[allow(clippy::type_complexity)]
     pub pci_tdisp_device_error_cb: fn(
         // IN
-        vendor_context: usize,
+        vdm_handle: usize,
         // OUT
         interface_id: &mut InterfaceId,
     ) -> SpdmResult,
@@ -35,7 +35,7 @@ pub fn register(context: PciTdispDeviceError) -> bool {
 
 static UNIMPLETEMTED: PciTdispDeviceError = PciTdispDeviceError {
     pci_tdisp_device_error_cb: |// IN
-                                _vendor_context: usize,
+                                _vdm_handle: usize,
                                 // OUT
                                 _interface_id: &mut InterfaceId|
      -> SpdmResult { unimplemented!() },
@@ -43,7 +43,7 @@ static UNIMPLETEMTED: PciTdispDeviceError = PciTdispDeviceError {
 
 pub(crate) fn pci_tdisp_device_error(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
 ) -> SpdmResult {
@@ -53,14 +53,14 @@ pub(crate) fn pci_tdisp_device_error(
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_error_cb)(
         // IN
-        vendor_context,
+        vdm_handle,
         // OUT
         interface_id,
     )
 }
 
 pub(crate) fn write_error(
-    vendor_context: usize,
+    vdm_handle: usize,
     error_code: TdispErrorCode,
     error_data: u32,
     ext_error_data: &[u8],
@@ -70,7 +70,7 @@ pub(crate) fn write_error(
 
     let mut interface_id = InterfaceId::default();
 
-    pci_tdisp_device_error(vendor_context, &mut interface_id)?;
+    pci_tdisp_device_error(vdm_handle, &mut interface_id)?;
 
     let len1 = RspTdispError {
         message_header: TdispMessageHeader {

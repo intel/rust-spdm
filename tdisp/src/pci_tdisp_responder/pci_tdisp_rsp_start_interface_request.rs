@@ -29,7 +29,7 @@ static PCI_TDISP_DEVICE_START_INTERFACE_INSTANCE: OnceCell<PciTdispDeviceStartIn
 pub struct PciTdispDeviceStartInterface {
     pub pci_tdisp_device_start_interface_cb: fn(
         //IN
-        vendor_context: usize,
+        vdm_handle: usize,
         start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
         //OUT
         interface_id: &mut InterfaceId,
@@ -46,7 +46,7 @@ pub fn register(context: PciTdispDeviceStartInterface) -> bool {
 static UNIMPLETEMTED: PciTdispDeviceStartInterface = PciTdispDeviceStartInterface {
     pci_tdisp_device_start_interface_cb:
         |//IN
-         _vendor_context: usize,
+         _vdm_handle: usize,
          _start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
          //OUT
          _interface_id: &mut InterfaceId,
@@ -56,7 +56,7 @@ static UNIMPLETEMTED: PciTdispDeviceStartInterface = PciTdispDeviceStartInterfac
 
 pub(crate) fn pci_tdisp_device_start_interface(
     //IN
-    vendor_context: usize,
+    vdm_handle: usize,
     start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
     //OUT
     interface_id: &mut InterfaceId,
@@ -67,7 +67,7 @@ pub(crate) fn pci_tdisp_device_start_interface(
         .ok()
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_start_interface_cb)(
-        vendor_context,
+        vdm_handle,
         start_interface_nonce,
         interface_id,
         tdisp_error_code,
@@ -75,7 +75,7 @@ pub(crate) fn pci_tdisp_device_start_interface(
 }
 
 pub(crate) fn pci_tdisp_rsp_start_interface(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     let req_start_interface_request = ReqStartInterfaceRequest::read_bytes(
@@ -88,7 +88,7 @@ pub(crate) fn pci_tdisp_rsp_start_interface(
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_start_interface(
-        vendor_context,
+        vdm_handle,
         &req_start_interface_request.start_interface_nonce,
         &mut interface_id,
         &mut tdisp_error_code,
@@ -101,7 +101,7 @@ pub(crate) fn pci_tdisp_rsp_start_interface(
 
     if let Some(tdisp_error_code) = tdisp_error_code {
         let len = write_error(
-            vendor_context,
+            vdm_handle,
             tdisp_error_code,
             0,
             &[],

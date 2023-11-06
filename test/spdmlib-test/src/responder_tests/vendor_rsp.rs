@@ -41,8 +41,10 @@ fn test_case0_handle_spdm_vendor_defined_request() {
 
     let vendor_defined_func: for<'r> fn(
         usize,
+        &VendorIDStruct,
         &'r vendor::VendorDefinedReqPayloadStruct,
     ) -> Result<_, _> = |_: usize,
+                         _: &VendorIDStruct,
                          _vendor_defined_req_payload_struct|
      -> SpdmResult<VendorDefinedRspPayloadStruct> {
         let mut vendor_defined_res_payload_struct = VendorDefinedRspPayloadStruct {
@@ -60,9 +62,11 @@ fn test_case0_handle_spdm_vendor_defined_request() {
         vdm_handle: 0,
     });
 
-    if let Ok(vendor_defined_res_payload_struct) =
-        responder.respond_to_vendor_defined_request(&req, vendor_defined_request_handler)
-    {
+    if let Ok(vendor_defined_res_payload_struct) = responder.respond_to_vendor_defined_request(
+        &req,
+        &VendorIDStruct::default(),
+        vendor_defined_request_handler,
+    ) {
         assert_eq!(vendor_defined_res_payload_struct.rsp_length, 8);
         assert_eq!(
             vendor_defined_res_payload_struct.vendor_defined_rsp_payload[0],

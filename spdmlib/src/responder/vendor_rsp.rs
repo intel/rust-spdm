@@ -63,8 +63,11 @@ impl ResponderContext {
         let standard_id = vendor_defined_request_payload.standard_id;
         let vendor_id = vendor_defined_request_payload.vendor_id;
         let req_payload = vendor_defined_request_payload.req_payload;
-        let rsp_payload =
-            self.respond_to_vendor_defined_request(&req_payload, vendor_defined_request_handler);
+        let rsp_payload = self.respond_to_vendor_defined_request(
+            &req_payload,
+            &vendor_id,
+            vendor_defined_request_handler,
+        );
         if let Err(e) = rsp_payload {
             self.write_spdm_error(SpdmErrorCode::SpdmErrorUnspecified, 0, writer);
             return (Err(e), Some(writer.used_slice()));
@@ -100,11 +103,15 @@ impl ResponderContext {
     pub fn respond_to_vendor_defined_request<F>(
         &mut self,
         req: &VendorDefinedReqPayloadStruct,
+        vendor_id_struct: &VendorIDStruct,
         verdor_defined_func: F,
     ) -> SpdmResult<VendorDefinedRspPayloadStruct>
     where
-        F: Fn(&VendorDefinedReqPayloadStruct) -> SpdmResult<VendorDefinedRspPayloadStruct>,
+        F: Fn(
+            &VendorIDStruct,
+            &VendorDefinedReqPayloadStruct,
+        ) -> SpdmResult<VendorDefinedRspPayloadStruct>,
     {
-        verdor_defined_func(req)
+        verdor_defined_func(vendor_id_struct, req)
     }
 }

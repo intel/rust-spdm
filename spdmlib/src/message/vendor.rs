@@ -82,6 +82,27 @@ impl Codec for VendorIDStruct {
     }
 }
 
+impl PartialEq for VendorIDStruct {
+    fn eq(&self, vid: &VendorIDStruct) -> bool {
+        if self.len != vid.len {
+            false
+        } else {
+            self.vendor_id[..self.len as usize] == vid.vendor_id[..vid.len as usize]
+        }
+    }
+}
+
+impl Eq for VendorIDStruct {}
+
+impl Default for VendorIDStruct {
+    fn default() -> Self {
+        Self {
+            len: 0,
+            vendor_id: [0u8; MAX_SPDM_VENDOR_DEFINED_VENDOR_ID_LEN],
+        }
+    }
+}
+
 #[derive(Debug, Clone, ZeroizeOnDrop)]
 pub struct VendorDefinedReqPayloadStruct {
     pub req_length: u16,

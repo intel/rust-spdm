@@ -21,7 +21,7 @@ pub const PCI_IDE_KM_IDE_REG_BLOCK_MAX_COUNT: usize = 2
         * PCI_IDE_KM_SELECTIVE_IDE_REG_BLOCK_MAX_COUNT;
 pub const PCI_IDE_KM_IDE_REG_BLOCK_MIN_COUNT: usize = 2;
 
-pub const IDE_PROTOCOL_ID: u8 = 0;
+pub const IDEKM_PROTOCOL_ID: u8 = 0;
 
 pub const QUERY_OBJECT_ID: u8 = 0;
 pub const QUERY_RESP_OBJECT_ID: u8 = 1;
@@ -53,7 +53,7 @@ impl Codec for QueryDataObject {
     fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
         let mut cnt = 0;
 
-        cnt += IDE_PROTOCOL_ID.encode(bytes)?;
+        cnt += IDEKM_PROTOCOL_ID.encode(bytes)?;
         cnt += QUERY_OBJECT_ID.encode(bytes)?;
         cnt += 0u8.encode(bytes)?;
         cnt += self.port_index.encode(bytes)?;
@@ -63,7 +63,7 @@ impl Codec for QueryDataObject {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let protocol_id = u8::read(r)?;
-        if protocol_id != IDE_PROTOCOL_ID {
+        if protocol_id != IDEKM_PROTOCOL_ID {
             return None;
         }
 
@@ -95,7 +95,7 @@ impl Codec for QueryRespDataObject {
     fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
         let mut cnt = 0;
 
-        cnt += IDE_PROTOCOL_ID.encode(bytes)?;
+        cnt += IDEKM_PROTOCOL_ID.encode(bytes)?;
         cnt += QUERY_RESP_OBJECT_ID.encode(bytes)?;
         cnt += 0u8.encode(bytes)?;
         cnt += self.port_index.encode(bytes)?;
@@ -112,7 +112,7 @@ impl Codec for QueryRespDataObject {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let protocol_id = u8::read(r)?;
-        if protocol_id != IDE_PROTOCOL_ID {
+        if protocol_id != IDEKM_PROTOCOL_ID {
             return None;
         }
         let object_id = u8::read(r)?;
@@ -213,7 +213,7 @@ impl Codec for KeyProgDataObject {
     fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
         let mut cnt = 0;
 
-        cnt += IDE_PROTOCOL_ID.encode(bytes)?;
+        cnt += IDEKM_PROTOCOL_ID.encode(bytes)?;
         cnt += KEY_PROG_OBJECT_ID.encode(bytes)?;
         cnt += 0u16.encode(bytes)?;
         cnt += self.stream_id.encode(bytes)?;
@@ -227,7 +227,7 @@ impl Codec for KeyProgDataObject {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let protocol_id = u8::read(r)?;
-        if protocol_id != IDE_PROTOCOL_ID {
+        if protocol_id != IDEKM_PROTOCOL_ID {
             return None;
         }
         let object_id = u8::read(r)?;
@@ -332,7 +332,7 @@ impl Codec for KpAckDataObject {
     fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
         let mut cnt = 0;
 
-        cnt += IDE_PROTOCOL_ID.encode(bytes)?;
+        cnt += IDEKM_PROTOCOL_ID.encode(bytes)?;
         cnt += KP_ACK_OBJECT_ID.encode(bytes)?;
         cnt += 0u16.encode(bytes)?;
         cnt += self.stream_id.encode(bytes)?;
@@ -345,7 +345,7 @@ impl Codec for KpAckDataObject {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let protocol_id = u8::read(r)?;
-        if protocol_id != IDE_PROTOCOL_ID {
+        if protocol_id != IDEKM_PROTOCOL_ID {
             return None;
         }
         let object_id = u8::read(r)?;
@@ -391,7 +391,7 @@ impl Codec for KSetGoDataObject {
     fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
         let mut cnt = 0;
 
-        cnt += IDE_PROTOCOL_ID.encode(bytes)?;
+        cnt += IDEKM_PROTOCOL_ID.encode(bytes)?;
         cnt += K_SET_GO_OBJECT_ID.encode(bytes)?;
         cnt += 0u16.encode(bytes)?;
         cnt += self.stream_id.encode(bytes)?;
@@ -404,7 +404,7 @@ impl Codec for KSetGoDataObject {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let protocol_id = u8::read(r)?;
-        if protocol_id != IDE_PROTOCOL_ID {
+        if protocol_id != IDEKM_PROTOCOL_ID {
             return None;
         }
         let object_id = u8::read(r)?;
@@ -449,7 +449,7 @@ impl Codec for KSetStopDataObject {
     fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
         let mut cnt = 0;
 
-        cnt += IDE_PROTOCOL_ID.encode(bytes)?;
+        cnt += IDEKM_PROTOCOL_ID.encode(bytes)?;
         cnt += K_SET_STOP_OBJECT_ID.encode(bytes)?;
         cnt += 0u16.encode(bytes)?;
         cnt += self.stream_id.encode(bytes)?;
@@ -462,7 +462,7 @@ impl Codec for KSetStopDataObject {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let protocol_id = u8::read(r)?;
-        if protocol_id != IDE_PROTOCOL_ID {
+        if protocol_id != IDEKM_PROTOCOL_ID {
             return None;
         }
         let object_id = u8::read(r)?;
@@ -507,7 +507,7 @@ impl Codec for KGoStopAckDataObject {
     fn encode(&self, bytes: &mut codec::Writer) -> Result<usize, codec::EncodeErr> {
         let mut cnt = 0;
 
-        cnt += IDE_PROTOCOL_ID.encode(bytes)?;
+        cnt += IDEKM_PROTOCOL_ID.encode(bytes)?;
         cnt += K_GOSTOP_ACK_OBJECT_ID.encode(bytes)?;
         cnt += 0u16.encode(bytes)?;
         cnt += self.stream_id.encode(bytes)?;
@@ -520,7 +520,7 @@ impl Codec for KGoStopAckDataObject {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let protocol_id = u8::read(r)?;
-        if protocol_id != IDE_PROTOCOL_ID {
+        if protocol_id != IDEKM_PROTOCOL_ID {
             return None;
         }
         let object_id = u8::read(r)?;

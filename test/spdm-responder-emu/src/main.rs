@@ -4,7 +4,7 @@
 
 mod spdm_device_idekm_example;
 use idekm::pci_ide_km_responder::pci_ide_km_rsp_dispatcher;
-use idekm::pci_idekm::IDE_PROTOCOL_ID;
+use idekm::pci_idekm::IDEKM_PROTOCOL_ID;
 use spdm_device_idekm_example::init_device_idekm_instance;
 
 mod spdm_device_tdisp_example;
@@ -472,7 +472,9 @@ fn pci_idekm_tdisp_rsp_dispatcher(
     }
 
     match vendor_defined_req_payload_struct.vendor_defined_req_payload[0] {
-        IDE_PROTOCOL_ID => pci_ide_km_rsp_dispatcher(vdm_handle, vendor_defined_req_payload_struct),
+        IDEKM_PROTOCOL_ID => {
+            pci_ide_km_rsp_dispatcher(vdm_handle, vendor_defined_req_payload_struct)
+        }
         TDISP_PROTOCOL_ID => {
             pci_tdisp_rsp_dispatcher(vdm_handle, vendor_defined_req_payload_struct)
         }

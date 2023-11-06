@@ -29,7 +29,7 @@ static PCI_TDISP_DEVICE_STOP_INTERFACE_INSTANCE: OnceCell<PciTdispDeviceStopInte
 pub struct PciTdispDeviceStopInterface {
     pub pci_tdisp_device_stop_interface_cb: fn(
         // IN
-        vendor_context: usize,
+        vdm_handle: usize,
         // OUT
         interface_id: &mut InterfaceId,
         tdisp_error_code: &mut Option<TdispErrorCode>,
@@ -44,7 +44,7 @@ pub fn register(context: PciTdispDeviceStopInterface) -> bool {
 
 static UNIMPLETEMTED: PciTdispDeviceStopInterface = PciTdispDeviceStopInterface {
     pci_tdisp_device_stop_interface_cb: |// IN
-                                         _vendor_context: usize,
+                                         _vdm_handle: usize,
                                          // OUT
                                          _interface_id: &mut InterfaceId,
                                          _tdisp_error_code: &mut Option<TdispErrorCode>|
@@ -53,7 +53,7 @@ static UNIMPLETEMTED: PciTdispDeviceStopInterface = PciTdispDeviceStopInterface 
 
 pub(crate) fn pci_tdisp_device_stop_interface(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
@@ -62,11 +62,11 @@ pub(crate) fn pci_tdisp_device_stop_interface(
         .try_get_or_init(|| UNIMPLETEMTED.clone())
         .ok()
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
-        .pci_tdisp_device_stop_interface_cb)(vendor_context, interface_id, tdisp_error_code)
+        .pci_tdisp_device_stop_interface_cb)(vdm_handle, interface_id, tdisp_error_code)
 }
 
 pub(crate) fn pci_tdisp_rsp_stop_interface(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     let _ = ReqStopInterfaceRequest::read_bytes(
@@ -78,7 +78,7 @@ pub(crate) fn pci_tdisp_rsp_stop_interface(
     let mut interface_id = InterfaceId::default();
     let mut tdisp_error_code = None;
 
-    pci_tdisp_device_stop_interface(vendor_context, &mut interface_id, &mut tdisp_error_code)?;
+    pci_tdisp_device_stop_interface(vdm_handle, &mut interface_id, &mut tdisp_error_code)?;
 
     let mut vendor_defined_rsp_payload_struct = VendorDefinedRspPayloadStruct {
         rsp_length: 0,
@@ -87,7 +87,7 @@ pub(crate) fn pci_tdisp_rsp_stop_interface(
 
     if let Some(tdisp_error_code) = tdisp_error_code {
         let len = write_error(
-            vendor_context,
+            vdm_handle,
             tdisp_error_code,
             0,
             &[],

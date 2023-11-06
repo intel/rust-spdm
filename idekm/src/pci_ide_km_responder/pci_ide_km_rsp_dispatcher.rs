@@ -16,11 +16,11 @@ use spdmlib::{
 
 pub const PCI_IDE_KM_INSTANCE: VendorDefinedStruct = VendorDefinedStruct {
     vendor_defined_request_handler: pci_ide_km_rsp_dispatcher,
-    vendor_context: 0,
+    vdm_handle: 0,
 };
 
 pub fn pci_ide_km_rsp_dispatcher(
-    _vendor_context: usize,
+    _vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     if vendor_defined_req_payload_struct.req_length < 2 {

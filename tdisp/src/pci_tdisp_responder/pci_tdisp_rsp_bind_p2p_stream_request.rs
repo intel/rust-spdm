@@ -29,7 +29,7 @@ static PCI_TDISP_DEVICE_BING_P2P_STREAM_INSTANCE: OnceCell<PciTdispDeviceBindP2p
 pub struct PciTdispDeviceBindP2pStream {
     pub pci_tdisp_device_bind_p2p_stream_cb: fn(
         //IN
-        vendor_context: usize,
+        vdm_handle: usize,
         p2p_stream_id: u8,
         //OUT
         interface_id: &mut InterfaceId,
@@ -45,7 +45,7 @@ pub fn register(context: PciTdispDeviceBindP2pStream) -> bool {
 
 static UNIMPLETEMTED: PciTdispDeviceBindP2pStream = PciTdispDeviceBindP2pStream {
     pci_tdisp_device_bind_p2p_stream_cb: |//IN
-                                          _vendor_context: usize,
+                                          _vdm_handle: usize,
                                           _p2p_stream_id: u8,
                                           //OUT
                                           _interface_id: &mut InterfaceId,
@@ -55,7 +55,7 @@ static UNIMPLETEMTED: PciTdispDeviceBindP2pStream = PciTdispDeviceBindP2pStream 
 
 pub(crate) fn pci_tdisp_device_bind_p2p_stream(
     //IN
-    vendor_context: usize,
+    vdm_handle: usize,
     p2p_stream_id: u8,
     //OUT
     interface_id: &mut InterfaceId,
@@ -66,7 +66,7 @@ pub(crate) fn pci_tdisp_device_bind_p2p_stream(
         .ok()
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_bind_p2p_stream_cb)(
-        vendor_context,
+        vdm_handle,
         p2p_stream_id,
         interface_id,
         tdisp_error_code,
@@ -74,7 +74,7 @@ pub(crate) fn pci_tdisp_device_bind_p2p_stream(
 }
 
 pub(crate) fn pci_tdisp_rsp_bind_p2p_stream(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     let req_bind_p2_pstream_request = ReqBindP2PStreamRequest::read_bytes(
@@ -87,7 +87,7 @@ pub(crate) fn pci_tdisp_rsp_bind_p2p_stream(
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_bind_p2p_stream(
-        vendor_context,
+        vdm_handle,
         req_bind_p2_pstream_request.p2p_stream_id,
         &mut interface_id,
         &mut tdisp_error_code,
@@ -100,7 +100,7 @@ pub(crate) fn pci_tdisp_rsp_bind_p2p_stream(
 
     if let Some(tdisp_error_code) = tdisp_error_code {
         let len = write_error(
-            vendor_context,
+            vdm_handle,
             tdisp_error_code,
             0,
             &[],

@@ -151,7 +151,7 @@ pub struct DeviceContext {
 #[allow(clippy::too_many_arguments)]
 fn pci_tdisp_device_capabilities(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     _tsm_caps: u32,
     // OUT
     interface_id: &mut InterfaceId,
@@ -163,7 +163,7 @@ fn pci_tdisp_device_capabilities(
     num_req_all: &mut u8,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &*device_context as &DeviceContext };
 
@@ -181,11 +181,11 @@ fn pci_tdisp_device_capabilities(
 
 fn pci_tdisp_device_error(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -198,14 +198,14 @@ fn pci_tdisp_device_error(
 
 fn pci_tdisp_device_interface_report(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
     tdi_report: &mut [u8; MAX_DEVICE_REPORT_BUFFER],
     tdi_report_size: &mut usize,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -244,13 +244,13 @@ fn pci_tdisp_device_interface_report(
 
 fn pci_tdisp_device_interface_state(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
     tdi_state: &mut TdiState,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -264,7 +264,7 @@ fn pci_tdisp_device_interface_state(
 #[allow(clippy::too_many_arguments)]
 fn pci_tdisp_device_lock_interface(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     flags: &LockInterfaceFlag,
     default_stream_id: u8,
     mmio_reporting_offset: u64,
@@ -274,7 +274,7 @@ fn pci_tdisp_device_lock_interface(
     start_interface_nonce: &mut [u8; START_INTERFACE_NONCE_LEN],
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -306,13 +306,13 @@ fn pci_tdisp_device_lock_interface(
 
 fn pci_tdisp_device_start_interface(
     //IN
-    vendor_context: usize,
+    vdm_handle: usize,
     start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
     //OUT
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -332,12 +332,12 @@ fn pci_tdisp_device_start_interface(
 
 fn pci_tdisp_device_stop_interface(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -356,13 +356,13 @@ fn pci_tdisp_device_stop_interface(
 
 fn pci_tdisp_device_bind_p2p_stream(
     //IN
-    vendor_context: usize,
+    vdm_handle: usize,
     p2p_stream_id: u8,
     //OUT
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -381,13 +381,13 @@ fn pci_tdisp_device_bind_p2p_stream(
 
 fn pci_tdisp_device_unbind_p2p_stream(
     //IN
-    vendor_context: usize,
+    vdm_handle: usize,
     p2p_stream_id: u8,
     //OUT
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -409,13 +409,13 @@ fn pci_tdisp_device_unbind_p2p_stream(
 
 fn pci_tdisp_device_set_mmio_attribute(
     //IN
-    vendor_context: usize,
+    vdm_handle: usize,
     _mmio_range: &TdispMmioRange,
     //OUT
     interface_id: &mut InterfaceId,
     tdisp_error_code: &mut Option<TdispErrorCode>,
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 
@@ -432,7 +432,7 @@ fn pci_tdisp_device_set_mmio_attribute(
 
 fn pci_tdisp_device_vdm_response(
     //IN
-    _vendor_context: usize,
+    _vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     println!(
@@ -455,13 +455,13 @@ fn pci_tdisp_device_vdm_response(
 
 fn pci_tdisp_device_version(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
     version_num_count: &mut u8,
     version_num_entry: &mut [TdispVersion; MAX_TDISP_VERSION_COUNT],
 ) -> SpdmResult {
-    let device_context = vendor_context as *mut DeviceContext;
+    let device_context = vdm_handle as *mut DeviceContext;
 
     let device_context = unsafe { &mut *device_context as &mut DeviceContext };
 

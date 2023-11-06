@@ -26,7 +26,7 @@ pub struct PciTdispDeviceVersion {
     #[allow(clippy::type_complexity)]
     pub pci_tdisp_device_version_cb: fn(
         // IN
-        vendor_context: usize,
+        vdm_handle: usize,
         // OUT
         interface_id: &mut InterfaceId,
         version_num_count: &mut u8,
@@ -42,7 +42,7 @@ pub fn register(context: PciTdispDeviceVersion) -> bool {
 
 static UNIMPLETEMTED: PciTdispDeviceVersion = PciTdispDeviceVersion {
     pci_tdisp_device_version_cb: |// IN
-                                  _vendor_context: usize,
+                                  _vdm_handle: usize,
                                   // OUT
                                   _interface_id: &mut InterfaceId,
                                   _version_num_count: &mut u8,
@@ -53,7 +53,7 @@ static UNIMPLETEMTED: PciTdispDeviceVersion = PciTdispDeviceVersion {
 
 pub(crate) fn pci_tdisp_device_version(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
     version_num_count: &mut u8,
@@ -65,7 +65,7 @@ pub(crate) fn pci_tdisp_device_version(
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_version_cb)(
         // IN
-        vendor_context,
+        vdm_handle,
         // OUT
         interface_id,
         version_num_count,
@@ -74,7 +74,7 @@ pub(crate) fn pci_tdisp_device_version(
 }
 
 pub(crate) fn pci_tdisp_rsp_version(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     let _ = ReqGetTdispVersion::read_bytes(
@@ -88,7 +88,7 @@ pub(crate) fn pci_tdisp_rsp_version(
     let mut version_num_entry = [TdispVersion::default(); MAX_TDISP_VERSION_COUNT];
 
     pci_tdisp_device_version(
-        vendor_context,
+        vdm_handle,
         &mut interface_id,
         &mut version_num_count,
         &mut version_num_entry,

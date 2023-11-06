@@ -29,7 +29,7 @@ static PCI_TDISP_DEVICE_INTERFACE_STATE_INSTANCE: OnceCell<PciTdispDeviceInterfa
 pub struct PciTdispDeviceInterfaceState {
     pub pci_tdisp_device_interface_state_cb: fn(
         // IN
-        vendor_context: usize,
+        vdm_handle: usize,
         // OUT
         interface_id: &mut InterfaceId,
         tdi_state: &mut TdiState,
@@ -53,7 +53,7 @@ static UNIMPLETEMTED: PciTdispDeviceInterfaceState = PciTdispDeviceInterfaceStat
 
 pub(crate) fn pci_tdisp_device_interface_state(
     // IN
-    vendor_context: usize,
+    vdm_handle: usize,
     // OUT
     interface_id: &mut InterfaceId,
     tdi_state: &mut TdiState,
@@ -64,15 +64,12 @@ pub(crate) fn pci_tdisp_device_interface_state(
         .ok()
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_interface_state_cb)(
-        vendor_context,
-        interface_id,
-        tdi_state,
-        tdisp_error_code,
+        vdm_handle, interface_id, tdi_state, tdisp_error_code
     )
 }
 
 pub(crate) fn pci_tdisp_rsp_interface_state(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     let _ = ReqGetDeviceInterfaceState::read_bytes(
@@ -86,7 +83,7 @@ pub(crate) fn pci_tdisp_rsp_interface_state(
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_interface_state(
-        vendor_context,
+        vdm_handle,
         &mut interface_id,
         &mut tdi_state,
         &mut tdisp_error_code,
@@ -99,7 +96,7 @@ pub(crate) fn pci_tdisp_rsp_interface_state(
 
     if let Some(tdisp_error_code) = tdisp_error_code {
         let len = write_error(
-            vendor_context,
+            vdm_handle,
             tdisp_error_code,
             0,
             &[],

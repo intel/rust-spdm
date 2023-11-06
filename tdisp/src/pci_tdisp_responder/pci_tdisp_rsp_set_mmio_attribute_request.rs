@@ -29,7 +29,7 @@ static PCI_TDISP_DEVICE_SET_MMIO_ATTRIBUTE_INSTANCE: OnceCell<PciTdispDeviceSetM
 pub struct PciTdispDeviceSetMmioAttribute {
     pub pci_tdisp_device_set_mmio_attribute_cb: fn(
         //IN
-        vendor_context: usize,
+        vdm_handle: usize,
         mmio_range: &TdispMmioRange,
         //OUT
         interface_id: &mut InterfaceId,
@@ -45,7 +45,7 @@ pub fn register(context: PciTdispDeviceSetMmioAttribute) -> bool {
 
 static UNIMPLETEMTED: PciTdispDeviceSetMmioAttribute = PciTdispDeviceSetMmioAttribute {
     pci_tdisp_device_set_mmio_attribute_cb: |//IN
-                                             _vendor_context: usize,
+                                             _vdm_handle: usize,
                                              _mmio_range: &TdispMmioRange,
                                              //OUT
                                              _interface_id: &mut InterfaceId,
@@ -55,7 +55,7 @@ static UNIMPLETEMTED: PciTdispDeviceSetMmioAttribute = PciTdispDeviceSetMmioAttr
 
 pub(crate) fn pci_tdisp_device_set_mmio_attribute(
     //IN
-    vendor_context: usize,
+    vdm_handle: usize,
     mmio_range: &TdispMmioRange,
     //OUT
     interface_id: &mut InterfaceId,
@@ -66,7 +66,7 @@ pub(crate) fn pci_tdisp_device_set_mmio_attribute(
         .ok()
         .ok_or(SPDM_STATUS_INVALID_STATE_LOCAL)?
         .pci_tdisp_device_set_mmio_attribute_cb)(
-        vendor_context,
+        vdm_handle,
         mmio_range,
         interface_id,
         tdisp_error_code,
@@ -74,7 +74,7 @@ pub(crate) fn pci_tdisp_device_set_mmio_attribute(
 }
 
 pub(crate) fn pci_tdisp_rsp_set_mmio_attribute(
-    vendor_context: usize,
+    vdm_handle: usize,
     vendor_defined_req_payload_struct: &VendorDefinedReqPayloadStruct,
 ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
     let req_set_mmio_attribute_request = ReqSetMmioAttributeRequest::read_bytes(
@@ -87,7 +87,7 @@ pub(crate) fn pci_tdisp_rsp_set_mmio_attribute(
     let mut tdisp_error_code = None;
 
     pci_tdisp_device_set_mmio_attribute(
-        vendor_context,
+        vdm_handle,
         &req_set_mmio_attribute_request.mmio_range,
         &mut interface_id,
         &mut tdisp_error_code,
@@ -100,7 +100,7 @@ pub(crate) fn pci_tdisp_rsp_set_mmio_attribute(
 
     if let Some(tdisp_error_code) = tdisp_error_code {
         let len = write_error(
-            vendor_context,
+            vdm_handle,
             tdisp_error_code,
             0,
             &[],

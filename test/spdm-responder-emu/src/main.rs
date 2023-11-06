@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-mod spdm_device_example;
+mod spdm_device_idekm_example;
 use idekm::pci_ide_km_responder::pci_ide_km_rsp_dispatcher;
 use idekm::pci_idekm::IDE_PROTOCOL_ID;
-use spdm_device_example::init_device_instance;
+use spdm_device_idekm_example::init_device_idekm_instance;
 
 mod spdm_device_tdisp_example;
 use spdm_device_tdisp_example::init_device_tdisp_instance;
@@ -482,7 +482,7 @@ fn pci_idekm_tdisp_rsp_dispatcher(
 
 fn main() {
     use std::thread;
-    init_device_instance();
+    init_device_idekm_instance();
     init_device_tdisp_instance();
 
     thread::Builder::new()

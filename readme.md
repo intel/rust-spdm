@@ -189,5 +189,18 @@ To run a specific test, use `cargo test <test_func_name>`
 
 To run test with println!() message, use `cargo test -- --nocapture`
 
+### Stack usage
+
+```
+# Run responder and requester with "test_stack_size" feature
+cargo run --no-default-features -p spdm-responder-emu --features="spdm-ring,test_stack_size"
+cargo run --no-default-features -p spdm-requester-emu --features="spdm-ring,test_stack_size"
+
+# With "hashed-transcript-data"
+cargo run --no-default-features -p spdm-responder-emu --features="spdm-ring,hashed-transcript-data,test_stack_size"
+cargo run --no-default-features -p spdm-requester-emu --features="spdm-ring,hashed-transcript-data,test_stack_size"
+
+```
+
 ## Known limitation
 This package is only the sample code to show the concept. It does not have a full validation such as robustness functional test and fuzzing test. It does not meet the production quality yet. Any codes including the API definition, the libary and the drivers are subject to change.

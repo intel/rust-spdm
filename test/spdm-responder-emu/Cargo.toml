@@ -14,10 +14,13 @@ mctp_transport = { path = "../../mctp_transport" }
 pcidoe_transport = { path = "../../pcidoe_transport" }
 simple_logger = "1.11.0"
 log = "0.4.13"
+td-benchmark = { git = "https://github.com/confidential-containers/td-shim.git", default-features = false,  optional = true }
 
 [features]
+default = ["spdm-ring", "test_stack_size"]
 mut-auth = ["spdm-emu/mut-auth"]
 spdm-ring = ["spdm-emu/spdm-ring"]
 spdm-mbedtls = ["spdm-emu/spdm-mbedtls"]
 hashed-transcript-data = ["spdm-emu/hashed-transcript-data"]
 spdm-mbedtls-hashed-transcript-data = ["spdm-emu/spdm-mbedtls-hashed-transcript-data"]
+test_stack_size = ["td-benchmark"]

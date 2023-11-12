@@ -339,6 +339,13 @@ fn new_logger_from_env() -> SimpleLogger {
 }
 
 fn main() {
+    #[cfg(feature = "test_stack_size")]
+    td_benchmark::StackProfiling::init(
+        0x5aa5_5aa5_5aa5_5aa5,
+        0x200000 -
+        0x200, // main function stack
+    );
+
     new_logger_from_env().init().unwrap();
 
     spdmlib::secret::psk::register(SECRET_PSK_IMPL_INSTANCE.clone());
@@ -373,6 +380,15 @@ fn main() {
 
     let socket_io_transport = &mut SocketIoTransport::new(&mut socket);
     test_spdm(socket_io_transport, transport_encap);
+    #[cfg(feature = "test_stack_size")]
+    {
+        let value =
+            td_benchmark::StackProfiling::stack_usage().unwrap();
+        println!(
+            "max stack usage {}",
+            value
+        );
+    }
 
     send_receive_stop(&mut socket, transport_encap, transport_type);
 }

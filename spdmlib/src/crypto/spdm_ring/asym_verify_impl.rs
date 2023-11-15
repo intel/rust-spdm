@@ -120,6 +120,7 @@ fn asym_verify(
 // add ASN.1 for the ECDSA binary signature
 fn ecc_signature_bin_to_der(signature: &[u8], der_signature: &mut [u8]) -> SpdmResult<usize> {
     let sign_size = signature.len();
+    assert_eq!(sign_size % 2, 0);
     let half_size = sign_size / 2;
 
     let mut r_index = half_size;

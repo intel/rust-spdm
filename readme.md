@@ -209,6 +209,13 @@ spdm_requester_emu.exe --trans PCI_DOE --exe_conn DIGEST,CERT,CHAL,MEAS --exe_se
 ```
 
 ### Run test cases
+
+Setting up enough stack before running tests
+
+```
+export RUST_MIN_STACK=10485760
+```
+
 Test with hashed-transcript-data:
 ```
 cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring,spdmlib/hashed-transcript-data" -- --test-threads=1

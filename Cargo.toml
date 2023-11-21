@@ -70,6 +70,13 @@ exclude = [
 
 resolver = "2"
 
+# The dev profile used for `cargo build`
+[profile.dev]
+opt-level = 3
+# The release profile used for `cargo build --release`
+[profile.release]
+opt-level = 3
+
 [patch.crates-io]
   ring = { path = "external/ring" }
   webpki = { path = "external/webpki" }

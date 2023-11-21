@@ -134,12 +134,12 @@ cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-no
 
 Open one command windows and run:
 ```
-cargo run -p spdm-responder-emu --no-default-features --features "spdm-ring,hashed-transcript-data"
+cargo run -p spdm-responder-emu --no-default-features --features "spdm-ring,hashed-transcript-data,async-executor"
 ```
 
 Open another command windows and run:
 ```
-cargo run -p spdm-requester-emu --no-default-features --features "spdm-ring,hashed-transcript-data"
+cargo run -p spdm-requester-emu --no-default-features --features "spdm-ring,hashed-transcript-data,async-executor"
 ```
 
 ### Run emulator with selected feature
@@ -147,23 +147,25 @@ cargo run -p spdm-requester-emu --no-default-features --features "spdm-ring,hash
 The following list shows the supported combinations for both spdm-requester-emu and spdm-responder-emu
 
 
-| Features                                                                | CryptoLibrary | Hashed transcript data support | Notes                                                              |
-| ----------------------------------------------------------------------- | ------------- | ------------------------------ | ------------------------------------------------------------------ |
-| spdm-ring                                                               | ring          | No                             | use ring as crypto library with hashed-transcript-data disabled    |
-| spdm-ring,hashed-transcript-data                                        | ring          | Yes                            | use ring as crypto library with hashed-transcript-data enabled     |
-| spdm-mbedtls                                                            | mbedtls       | No                             | use mbedtls as crypto library with hashed-transcript-data disabled |
-| spdm-mbedtls,hashed-transcript-data | mbedtls       | Yes                            | use mbedtls as crypto library with hashed-transcript-data          |
+| Features                                        | CryptoLibrary | Hashed transcript data support | async runtime | notes                                                                                             |
+|-------------------------------------------------|---------------|--------------------------------|---------------|---------------------------------------------------------------------------------------------------|
+| spdm-ring,async-executor                                       | ring          | No                             | executor      | use ring as crypto library with hashed-transcript-data disabled, use executor as async runtime    |
+| spdm-ring,hashed-transcript-data,async-executor                 | ring          | Yes                            | executor      | use ring as crypto library with hashed-transcript-data enabled, use executor as async runtime     |
+| spdm-ring,hashed-transcript-data,async-tokio    | ring          | Yes                            | tokio         | use ring as crypto library with hashed-transcript-data enabled, use tokio as async runtime        |
+| spdm-mbedtls,async-executor                                     | mbedtls       | No                             | executor      | use mbedtls as crypto library with hashed-transcript-data disabled, use executor as async runtime |
+| spdm-mbedtls,hashed-transcript-data,async-executor              | mbedtls       | Yes                            | executor      | use mbedtls as crypto library with hashed-transcript-data enabled, use executor as async runtime  |
+| spdm-mbedtls,hashed-transcript-data,async-tokio | mbedtls       | Yes                            | tokio         | use mbedtls as crypto library with hashed-transcript-data enabled, use tokio as async runtime     |
 
-For example, run the emulator with spdm-ring enabled and without hashed-transcript-data enabled.  
+For example, run the emulator with spdm-ring enabled and without hashed-transcript-data enabled, and use executor as async runtime. 
 Open one command windows and run:
 ```
-cargo run -p spdm-responder-emu --no-default-features --features "spdm-ring"
+cargo run -p spdm-responder-emu --no-default-features --features "spdm-ring,async-executor "
 ```
 
-run the emulator with spdm-mbedtls enabled and with hashed-transcript-data enabled.  
+run the emulator with spdm-mbedtls enabled and with hashed-transcript-data enabled, and use tokio as async runtime.  
 Open another command windows and run:
 ```
-cargo run -p spdm-requester-emu --no-default-features --features "spdm-mbedtls,hashed-transcript-data"
+cargo run -p spdm-requester-emu --no-default-features --features "spdm-mbedtls,hashed-transcript-data,async-tokio"
 ```
 
 NOTE: In order to run the emu without hashed-transcript-data, please change `max_cert_chain_data_size` in `spdmlib/etc/config.json` from `4096` to `3500`.
@@ -192,14 +194,14 @@ spdm_responder_emu.exe --trans PCI_DOE
 
 2. run rust-spdm-emu as requester:
 ```
-cargo run -p spdm-requester-emu --no-default-features --features "spdm-ring,hashed-transcript-data"
+cargo run -p spdm-requester-emu --no-default-features --features "spdm-ring,hashed-transcript-data,async-executor "
 ```
 
 Test rust-spdm as responder:
 
 1. run rust-spdm-emu as Test rust-spdm as responder:
 ```
-cargo run -p spdm-responder-emu --no-default-features --features "spdm-ring,hashed-transcript-data"
+cargo run -p spdm-responder-emu --no-default-features --features "spdm-ring,hashed-transcript-data,async-executor "
 ```
 
 2. run libspdm in spdm-emu as requester:
@@ -218,12 +220,12 @@ export RUST_MIN_STACK=10485760
 
 Test with hashed-transcript-data:
 ```
-cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring,spdmlib/hashed-transcript-data" -- --test-threads=1
+cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring,spdmlib/hashed-transcript-data,async-executor" -- --test-threads=1
 ```
 
 Test without hashed-transcript-data:
 ```
-cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring" -- --test-threads=1
+cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring,async-executor" -- --test-threads=1
 ```
 
 To run a specific test, use `cargo test <test_func_name>`

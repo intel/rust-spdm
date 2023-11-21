@@ -90,8 +90,8 @@ jobs:
           RUSTFLAGS: "-C instrument-coverage"
           CC_x86_64_unknown_none: clang
           AR_x86_64_unknown_none: llvm-ar
-          RUN_REQUESTER_FEATURES: "spdm-ring,hashed-transcript-data"
-          RUN_RESPONDER_FEATURES: "spdm-ring,hashed-transcript-data"
+          RUN_REQUESTER_FEATURES: "spdm-ring,hashed-transcript-data,async-executor"
+          RUN_RESPONDER_FEATURES: "spdm-ring,hashed-transcript-data,async-executor"
         run: |
           ./sh_script/build.sh -r
 
@@ -101,8 +101,8 @@ jobs:
           RUSTFLAGS: "-C instrument-coverage"
           CC_x86_64_unknown_none: clang
           AR_x86_64_unknown_none: llvm-ar
-          RUN_REQUESTER_FEATURES: "spdm-mbedtls"
-          RUN_RESPONDER_FEATURES: "spdm-mbedtls"
+          RUN_REQUESTER_FEATURES: "spdm-mbedtls,async-executor"
+          RUN_RESPONDER_FEATURES: "spdm-mbedtls,async-executor"
         run: |
           ./sh_script/build.sh -r
 
@@ -112,8 +112,8 @@ jobs:
           RUSTFLAGS: "-C instrument-coverage"
           CC_x86_64_unknown_none: clang
           AR_x86_64_unknown_none: llvm-ar
-          RUN_REQUESTER_FEATURES: "spdm-mbedtls,hashed-transcript-data"
-          RUN_RESPONDER_FEATURES: "spdm-mbedtls,hashed-transcript-data"
+          RUN_REQUESTER_FEATURES: "spdm-mbedtls,hashed-transcript-data,async-executor"
+          RUN_RESPONDER_FEATURES: "spdm-mbedtls,hashed-transcript-data,async-executor"
         run: |
           ./sh_script/build.sh -r
 

@@ -1603,6 +1603,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "codec",
+ "executor",
  "futures",
  "log",
  "mctp_transport",
@@ -1611,6 +1612,7 @@ dependencies = [
  "spdmlib",
  "spdmlib_crypto_mbedtls",
  "spin 0.9.8",
+ "tokio",
  "untrusted",
  "webpki",
 ]
@@ -1620,6 +1622,7 @@ name = "spdm-requester-emu"
 version = "0.1.0"
 dependencies = [
  "codec",
+ "executor",
  "futures",
  "idekm",
  "log",
@@ -1638,6 +1641,7 @@ name = "spdm-responder-emu"
 version = "0.1.0"
 dependencies = [
  "codec",
+ "executor",
  "futures",
  "idekm",
  "log",

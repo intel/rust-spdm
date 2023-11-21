@@ -22,6 +22,7 @@ use log::LevelFilter;
 use log::*;
 use simple_logger::SimpleLogger;
 
+use spdm_emu::async_runtime::block_on;
 use spdm_emu::crypto_callback::SECRET_ASYM_IMPL_INSTANCE;
 use spdm_emu::secret_impl_sample::SECRET_PSK_IMPL_INSTANCE;
 use spdm_emu::EMU_STACK_SIZE;
@@ -55,8 +56,6 @@ use tdisp::pci_tdisp_requester::pci_tdisp_req_get_tdisp_version;
 use tdisp::pci_tdisp_requester::pci_tdisp_req_lock_interface_request;
 use tdisp::pci_tdisp_requester::pci_tdisp_req_start_interface_request;
 use tdisp::pci_tdisp_requester::pci_tdisp_req_stop_interface_request;
-
-use tokio::runtime::Runtime;
 
 use spin::Mutex;
 extern crate alloc;
@@ -1294,30 +1293,31 @@ fn emu_main() {
         SOCKET_TRANSPORT_TYPE_MCTP
     };
 
-    // Create the runtime
-    let rt = Runtime::new().unwrap();
-
-    rt.block_on(send_receive_hello(
+    block_on(Box::pin(send_receive_hello(
         socket.clone(),
         transport_encap.clone(),
         transport_type,
-    ));
+    )));
 
     let socket_io_transport = SocketIoTransport::new(socket.clone());
     let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
         Arc::new(Mutex::new(socket_io_transport));
 
-    rt.block_on(test_spdm(
+    block_on(Box::pin(test_spdm(
         socket_io_transport.clone(),
         transport_encap.clone(),
-    ));
+    )));
 
-    rt.block_on(test_idekm_tdisp(
+    block_on(Box::pin(test_idekm_tdisp(
         socket_io_transport.clone(),
         transport_encap.clone(),
-    ));
+    )));
 
-    rt.block_on(send_receive_stop(socket, transport_encap, transport_type));
+    block_on(Box::pin(send_receive_stop(
+        socket,
+        transport_encap,
+        transport_type,
+    )));
 }
 
 fn main() {

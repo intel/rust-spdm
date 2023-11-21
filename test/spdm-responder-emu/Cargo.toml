@@ -19,11 +19,14 @@ log = "0.4.13"
 futures = { version = "0.3", default-features = false }
 spin = { version = "0.9.8" }
 tokio = { version = "1.30.0", features = ["full"] }
+executor = { path = "../../executor" }
 zeroize = { version = "1.5.0", features = ["zeroize_derive"]}
 
 [features]
-mut-auth = ["spdm-emu/mut-auth"]
+mut-auth = ["spdm-emu/mut-auth", "async-executor"]
 mandatory-mut-auth = ["mut-auth", "spdm-emu/mandatory-mut-auth"]
 spdm-ring = ["spdm-emu/spdm-ring"]
 spdm-mbedtls = ["spdm-emu/spdm-mbedtls"]
 hashed-transcript-data = ["spdm-emu/hashed-transcript-data"]
+async-executor = ["spdm-emu/async-executor"]
+async-tokio = ["spdm-emu/async-tokio"]

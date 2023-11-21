@@ -12,6 +12,7 @@ use spdm_device_tdisp_example::init_device_tdisp_instance;
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
+use spdm_emu::async_runtime::block_on;
 use spdm_emu::watchdog_impl_sample::init_watchdog;
 use spdmlib::common::{SecuredMessageVersion, SpdmOpaqueSupport};
 use spdmlib::config::{MAX_ROOT_CERT_SUPPORT, RECEIVER_BUFFER_SIZE};
@@ -47,24 +48,28 @@ use spin::Mutex;
 extern crate alloc;
 use alloc::sync::Arc;
 use core::ops::DerefMut;
+use std::ops::Deref;
 
 use crate::spdm_device_tdisp_example::DeviceContext;
 
 async fn process_socket_message(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
-    buffer: &[u8],
+    buffer: Arc<Mutex<[u8; RECEIVER_BUFFER_SIZE]>>,
+    buffer_size: usize,
 ) -> bool {
-    if buffer.len() < SOCKET_HEADER_LEN {
+    if buffer_size < SOCKET_HEADER_LEN {
         return false;
     }
-    let mut reader = Reader::init(&buffer[..SOCKET_HEADER_LEN]);
+    let buffer_ref = buffer.lock();
+    let buffer_ref = buffer_ref.deref();
+    let mut reader = Reader::init(&buffer_ref[..SOCKET_HEADER_LEN]);
     let socket_header = SpdmSocketHeader::read(&mut reader).unwrap();
 
     let res = (
         socket_header.transport_type.to_be(),
         socket_header.command.to_be(),
-        &buffer[SOCKET_HEADER_LEN..],
+        &buffer_ref[SOCKET_HEADER_LEN..],
     );
 
     match socket_header.command.to_be() {
@@ -79,7 +84,13 @@ async fn process_socket_message(
         SOCKET_SPDM_COMMAND_NORMAL => true,
         _ => {
             if USE_PCIDOE {
-                send_pci_discovery(stream.clone(), transport_encap.clone(), res.0, buffer).await
+                send_pci_discovery(
+                    stream.clone(),
+                    transport_encap.clone(),
+                    res.0,
+                    &buffer_ref[..buffer_size],
+                )
+                .await
             } else {
                 send_unknown(stream, transport_encap, res.0).await;
                 false
@@ -153,35 +164,34 @@ fn emu_main() {
     let mctp_transport_encap: Arc<Mutex<(dyn SpdmTransportEncap + Send + Sync)>> =
         Arc::new(Mutex::new(MctpTransportEncap {}));
 
-    // Create the runtime
-    let rt = tokio::runtime::Runtime::new().unwrap();
-
     for stream in listener.incoming() {
         let stream = stream.expect("Read stream error!");
         let stream = Arc::new(Mutex::new(stream));
         println!("new connection!");
         let mut need_continue;
-        let mut raw_packet = [0u8; RECEIVER_BUFFER_SIZE];
+        let raw_packet = [0u8; RECEIVER_BUFFER_SIZE];
+        let raw_packet = Arc::new(Mutex::new(raw_packet));
         loop {
-            let sz = rt.block_on(handle_message(
+            let sz = block_on(Box::pin(handle_message(
                 stream.clone(),
                 if USE_PCIDOE {
                     pcidoe_transport_encap.clone()
                 } else {
                     mctp_transport_encap.clone()
                 },
-                &mut raw_packet,
-            ));
+                raw_packet.clone(),
+            )));
 
-            need_continue = rt.block_on(process_socket_message(
+            need_continue = block_on(Box::pin(process_socket_message(
                 stream.clone(),
                 if USE_PCIDOE {
                     pcidoe_transport_encap.clone()
                 } else {
                     mctp_transport_encap.clone()
                 },
-                &raw_packet[..sz],
-            ));
+                raw_packet.clone(),
+                sz,
+            )));
 
             if !need_continue {
                 // TBD: return or break??
@@ -194,7 +204,7 @@ fn emu_main() {
 async fn handle_message(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
-    raw_packet: &mut [u8; RECEIVER_BUFFER_SIZE],
+    raw_packet: Arc<Mutex<[u8; RECEIVER_BUFFER_SIZE]>>,
 ) -> usize {
     println!("handle_message!");
     let socket_io_transport = SocketIoTransport::new(stream);
@@ -316,6 +326,8 @@ async fn handle_message(
         provision_info,
     );
     loop {
+        let mut raw_packet = raw_packet.lock();
+        let raw_packet = raw_packet.deref_mut();
         raw_packet.zeroize();
         let res = context.process_message(false, 0, raw_packet).await;
         match res {

@@ -19,10 +19,13 @@ simple_logger = "4.2.0"
 futures = { version = "0.3", default-features = false }
 spin = { version = "0.9.8" }
 tokio = { version = "1.30.0", features = ["full"] }
+executor = { path = "../../executor" }
 
 [features]
-default = ["spdm-emu/default"]
+default = ["spdm-emu/default", "async-executor"]
 mut-auth = ["spdm-emu/mut-auth"]
 spdm-ring = ["spdm-emu/spdm-ring"]
 spdm-mbedtls = ["spdm-emu/spdm-mbedtls"]
 hashed-transcript-data = ["spdm-emu/hashed-transcript-data"]
+async-executor = ["spdm-emu/async-executor"]
+async-tokio = ["spdm-emu/async-tokio"]

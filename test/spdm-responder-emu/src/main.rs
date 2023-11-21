@@ -114,6 +114,37 @@ fn emu_main() {
     spdmlib::secret::measurement::register(SECRET_MEASUREMENT_IMPL_INSTANCE.clone());
     spdmlib::secret::psk::register(SECRET_PSK_IMPL_INSTANCE.clone());
 
+    let tdisp_rsp_context = DeviceContext {
+        bus: 0x2a,
+        device: 0x00,
+        function: 0x00,
+        negotiated_version: None,
+        interface_id: InterfaceId {
+            function_id: FunctionId {
+                requester_id: 0x1234,
+                requester_segment: 0,
+                requester_segment_valid: false,
+            },
+        },
+        dsm_caps: 0,
+        dev_addr_width: 52,
+        num_req_this: 1,
+        num_req_all: 1,
+        flags: LockInterfaceFlag::empty(),
+        tdi_state: TdiState::CONFIG_UNLOCKED,
+        default_stream_id: 0,
+        mmio_reporting_offset: 0,
+        bind_p2p_address_mask: 0,
+        start_interface_nonce: [0u8; START_INTERFACE_NONCE_LEN],
+        p2p_stream_id: 0,
+    };
+
+    let device_context_handle = &tdisp_rsp_context as *const DeviceContext as usize;
+    spdmlib::message::vendor::register_vendor_defined_struct(VendorDefinedStruct {
+        vendor_defined_request_handler: pci_idekm_tdisp_rsp_dispatcher,
+        vdm_handle: device_context_handle,
+    });
+
     let listener = TcpListener::bind("127.0.0.1:2323").expect("Couldn't bind to the server");
     println!("server start!");
 
@@ -277,36 +308,6 @@ async fn handle_message(
     };
 
     spdmlib::secret::asym_sign::register(SECRET_ASYM_IMPL_INSTANCE.clone());
-    let tdisp_rsp_context = DeviceContext {
-        bus: 0x2a,
-        device: 0x00,
-        function: 0x00,
-        negotiated_version: None,
-        interface_id: InterfaceId {
-            function_id: FunctionId {
-                requester_id: 0x1234,
-                requester_segment: 0,
-                requester_segment_valid: false,
-            },
-        },
-        dsm_caps: 0,
-        dev_addr_width: 52,
-        num_req_this: 1,
-        num_req_all: 1,
-        flags: LockInterfaceFlag::empty(),
-        tdi_state: TdiState::CONFIG_UNLOCKED,
-        default_stream_id: 0,
-        mmio_reporting_offset: 0,
-        bind_p2p_address_mask: 0,
-        start_interface_nonce: [0u8; START_INTERFACE_NONCE_LEN],
-        p2p_stream_id: 0,
-    };
-
-    let device_context_handle = &tdisp_rsp_context as *const DeviceContext as usize;
-    spdmlib::message::vendor::register_vendor_defined_struct(VendorDefinedStruct {
-        vendor_defined_request_handler: pci_idekm_tdisp_rsp_dispatcher,
-        vdm_handle: device_context_handle,
-    });
     init_watchdog();
     let mut context = responder::ResponderContext::new(
         socket_io_transport,

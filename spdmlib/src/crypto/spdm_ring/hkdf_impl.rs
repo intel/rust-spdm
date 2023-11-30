@@ -50,7 +50,7 @@ fn hkdf_expand(
         _ => return None,
     }?;
 
-    if prk.data_size as usize != algo.hmac_algorithm().digest_algorithm().output_len {
+    if prk.data_size as usize != algo.hmac_algorithm().digest_algorithm().output_len() {
         return None;
     }
 

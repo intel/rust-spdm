@@ -8,9 +8,9 @@ edition = "2018"
 
 [dependencies]
 log = "0.4.13"
-ring = { version = "0.16.20" }
-webpki = { version = "0.22.0", default-features = false, features = ["alloc"]}
-untrusted = { version = "0.7.1" }
+ring = { version = "0.17.6" }
+webpki = { version = "0.22.4", default-features = false, features = ["alloc"]}
+untrusted = { version = "0.9.0" }
 codec = { path = "../../codec" }
 spdmlib = { path = "../../spdmlib", default-features = false }
 mctp_transport = { path = "../../mctp_transport" }

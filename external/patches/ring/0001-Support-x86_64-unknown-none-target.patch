@@ -74,15 +74,3 @@ index f7b94108b..3bdc8cd29 100644
      let _ = c
          .arg("-o")
          .arg(out_file.to_str().expect("Invalid path"))
-diff --git a/src/rand.rs b/src/rand.rs
-index 809791c79..b861b719a 100644
---- a/src/rand.rs
-+++ b/src/rand.rs
-@@ -126,6 +126,7 @@ impl crate::sealed::Sealed for SystemRandom {}
- // implementation.
- #[cfg(any(
-     all(feature = "less-safe-getrandom-custom-or-rdrand", target_os = "none"),
-+    target_os = "none",
-     target_os = "aix",
-     target_os = "android",
-     target_os = "dragonfly",

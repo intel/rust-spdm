@@ -58,22 +58,88 @@ fn verify_cert_chain(cert_chain: &[u8]) -> SpdmResult {
         &webpki::ECDSA_P384_SHA384,
     ];
 
-    let certs_der = untrusted::Input::from(cert_chain);
-    let reader = &mut untrusted::Reader::new(certs_der);
-
     let mut certs = Vec::new();
+    let mut certs_walker = 0;
+    let cert_chain_len = cert_chain.len();
     loop {
-        let start = reader.mark();
-        match der::expect_tag_and_get_value(reader, der::Tag::Sequence) {
-            Ok(_) => {
-                let end = reader.mark();
-                let cert = reader
-                    .get_input_between_marks(start, end)
-                    .map_err(|_| SPDM_STATUS_INVALID_CERT)?;
-                certs.push(cert.as_slice_less_safe())
-            }
-            Err(_) => break,
+        let start = if certs_walker < cert_chain_len {
+            certs_walker
+        } else {
+            break;
+        };
+
+        let tag = cert_chain[certs_walker];
+        if usize::from(der::Tag::Sequence) != tag as usize {
+            break;
         }
+
+        certs_walker += 1;
+        if certs_walker >= cert_chain_len {
+            break;
+        }
+
+        // If the high order bit of the first byte is set to zero then the length
+        // is encoded in the seven remaining bits of that byte. Otherwise, those
+        // seven bits represent the number of bytes used to encode the length.
+        let length_byte0 = cert_chain[certs_walker];
+
+        let length = match length_byte0 {
+            n if (n & 0x80) == 0 => n as usize,
+            0x81 => {
+                certs_walker += 1;
+                if certs_walker >= cert_chain_len {
+                    break;
+                }
+
+                let second_byte = cert_chain[certs_walker];
+                if second_byte < 128 {
+                    break; // Not the canonical encoding.
+                }
+
+                certs_walker += 1;
+                if certs_walker >= cert_chain_len {
+                    break;
+                }
+
+                second_byte as usize
+            }
+            0x82 => {
+                certs_walker += 1;
+                if certs_walker >= cert_chain_len {
+                    break;
+                }
+
+                let second_byte = cert_chain[certs_walker] as usize;
+
+                certs_walker += 1;
+                if certs_walker >= cert_chain_len {
+                    break;
+                }
+
+                let third_byte = cert_chain[certs_walker] as usize;
+
+                certs_walker += 1;
+                if certs_walker >= cert_chain_len {
+                    break;
+                }
+
+                let combined = (second_byte << 8) | third_byte;
+                if combined < 256 {
+                    break; // Not the canonical encoding.
+                }
+                combined
+            }
+            _ => {
+                break; // We don't support longer lengths.
+            }
+        };
+
+        certs_walker += length;
+        if certs_walker > cert_chain_len {
+            break;
+        }
+
+        certs.push(&cert_chain[start..certs_walker]);
     }
     let certs_len = certs.len();
 
@@ -117,14 +183,7 @@ fn verify_cert_chain(cert_chain: &[u8]) -> SpdmResult {
 
     // we cannot call verify_is_valid_tls_server_cert because it will check verify_cert::EKU_SERVER_AUTH.
     if cert
-        .verify_cert_chain_with_eku(
-            EKU_SPDM_RESPONDER_AUTH,
-            ALL_SIGALGS,
-            &anchors,
-            inters,
-            time,
-            0,
-        )
+        .verify_cert_chain_with_eku(EKU_SPDM_RESPONDER_AUTH, ALL_SIGALGS, &anchors, inters, time)
         .is_ok()
     {
         info!("Cert verification Pass\n");

@@ -38,15 +38,9 @@ impl SpdmDheKeyExchange for SpdmDheKeyExchangeP256 {
         let peer_public_key =
             ring::agreement::UnparsedPublicKey::new(&ring::agreement::ECDH_P256, pubkey.as_ref());
         let mut final_key = BytesMutStrubbed::new();
-        match ring::agreement::agree_ephemeral(
-            self.0,
-            &peer_public_key,
-            ring::error::Unspecified,
-            |key_material| {
-                final_key.extend_from_slice(key_material);
-                Ok(())
-            },
-        ) {
+        match ring::agreement::agree_ephemeral(self.0, &peer_public_key, |key_material| {
+            final_key.extend_from_slice(key_material);
+        }) {
             Ok(()) => Some(SpdmDheFinalKeyStruct::from(final_key)),
             Err(_) => None,
         }
@@ -82,15 +76,9 @@ impl SpdmDheKeyExchange for SpdmDheKeyExchangeP384 {
         let peer_public_key =
             ring::agreement::UnparsedPublicKey::new(&ring::agreement::ECDH_P384, pubkey.as_ref());
         let mut final_key = BytesMutStrubbed::new();
-        match ring::agreement::agree_ephemeral(
-            self.0,
-            &peer_public_key,
-            ring::error::Unspecified,
-            |key_material| {
-                final_key.extend_from_slice(key_material);
-                Ok(())
-            },
-        ) {
+        match ring::agreement::agree_ephemeral(self.0, &peer_public_key, |key_material| {
+            final_key.extend_from_slice(key_material);
+        }) {
             Ok(()) => Some(SpdmDheFinalKeyStruct::from(final_key)),
             Err(_) => None,
         }

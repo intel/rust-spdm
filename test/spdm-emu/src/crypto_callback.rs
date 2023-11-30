@@ -106,9 +106,9 @@ fn sign_ecdsa_asym_algo(
     };
     let der_file = std::fs::read(key_file_path).expect("unable to read key der!");
     let key_bytes = der_file.as_slice();
-
+    let rng = ring::rand::SystemRandom::new();
     let key_pair: ring::signature::EcdsaKeyPair =
-        ring::signature::EcdsaKeyPair::from_pkcs8(algorithm, key_bytes).ok()?;
+        ring::signature::EcdsaKeyPair::from_pkcs8(algorithm, key_bytes, &rng).ok()?;
 
     let rng = ring::rand::SystemRandom::new();
 
@@ -153,7 +153,7 @@ fn sign_rsa_asym_algo(
     let key_pair: ring::signature::RsaKeyPair =
         ring::signature::RsaKeyPair::from_der(key_bytes).ok()?;
 
-    if key_len != key_pair.public_modulus_len() {
+    if key_len != key_pair.public().modulus_len() {
         panic!();
     }
 

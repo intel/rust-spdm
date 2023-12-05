@@ -20,6 +20,7 @@ futures = { version = "0.3", default-features = false }
 spin = { version = "0.9.8" }
 tokio = { version = "1.30.0", features = ["full"] }
 executor = { path = "../../executor" }
+async-or = { path = "../../async-or" }
 
 [features]
 default = ["spdm-emu/default", "async-executor"]
@@ -27,5 +28,6 @@ mut-auth = ["spdm-emu/mut-auth"]
 spdm-ring = ["spdm-emu/spdm-ring"]
 spdm-mbedtls = ["spdm-emu/spdm-mbedtls"]
 hashed-transcript-data = ["spdm-emu/hashed-transcript-data"]
-async-executor = ["spdm-emu/async-executor"]
-async-tokio = ["spdm-emu/async-tokio"]
+async-executor = ["spdm-emu/async-executor", "async"]
+async-tokio = ["spdm-emu/async-tokio", "async"]
+async = ["async-or/async", "spdm-emu/async", "spdmlib/async", "mctp_transport/async", "pcidoe_transport/async", "idekm/async", "tdisp/async"]

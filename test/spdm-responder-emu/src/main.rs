@@ -1,8 +1,10 @@
 // Copyright (c) 2020 Intel Corporation
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
+#![feature(stmt_expr_attributes)]
 
 mod spdm_device_idekm_example;
+use async_or::{async_or, await_or};
 use idekm::pci_ide_km_responder::pci_ide_km_rsp_dispatcher;
 use idekm::pci_idekm::{vendor_id, IDEKM_PROTOCOL_ID};
 use spdm_device_idekm_example::init_device_idekm_instance;
@@ -12,7 +14,6 @@ use spdm_device_tdisp_example::init_device_tdisp_instance;
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
-use spdm_emu::async_runtime::block_on;
 use spdm_emu::watchdog_impl_sample::init_watchdog;
 use spdmlib::common::{SecuredMessageVersion, SpdmOpaqueSupport};
 use spdmlib::config::{MAX_ROOT_CERT_SUPPORT, RECEIVER_BUFFER_SIZE};
@@ -52,7 +53,8 @@ use std::ops::Deref;
 
 use crate::spdm_device_tdisp_example::DeviceContext;
 
-async fn process_socket_message(
+#[async_or]
+fn process_socket_message(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
     buffer: Arc<Mutex<[u8; RECEIVER_BUFFER_SIZE]>>,
@@ -74,25 +76,24 @@ async fn process_socket_message(
 
     match socket_header.command.to_be() {
         SOCKET_SPDM_COMMAND_TEST => {
-            send_hello(stream.clone(), transport_encap.clone(), res.0).await;
+            await_or!(send_hello(stream.clone(), transport_encap.clone(), res.0));
             true
         }
         SOCKET_SPDM_COMMAND_STOP => {
-            send_stop(stream.clone(), transport_encap.clone(), res.0).await;
+            await_or!(send_stop(stream.clone(), transport_encap.clone(), res.0));
             false
         }
         SOCKET_SPDM_COMMAND_NORMAL => true,
         _ => {
             if USE_PCIDOE {
-                send_pci_discovery(
+                await_or!(send_pci_discovery(
                     stream.clone(),
                     transport_encap.clone(),
                     res.0,
                     &buffer_ref[..buffer_size],
-                )
-                .await
+                ))
             } else {
-                send_unknown(stream, transport_encap, res.0).await;
+                await_or!(send_unknown(stream, transport_encap, res.0));
                 false
             }
         }
@@ -171,27 +172,56 @@ fn emu_main() {
         let mut need_continue;
         let raw_packet = [0u8; RECEIVER_BUFFER_SIZE];
         let raw_packet = Arc::new(Mutex::new(raw_packet));
-        loop {
-            let sz = block_on(Box::pin(handle_message(
-                stream.clone(),
-                if USE_PCIDOE {
-                    pcidoe_transport_encap.clone()
-                } else {
-                    mctp_transport_encap.clone()
-                },
-                raw_packet.clone(),
-            )));
 
-            need_continue = block_on(Box::pin(process_socket_message(
-                stream.clone(),
-                if USE_PCIDOE {
-                    pcidoe_transport_encap.clone()
-                } else {
-                    mctp_transport_encap.clone()
-                },
-                raw_packet.clone(),
-                sz,
-            )));
+        loop {
+            #[cfg(feature = "async")]
+            {
+                let sz = spdm_emu::async_runtime::block_on(Box::pin(handle_message(
+                    stream.clone(),
+                    if USE_PCIDOE {
+                        pcidoe_transport_encap.clone()
+                    } else {
+                        mctp_transport_encap.clone()
+                    },
+                    raw_packet.clone(),
+                )));
+
+                need_continue =
+                    spdm_emu::async_runtime::block_on(Box::pin(process_socket_message(
+                        stream.clone(),
+                        if USE_PCIDOE {
+                            pcidoe_transport_encap.clone()
+                        } else {
+                            mctp_transport_encap.clone()
+                        },
+                        raw_packet.clone(),
+                        sz,
+                    )));
+            }
+
+            #[cfg(not(feature = "async"))]
+            {
+                let sz = handle_message(
+                    stream.clone(),
+                    if USE_PCIDOE {
+                        pcidoe_transport_encap.clone()
+                    } else {
+                        mctp_transport_encap.clone()
+                    },
+                    raw_packet.clone(),
+                );
+
+                need_continue = process_socket_message(
+                    stream.clone(),
+                    if USE_PCIDOE {
+                        pcidoe_transport_encap.clone()
+                    } else {
+                        mctp_transport_encap.clone()
+                    },
+                    raw_packet.clone(),
+                    sz,
+                );
+            }
 
             if !need_continue {
                 // TBD: return or break??
@@ -201,7 +231,8 @@ fn emu_main() {
     }
 }
 
-async fn handle_message(
+#[async_or]
+fn handle_message(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
     raw_packet: Arc<Mutex<[u8; RECEIVER_BUFFER_SIZE]>>,
@@ -329,7 +360,7 @@ async fn handle_message(
         let mut raw_packet = raw_packet.lock();
         let raw_packet = raw_packet.deref_mut();
         raw_packet.zeroize();
-        let res = context.process_message(false, 0, raw_packet).await;
+        let res = await_or!(context.process_message(false, 0, raw_packet));
         match res {
             Ok(spdm_result) => match spdm_result {
                 Ok(_) => continue,
@@ -342,7 +373,8 @@ async fn handle_message(
     }
 }
 
-pub async fn send_hello(
+#[async_or]
+pub fn send_hello(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
     tranport_type: u32,
@@ -354,14 +386,12 @@ pub async fn send_hello(
     let mut transport_encap = transport_encap.lock();
     let transport_encap = transport_encap.deref_mut();
 
-    let used = transport_encap
-        .encap(
-            Arc::new(b"Server Hello!\0"),
-            Arc::new(Mutex::new(&mut payload[..])),
-            false,
-        )
-        .await
-        .unwrap();
+    let used = await_or!(transport_encap.encap(
+        Arc::new(b"Server Hello!\0"),
+        Arc::new(Mutex::new(&mut payload[..])),
+        false,
+    ))
+    .unwrap();
 
     let _buffer_size = spdm_emu::spdm_emu::send_message(
         stream,
@@ -371,7 +401,8 @@ pub async fn send_hello(
     );
 }
 
-pub async fn send_unknown(
+#[async_or]
+pub fn send_unknown(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
     transport_type: u32,
@@ -381,10 +412,12 @@ pub async fn send_unknown(
     let mut payload = [0u8; 1024];
     let mut transport_encap = transport_encap.lock();
     let transport_encap = transport_encap.deref_mut();
-    let used = transport_encap
-        .encap(Arc::new(b""), Arc::new(Mutex::new(&mut payload[..])), false)
-        .await
-        .unwrap();
+    let used = await_or!(transport_encap.encap(
+        Arc::new(b""),
+        Arc::new(Mutex::new(&mut payload[..])),
+        false
+    ))
+    .unwrap();
 
     let _buffer_size = spdm_emu::spdm_emu::send_message(
         stream,
@@ -394,7 +427,8 @@ pub async fn send_unknown(
     );
 }
 
-pub async fn send_stop(
+#[async_or]
+pub fn send_stop(
     stream: Arc<Mutex<TcpStream>>,
     _transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
     transport_type: u32,
@@ -409,7 +443,8 @@ pub async fn send_stop(
     );
 }
 
-pub async fn send_pci_discovery(
+#[async_or]
+pub fn send_pci_discovery(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
     transport_type: u32,
@@ -452,7 +487,11 @@ pub async fn send_pci_discovery(
         },
     }
     if unknown_message {
-        send_unknown(stream.clone(), transport_encap, transport_type).await;
+        await_or!(send_unknown(
+            stream.clone(),
+            transport_encap,
+            transport_type
+        ));
         return false;
     }
 

@@ -5,7 +5,7 @@
 use crate::spdm_emu::*;
 use std::net::TcpStream;
 
-use async_trait::async_trait;
+use async_or::{async_impl_or, await_or};
 use spdmlib::common::SpdmDeviceIo;
 use spdmlib::config;
 use spdmlib::error::SpdmResult;
@@ -35,9 +35,10 @@ impl SocketIoTransport {
     }
 }
 
-#[async_trait]
+#[async_impl_or]
 impl SpdmDeviceIo for SocketIoTransport {
-    async fn receive(
+    #[async_or]
+    fn receive(
         &mut self,
         read_buffer: Arc<Mutex<&mut [u8]>>,
         timeout: usize,
@@ -48,7 +49,7 @@ impl SpdmDeviceIo for SocketIoTransport {
         let read_buffer = read_buffer.deref_mut();
 
         if let Some((_, command, payload)) =
-            receive_message(self.data.clone(), &mut buffer[..], timeout).await
+            await_or!(receive_message(self.data.clone(), &mut buffer[..], timeout))
         {
             // TBD: do we need this?
             // self.transport_type = transport_type;
@@ -68,7 +69,8 @@ impl SpdmDeviceIo for SocketIoTransport {
         }
     }
 
-    async fn send(&mut self, buffer: Arc<&[u8]>) -> SpdmResult {
+    #[async_or]
+    fn send(&mut self, buffer: Arc<&[u8]>) -> SpdmResult {
         send_message(
             self.data.clone(),
             self.transport_type,
@@ -78,7 +80,8 @@ impl SpdmDeviceIo for SocketIoTransport {
         Ok(())
     }
 
-    async fn flush_all(&mut self) -> SpdmResult {
+    #[async_or]
+    fn flush_all(&mut self) -> SpdmResult {
         Ok(())
     }
 }

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
+
 use crate::error::{
     SpdmResult, SPDM_STATUS_ERROR_PEER, SPDM_STATUS_INVALID_MSG_FIELD, SPDM_STATUS_NEGOTIATION_FAIL,
 };
@@ -11,7 +13,8 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
-    pub async fn send_receive_spdm_algorithm(&mut self) -> SpdmResult {
+    #[async_or]
+    pub fn send_receive_spdm_algorithm(&mut self) -> SpdmResult {
         self.common.reset_buffer_via_request_code(
             SpdmRequestResponseCode::SpdmRequestNegotiateAlgorithms,
             None,
@@ -19,13 +22,10 @@ impl RequesterContext {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let send_used = self.encode_spdm_algorithm(&mut send_buffer)?;
-        self.send_message(None, &send_buffer[..send_used], false)
-            .await?;
+        await_or!(self.send_message(None, &send_buffer[..send_used], false))?;
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self
-            .receive_message(None, &mut receive_buffer, false)
-            .await?;
+        let used = await_or!(self.receive_message(None, &mut receive_buffer, false))?;
         self.handle_spdm_algorithm_response(0, &send_buffer[..send_used], &receive_buffer[..used])
     }
 

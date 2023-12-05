@@ -10,6 +10,7 @@ use crate::error::{SpdmResult, SPDM_STATUS_INVALID_STATE_LOCAL, SPDM_STATUS_UNSU
 use crate::message::*;
 use crate::protocol::{SpdmRequestCapabilityFlags, SpdmResponseCapabilityFlags};
 use crate::watchdog::{reset_watchdog, start_watchdog};
+use async_or::{async_or, await_or};
 use codec::{Codec, Reader, Writer};
 extern crate alloc;
 use core::ops::DerefMut;
@@ -38,7 +39,8 @@ impl ResponderContext {
         }
     }
 
-    pub async fn send_message(
+    #[async_or]
+    pub fn send_message(
         &mut self,
         session_id: Option<u32>,
         send_buffer: &[u8],
@@ -61,25 +63,21 @@ impl ResponderContext {
 
         let mut transport_buffer = [0u8; config::SENDER_BUFFER_SIZE];
         let used = if let Some(session_id) = session_id {
-            self.common
-                .encode_secured_message(
-                    session_id,
-                    send_buffer,
-                    &mut transport_buffer,
-                    false,
-                    is_app_message,
-                )
-                .await?
+            await_or!(self.common.encode_secured_message(
+                session_id,
+                send_buffer,
+                &mut transport_buffer,
+                false,
+                is_app_message,
+            ))?
         } else {
-            self.common
-                .encap(send_buffer, &mut transport_buffer)
-                .await?
+            await_or!(self.common.encap(send_buffer, &mut transport_buffer))?
         };
 
         {
             let mut device_io = self.common.device_io.lock();
             let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
-            device_io.send(Arc::new(&transport_buffer[..used])).await?;
+            await_or!(device_io.send(Arc::new(&transport_buffer[..used])))?;
         }
 
         let opcode = send_buffer[1];
@@ -186,7 +184,8 @@ impl ResponderContext {
         Ok(())
     }
 
-    pub async fn process_message(
+    #[async_or]
+    pub fn process_message(
         &mut self,
         crypto_request: bool,
         app_handle: usize, // interpreted/managed by User
@@ -195,7 +194,7 @@ impl ResponderContext {
         let mut response_buffer = [0u8; MAX_SPDM_MSG_SIZE];
         let mut writer = Writer::init(&mut response_buffer);
 
-        match self.receive_message(raw_packet, crypto_request).await {
+        match await_or!(self.receive_message(raw_packet, crypto_request)) {
             Ok((used, secured_message)) => {
                 if secured_message {
                     let mut read = Reader::init(&raw_packet[0..used]);
@@ -220,12 +219,10 @@ impl ResponderContext {
                         let mut transport_encap = self.common.transport_encap.lock();
                         let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
                             transport_encap.deref_mut();
-                        transport_encap
-                            .decap_app(
-                                Arc::new(&app_buffer[0..decode_size]),
-                                Arc::new(Mutex::new(&mut spdm_buffer)),
-                            )
-                            .await
+                        await_or!(transport_encap.decap_app(
+                            Arc::new(&app_buffer[0..decode_size]),
+                            Arc::new(Mutex::new(&mut spdm_buffer)),
+                        ))
                     };
                     match decap_result {
                         Err(_) => Err(used),
@@ -252,10 +249,11 @@ impl ResponderContext {
                                     &mut writer,
                                 );
                                 if let Some(send_buffer) = send_buffer {
-                                    if let Err(err) = self
-                                        .send_message(Some(session_id), send_buffer, false)
-                                        .await
-                                    {
+                                    if let Err(err) = await_or!(self.send_message(
+                                        Some(session_id),
+                                        send_buffer,
+                                        false
+                                    )) {
                                         Ok(Err(err))
                                     } else {
                                         Ok(status)
@@ -271,9 +269,11 @@ impl ResponderContext {
                                     &mut writer,
                                 );
                                 if let Some(send_buffer) = send_buffer {
-                                    if let Err(err) =
-                                        self.send_message(Some(session_id), send_buffer, true).await
-                                    {
+                                    if let Err(err) = await_or!(self.send_message(
+                                        Some(session_id),
+                                        send_buffer,
+                                        true
+                                    )) {
                                         Ok(Err(err))
                                     } else {
                                         Ok(status)
@@ -288,7 +288,7 @@ impl ResponderContext {
                     let (status, send_buffer) =
                         self.dispatch_message(&raw_packet[0..used], &mut writer);
                     if let Some(send_buffer) = send_buffer {
-                        if let Err(err) = self.send_message(None, send_buffer, false).await {
+                        if let Err(err) = await_or!(self.send_message(None, send_buffer, false)) {
                             Ok(Err(err))
                         } else {
                             Ok(status)
@@ -306,7 +306,8 @@ impl ResponderContext {
     // whose value is not normal, will return Err to caller to handle the raw packet,
     // So can't swap transport_buffer and receive_buffer, even though it should be by
     // their name suggestion. (03.01.2022)
-    async fn receive_message(
+    #[async_or]
+    fn receive_message(
         &mut self,
         receive_buffer: &mut [u8],
         crypto_request: bool,
@@ -324,22 +325,18 @@ impl ResponderContext {
         let used = {
             let mut device_io = self.common.device_io.lock();
             let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
-            device_io
-                .receive(Arc::new(Mutex::new(receive_buffer)), timeout)
-                .await?
+            await_or!(device_io.receive(Arc::new(Mutex::new(receive_buffer)), timeout))?
         };
 
         let (used, secured_message) = {
             let mut transport_encap = self.common.transport_encap.lock();
             let transport_encap: &mut (dyn SpdmTransportEncap + Send + Sync) =
                 transport_encap.deref_mut();
-            transport_encap
-                .decap(
-                    Arc::new(&receive_buffer[..used]),
-                    Arc::new(Mutex::new(&mut transport_buffer)),
-                )
-                .await
-                .map_err(|_| used)?
+            await_or!(transport_encap.decap(
+                Arc::new(&receive_buffer[..used]),
+                Arc::new(Mutex::new(&mut transport_buffer)),
+            ))
+            .map_err(|_| used)?
         };
 
         receive_buffer[..used].copy_from_slice(&transport_buffer[..used]);

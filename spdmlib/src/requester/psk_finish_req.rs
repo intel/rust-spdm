@@ -11,12 +11,14 @@ use crate::protocol::*;
 use crate::requester::*;
 extern crate alloc;
 use alloc::boxed::Box;
+use async_or::{async_or, await_or};
 
 impl RequesterContext {
-    pub async fn send_receive_spdm_psk_finish(&mut self, session_id: u32) -> SpdmResult {
+    #[async_or]
+    pub fn send_receive_spdm_psk_finish(&mut self, session_id: u32) -> SpdmResult {
         info!("send spdm psk_finish\n");
 
-        if let Err(e) = self.delegate_send_receive_spdm_psk_finish(session_id).await {
+        if let Err(e) = await_or!(self.delegate_send_receive_spdm_psk_finish(session_id)) {
             if let Some(session) = self.common.get_session_via_id(session_id) {
                 session.teardown();
             }
@@ -27,7 +29,8 @@ impl RequesterContext {
         }
     }
 
-    pub async fn delegate_send_receive_spdm_psk_finish(&mut self, session_id: u32) -> SpdmResult {
+    #[async_or]
+    pub fn delegate_send_receive_spdm_psk_finish(&mut self, session_id: u32) -> SpdmResult {
         if self.common.get_session_via_id(session_id).is_none() {
             return Err(SPDM_STATUS_INVALID_PARAMETER);
         }
@@ -47,9 +50,7 @@ impl RequesterContext {
             return Err(res.err().unwrap());
         }
         let send_used = res.unwrap();
-        let res = self
-            .send_message(Some(session_id), &send_buffer[..send_used], false)
-            .await;
+        let res = await_or!(self.send_message(Some(session_id), &send_buffer[..send_used], false));
         if res.is_err() {
             self.common
                 .get_session_via_id(session_id)
@@ -59,9 +60,7 @@ impl RequesterContext {
         }
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let res = self
-            .receive_message(Some(session_id), &mut receive_buffer, false)
-            .await;
+        let res = await_or!(self.receive_message(Some(session_id), &mut receive_buffer, false));
         if res.is_err() {
             self.common
                 .get_session_via_id(session_id)

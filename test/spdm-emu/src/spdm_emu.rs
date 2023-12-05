@@ -5,6 +5,7 @@
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
+use async_or::async_or;
 use spin::Mutex;
 extern crate alloc;
 use alloc::sync::Arc;
@@ -55,7 +56,8 @@ impl Codec for SpdmSocketHeader {
 }
 
 // u32 type, u32 command, usize, payload
-pub async fn receive_message(
+#[async_or]
+pub fn receive_message(
     stream: Arc<Mutex<TcpStream>>,
     buffer: &mut [u8],
     _timeout: usize,

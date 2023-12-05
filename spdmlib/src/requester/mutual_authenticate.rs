@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
+
 use crate::{
     error::{SpdmResult, SPDM_STATUS_INVALID_MSG_FIELD, SPDM_STATUS_INVALID_STATE_LOCAL},
     message::SpdmKeyExchangeMutAuthAttributes,
@@ -10,7 +12,8 @@ use crate::{
 use super::RequesterContext;
 
 impl RequesterContext {
-    pub async fn session_based_mutual_authenticate(&mut self, session_id: u32) -> SpdmResult<()> {
+    #[async_or]
+    pub fn session_based_mutual_authenticate(&mut self, session_id: u32) -> SpdmResult<()> {
         self.common.construct_my_cert_chain()?;
 
         let spdm_session = self
@@ -23,8 +26,7 @@ impl RequesterContext {
             SpdmKeyExchangeMutAuthAttributes::MUT_AUTH_REQ => Ok(()),
             SpdmKeyExchangeMutAuthAttributes::MUT_AUTH_REQ_WITH_ENCAP_REQUEST
             | SpdmKeyExchangeMutAuthAttributes::MUT_AUTH_REQ_WITH_GET_DIGESTS => {
-                self.get_encapsulated_request_response(session_id, mut_auth_requested)
-                    .await
+                await_or!(self.get_encapsulated_request_response(session_id, mut_auth_requested))
             }
             _ => Err(SPDM_STATUS_INVALID_MSG_FIELD),
         }

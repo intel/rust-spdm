@@ -11,6 +11,7 @@ edition = "2018"
 
 [dependencies]
 codec = {path= "../codec"}
+async-or = { path = "../async-or" }
 bitflags = "1.2.1"
 log = "0.4.13"
 bytes = { version="1", default-features=false }
@@ -48,3 +49,4 @@ downcast = []
 hashed-transcript-data = []
 mut-auth = []
 mandatory-mut-auth = ["mut-auth"]
+async = ["async-or/async"]

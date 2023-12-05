@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::async_or;
+use async_or::await_or;
 use config::MAX_SPDM_PSK_CONTEXT_SIZE;
 
 use crate::crypto;
@@ -19,7 +21,8 @@ extern crate alloc;
 use core::ops::DerefMut;
 
 impl RequesterContext {
-    pub async fn send_receive_spdm_psk_exchange(
+    #[async_or]
+    pub fn send_receive_spdm_psk_exchange(
         &mut self,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
         psk_hint: Option<&SpdmPskHintStruct>,
@@ -44,14 +47,11 @@ impl RequesterContext {
             &mut send_buffer,
         )?;
 
-        self.send_message(None, &send_buffer[..send_used], false)
-            .await?;
+        await_or!(self.send_message(None, &send_buffer[..send_used], false))?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let receive_used = self
-            .receive_message(None, &mut receive_buffer, false)
-            .await?;
+        let receive_used = await_or!(self.receive_message(None, &mut receive_buffer, false))?;
 
         let mut target_session_id = None;
         if let Err(e) = self.handle_spdm_psk_exchange_response(

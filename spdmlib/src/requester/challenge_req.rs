@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
+
 use crate::crypto;
 #[cfg(feature = "hashed-transcript-data")]
 use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
@@ -14,7 +16,8 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
-    pub async fn send_receive_spdm_challenge(
+    #[async_or]
+    pub fn send_receive_spdm_challenge(
         &mut self,
         slot_id: u8,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
@@ -31,14 +34,11 @@ impl RequesterContext {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let send_used =
             self.encode_spdm_challenge(slot_id, measurement_summary_hash_type, &mut send_buffer)?;
-        self.send_message(None, &send_buffer[..send_used], false)
-            .await?;
+        await_or!(self.send_message(None, &send_buffer[..send_used], false))?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self
-            .receive_message(None, &mut receive_buffer, true)
-            .await?;
+        let used = await_or!(self.receive_message(None, &mut receive_buffer, true))?;
         self.handle_spdm_challenge_response(
             0, // NULL
             slot_id,

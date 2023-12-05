@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
+
 use crate::error::{
     SpdmResult, SPDM_STATUS_ERROR_PEER, SPDM_STATUS_INVALID_MSG_FIELD,
     SPDM_STATUS_INVALID_PARAMETER,
@@ -10,7 +12,8 @@ use crate::message::*;
 use crate::requester::*;
 
 impl RequesterContext {
-    async fn send_receive_spdm_key_update_op(
+    #[async_or]
+    fn send_receive_spdm_key_update_op(
         &mut self,
         session_id: u32,
         key_update_operation: SpdmKeyUpdateOperation,
@@ -25,8 +28,7 @@ impl RequesterContext {
 
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let used = self.encode_spdm_key_update_op(key_update_operation, tag, &mut send_buffer)?;
-        self.send_message(Some(session_id), &send_buffer[..used], false)
-            .await?;
+        await_or!(self.send_message(Some(session_id), &send_buffer[..used], false))?;
 
         // update key
         let spdm_version_sel = self.common.negotiate_info.spdm_version_sel;
@@ -40,9 +42,7 @@ impl RequesterContext {
         let update_responder = key_update_operation == SpdmKeyUpdateOperation::SpdmUpdateAllKeys;
         session.create_data_secret_update(spdm_version_sel, update_requester, update_responder)?;
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self
-            .receive_message(Some(session_id), &mut receive_buffer, false)
-            .await?;
+        let used = await_or!(self.receive_message(Some(session_id), &mut receive_buffer, false))?;
 
         self.handle_spdm_key_update_op_response(
             session_id,
@@ -129,7 +129,8 @@ impl RequesterContext {
         }
     }
 
-    pub async fn send_receive_spdm_key_update(
+    #[async_or]
+    pub fn send_receive_spdm_key_update(
         &mut self,
         session_id: u32,
         key_update_operation: SpdmKeyUpdateOperation,
@@ -139,13 +140,11 @@ impl RequesterContext {
         {
             return Err(SPDM_STATUS_INVALID_MSG_FIELD);
         }
-        self.send_receive_spdm_key_update_op(session_id, key_update_operation, 1)
-            .await?;
-        self.send_receive_spdm_key_update_op(
+        await_or!(self.send_receive_spdm_key_update_op(session_id, key_update_operation, 1))?;
+        await_or!(self.send_receive_spdm_key_update_op(
             session_id,
             SpdmKeyUpdateOperation::SpdmVerifyNewKey,
             2,
-        )
-        .await
+        ))
     }
 }

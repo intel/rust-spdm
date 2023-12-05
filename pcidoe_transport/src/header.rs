@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use async_trait::async_trait;
+use async_or::async_impl_or;
 extern crate alloc;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
@@ -89,9 +89,10 @@ impl Codec for PciDoeMessageHeader {
 #[derive(Debug, Copy, Clone, Default)]
 pub struct PciDoeTransportEncap {}
 
-#[async_trait]
+#[async_impl_or]
 impl SpdmTransportEncap for PciDoeTransportEncap {
-    async fn encap(
+    #[async_or]
+    fn encap(
         &mut self,
         spdm_buffer: Arc<&[u8]>,
         transport_buffer: Arc<Mutex<&mut [u8]>>,
@@ -122,7 +123,8 @@ impl SpdmTransportEncap for PciDoeTransportEncap {
         Ok(header_size + aligned_payload_len)
     }
 
-    async fn decap(
+    #[async_or]
+    fn decap(
         &mut self,
         transport_buffer: Arc<&[u8]>,
         spdm_buffer: Arc<Mutex<&mut [u8]>>,
@@ -154,7 +156,8 @@ impl SpdmTransportEncap for PciDoeTransportEncap {
         Ok((payload_size, secured_message))
     }
 
-    async fn encap_app(
+    #[async_or]
+    fn encap_app(
         &mut self,
         spdm_buffer: Arc<&[u8]>,
         app_buffer: Arc<Mutex<&mut [u8]>>,
@@ -166,7 +169,8 @@ impl SpdmTransportEncap for PciDoeTransportEncap {
         Ok(spdm_buffer.len())
     }
 
-    async fn decap_app(
+    #[async_or]
+    fn decap_app(
         &mut self,
         app_buffer: Arc<&[u8]>,
         spdm_buffer: Arc<Mutex<&mut [u8]>>,

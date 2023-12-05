@@ -4,6 +4,8 @@
 
 #![forbid(unsafe_code)]
 
+use async_or::async_or;
+use async_or::await_or;
 use codec::Codec;
 use common::SpdmDeviceIo;
 use common::SpdmTransportEncap;
@@ -22,7 +24,6 @@ use log::LevelFilter;
 use log::*;
 use simple_logger::SimpleLogger;
 
-use spdm_emu::async_runtime::block_on;
 use spdm_emu::crypto_callback::SECRET_ASYM_IMPL_INSTANCE;
 use spdm_emu::secret_impl_sample::SECRET_PSK_IMPL_INSTANCE;
 use spdm_emu::EMU_STACK_SIZE;
@@ -62,7 +63,8 @@ extern crate alloc;
 use alloc::sync::Arc;
 use core::ops::DerefMut;
 
-async fn send_receive_hello(
+#[async_or]
+fn send_receive_hello(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn common::SpdmTransportEncap + Send + Sync>>,
     transport_type: u32,
@@ -72,14 +74,12 @@ async fn send_receive_hello(
 
     let mut transport_encap = transport_encap.lock();
     let transport_encap = transport_encap.deref_mut();
-    let used = transport_encap
-        .encap(
-            Arc::new(b"Client Hello!\0"),
-            Arc::new(Mutex::new(&mut payload[..])),
-            false,
-        )
-        .await
-        .unwrap();
+    let used = await_or!(transport_encap.encap(
+        Arc::new(b"Client Hello!\0"),
+        Arc::new(Mutex::new(&mut payload[..])),
+        false,
+    ))
+    .unwrap();
 
     let _buffer_size = spdm_emu::spdm_emu::send_message(
         stream.clone(),
@@ -88,13 +88,16 @@ async fn send_receive_hello(
         &payload[0..used],
     );
     let mut buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
-    let (_transport_type, _command, _payload) =
-        spdm_emu::spdm_emu::receive_message(stream, &mut buffer[..], ST1)
-            .await
-            .unwrap();
+    let (_transport_type, _command, _payload) = await_or!(spdm_emu::spdm_emu::receive_message(
+        stream,
+        &mut buffer[..],
+        ST1
+    ))
+    .unwrap();
 }
 
-async fn send_receive_stop(
+#[async_or]
+fn send_receive_stop(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn common::SpdmTransportEncap + Send + Sync>>,
     transport_type: u32,
@@ -106,10 +109,12 @@ async fn send_receive_stop(
     let mut transport_encap = transport_encap.lock();
     let transport_encap = transport_encap.deref_mut();
 
-    let used = transport_encap
-        .encap(Arc::new(b""), Arc::new(Mutex::new(&mut payload[..])), false)
-        .await
-        .unwrap();
+    let used = await_or!(transport_encap.encap(
+        Arc::new(b""),
+        Arc::new(Mutex::new(&mut payload[..])),
+        false
+    ))
+    .unwrap();
 
     let _buffer_size = spdm_emu::spdm_emu::send_message(
         stream.clone(),
@@ -118,13 +123,16 @@ async fn send_receive_stop(
         &payload[0..used],
     );
     let mut buffer = [0u8; config::RECEIVER_BUFFER_SIZE];
-    let (_transport_type, _command, _payload) =
-        spdm_emu::spdm_emu::receive_message(stream, &mut buffer[..], ST1)
-            .await
-            .unwrap();
+    let (_transport_type, _command, _payload) = await_or!(spdm_emu::spdm_emu::receive_message(
+        stream,
+        &mut buffer[..],
+        ST1
+    ))
+    .unwrap();
 }
 
-async fn test_spdm(
+#[async_or]
+fn test_spdm(
     socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
 ) {
@@ -255,29 +263,23 @@ async fn test_spdm(
     );
 
     let mut transcript_vca = None;
-    if context.init_connection(&mut transcript_vca).await.is_err() {
+    if await_or!(context.init_connection(&mut transcript_vca)).is_err() {
         panic!("init_connection failed!");
     }
 
-    if context.send_receive_spdm_digest(None).await.is_err() {
+    if await_or!(context.send_receive_spdm_digest(None)).is_err() {
         panic!("send_receive_spdm_digest failed!");
     }
 
-    if context
-        .send_receive_spdm_certificate(None, 0)
-        .await
-        .is_err()
-    {
+    if await_or!(context.send_receive_spdm_certificate(None, 0)).is_err() {
         panic!("send_receive_spdm_certificate failed!");
     }
 
-    if context
-        .send_receive_spdm_challenge(
-            0,
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-        )
-        .await
-        .is_err()
+    if await_or!(context.send_receive_spdm_challenge(
+        0,
+        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+    ))
+    .is_err()
     {
         panic!("send_receive_spdm_challenge failed!");
     }
@@ -287,19 +289,17 @@ async fn test_spdm(
     let mut content_changed = None;
     let mut transcript_meas = None;
 
-    if context
-        .send_receive_spdm_measurement(
-            None,
-            0,
-            SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
-            SpdmMeasurementOperation::SpdmMeasurementRequestAll,
-            &mut content_changed,
-            &mut total_number,
-            &mut spdm_measurement_record_structure,
-            &mut transcript_meas,
-        )
-        .await
-        .is_err()
+    if await_or!(context.send_receive_spdm_measurement(
+        None,
+        0,
+        SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+        SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+        &mut content_changed,
+        &mut total_number,
+        &mut spdm_measurement_record_structure,
+        &mut transcript_meas,
+    ))
+    .is_err()
     {
         panic!("send_receive_spdm_measurement failed!");
     }
@@ -308,13 +308,11 @@ async fn test_spdm(
         panic!("get message_m from send_receive_spdm_measurement failed!");
     }
 
-    let result = context
-        .start_session(
-            false,
-            0,
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-        )
-        .await;
+    let result = await_or!(context.start_session(
+        false,
+        0,
+        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+    ));
     if let Ok(session_id) = result {
         info!("\nSession established ... session_id {:0x?}\n", session_id);
         info!("Key Information ...\n");
@@ -338,18 +336,13 @@ async fn test_spdm(
             response_direction.salt.as_ref()
         );
 
-        if context
-            .send_receive_spdm_heartbeat(session_id)
-            .await
-            .is_err()
-        {
+        if await_or!(context.send_receive_spdm_heartbeat(session_id)).is_err() {
             panic!("send_receive_spdm_heartbeat failed");
         }
 
-        if context
-            .send_receive_spdm_key_update(session_id, SpdmKeyUpdateOperation::SpdmUpdateAllKeys)
-            .await
-            .is_err()
+        if await_or!(context
+            .send_receive_spdm_key_update(session_id, SpdmKeyUpdateOperation::SpdmUpdateAllKeys))
+        .is_err()
         {
             panic!("send_receive_spdm_key_update failed");
         }
@@ -357,19 +350,17 @@ async fn test_spdm(
         let mut content_changed = None;
         let mut transcript_meas = None;
 
-        if context
-            .send_receive_spdm_measurement(
-                Some(session_id),
-                0,
-                SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
-                SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
-                &mut content_changed,
-                &mut total_number,
-                &mut spdm_measurement_record_structure,
-                &mut transcript_meas,
-            )
-            .await
-            .is_err()
+        if await_or!(context.send_receive_spdm_measurement(
+            Some(session_id),
+            0,
+            SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+            SpdmMeasurementOperation::SpdmMeasurementQueryTotalNumber,
+            &mut content_changed,
+            &mut total_number,
+            &mut spdm_measurement_record_structure,
+            &mut transcript_meas,
+        ))
+        .is_err()
         {
             panic!("send_receive_spdm_measurement failed");
         }
@@ -378,38 +369,28 @@ async fn test_spdm(
             panic!("get VCA + message_m from send_receive_spdm_measurement failed!");
         }
 
-        if context
-            .send_receive_spdm_digest(Some(session_id))
-            .await
-            .is_err()
-        {
+        if await_or!(context.send_receive_spdm_digest(Some(session_id))).is_err() {
             panic!("send_receive_spdm_digest failed");
         }
 
-        if context
-            .send_receive_spdm_certificate(Some(session_id), 0)
-            .await
-            .is_err()
-        {
+        if await_or!(context.send_receive_spdm_certificate(Some(session_id), 0)).is_err() {
             panic!("send_receive_spdm_certificate failed");
         }
 
-        if context.end_session(session_id).await.is_err() {
+        if await_or!(context.end_session(session_id)).is_err() {
             panic!("end_session failed");
         }
     } else {
         panic!("\nSession session_id not got\n");
     }
 
-    let result = context
-        .start_session(
-            true,
-            0,
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-        )
-        .await;
+    let result = await_or!(context.start_session(
+        true,
+        0,
+        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+    ));
     if let Ok(session_id) = result {
-        if context.end_session(session_id).await.is_err() {
+        if await_or!(context.end_session(session_id)).is_err() {
             panic!("\nSession session_id is err\n");
         }
     } else {
@@ -417,7 +398,8 @@ async fn test_spdm(
     }
 }
 
-async fn test_idekm_tdisp(
+#[async_or]
+fn test_idekm_tdisp(
     socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
 ) {
@@ -548,29 +530,23 @@ async fn test_idekm_tdisp(
     );
 
     let mut transcript_vca = None;
-    if context.init_connection(&mut transcript_vca).await.is_err() {
+    if await_or!(context.init_connection(&mut transcript_vca)).is_err() {
         panic!("init_connection failed!");
     }
 
-    if context.send_receive_spdm_digest(None).await.is_err() {
+    if await_or!(context.send_receive_spdm_digest(None)).is_err() {
         panic!("send_receive_spdm_digest failed!");
     }
 
-    if context
-        .send_receive_spdm_certificate(None, 0)
-        .await
-        .is_err()
-    {
+    if await_or!(context.send_receive_spdm_certificate(None, 0)).is_err() {
         panic!("send_receive_spdm_certificate failed!");
     }
 
-    if context
-        .send_receive_spdm_challenge(
-            0,
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-        )
-        .await
-        .is_err()
+    if await_or!(context.send_receive_spdm_challenge(
+        0,
+        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+    ))
+    .is_err()
     {
         panic!("send_receive_spdm_challenge failed!");
     }
@@ -580,31 +556,27 @@ async fn test_idekm_tdisp(
     let mut content_changed = None;
     let mut transcript_meas = None;
 
-    if context
-        .send_receive_spdm_measurement(
-            None,
-            0,
-            SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
-            SpdmMeasurementOperation::SpdmMeasurementRequestAll,
-            &mut content_changed,
-            &mut total_number,
-            &mut spdm_measurement_record_structure,
-            &mut transcript_meas,
-        )
-        .await
-        .is_err()
+    if await_or!(context.send_receive_spdm_measurement(
+        None,
+        0,
+        SpdmMeasurementAttributes::SIGNATURE_REQUESTED,
+        SpdmMeasurementOperation::SpdmMeasurementRequestAll,
+        &mut content_changed,
+        &mut total_number,
+        &mut spdm_measurement_record_structure,
+        &mut transcript_meas,
+    ))
+    .is_err()
     {
         panic!("send_receive_spdm_measurement failed!");
     }
 
-    let session_id = context
-        .start_session(
-            false,
-            0,
-            SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
-        )
-        .await
-        .unwrap();
+    let session_id = await_or!(context.start_session(
+        false,
+        0,
+        SpdmMeasurementSummaryHashType::SpdmMeasurementSummaryHashTypeNone,
+    ))
+    .unwrap();
 
     // ide_km test
     let mut idekm_req_context = IdekmReqContext;
@@ -616,20 +588,18 @@ async fn test_idekm_tdisp(
     let mut max_port_index = 0u8;
     let mut ide_reg_block = [0u32; PCI_IDE_KM_IDE_REG_BLOCK_MAX_COUNT];
     let mut ide_reg_block_cnt = 0usize;
-    idekm_req_context
-        .pci_ide_km_query(
-            &mut context,
-            session_id,
-            port_index,
-            &mut dev_func_num,
-            &mut bus_num,
-            &mut segment,
-            &mut max_port_index,
-            &mut ide_reg_block,
-            &mut ide_reg_block_cnt,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_query(
+        &mut context,
+        session_id,
+        port_index,
+        &mut dev_func_num,
+        &mut bus_num,
+        &mut segment,
+        &mut max_port_index,
+        &mut ide_reg_block,
+        &mut ide_reg_block_cnt,
+    ))
+    .unwrap();
 
     // ide_km key_prog key set 0 | RX | PR
     let stream_id = 0u8;
@@ -649,20 +619,18 @@ async fn test_idekm_tdisp(
     key_iv.iv[0] = 0;
     key_iv.iv[1] = 1;
     let mut kp_ack_status = KpAckStatus::default();
-    idekm_req_context
-        .pci_ide_km_key_prog(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-            key_iv,
-            &mut kp_ack_status,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_prog(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+        key_iv,
+        &mut kp_ack_status,
+    ))
+    .unwrap();
     if kp_ack_status != KpAckStatus::SUCCESS {
         panic!(
             "KEY_PROG at Key Set 0 | RX | PR failed with {:X?}",
@@ -690,20 +658,18 @@ async fn test_idekm_tdisp(
     key_iv.iv[0] = 0;
     key_iv.iv[1] = 1;
     let mut kp_ack_status = KpAckStatus::default();
-    idekm_req_context
-        .pci_ide_km_key_prog(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-            key_iv,
-            &mut kp_ack_status,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_prog(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+        key_iv,
+        &mut kp_ack_status,
+    ))
+    .unwrap();
     if kp_ack_status != KpAckStatus::SUCCESS {
         panic!(
             "KEY_PROG at Key Set 0 | RX | NPR failed with {:X?}",
@@ -731,20 +697,18 @@ async fn test_idekm_tdisp(
     key_iv.iv[0] = 0;
     key_iv.iv[1] = 1;
     let mut kp_ack_status = KpAckStatus::default();
-    idekm_req_context
-        .pci_ide_km_key_prog(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-            key_iv,
-            &mut kp_ack_status,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_prog(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+        key_iv,
+        &mut kp_ack_status,
+    ))
+    .unwrap();
     if kp_ack_status != KpAckStatus::SUCCESS {
         panic!(
             "KEY_PROG at Key Set 0 | RX | CPL failed with {:X?}",
@@ -772,20 +736,18 @@ async fn test_idekm_tdisp(
     key_iv.iv[0] = 0;
     key_iv.iv[1] = 1;
     let mut kp_ack_status = KpAckStatus::default();
-    idekm_req_context
-        .pci_ide_km_key_prog(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-            key_iv,
-            &mut kp_ack_status,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_prog(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+        key_iv,
+        &mut kp_ack_status,
+    ))
+    .unwrap();
     if kp_ack_status != KpAckStatus::SUCCESS {
         panic!(
             "KEY_PROG at Key Set 0 | TX | PR failed with {:X?}",
@@ -813,20 +775,18 @@ async fn test_idekm_tdisp(
     key_iv.iv[0] = 0;
     key_iv.iv[1] = 1;
     let mut kp_ack_status = KpAckStatus::default();
-    idekm_req_context
-        .pci_ide_km_key_prog(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-            key_iv,
-            &mut kp_ack_status,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_prog(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+        key_iv,
+        &mut kp_ack_status,
+    ))
+    .unwrap();
     if kp_ack_status != KpAckStatus::SUCCESS {
         panic!(
             "KEY_PROG at Key Set 0 | TX | NPR failed with {:X?}",
@@ -854,20 +814,18 @@ async fn test_idekm_tdisp(
     key_iv.iv[0] = 0;
     key_iv.iv[1] = 1;
     let mut kp_ack_status = KpAckStatus::default();
-    idekm_req_context
-        .pci_ide_km_key_prog(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-            key_iv,
-            &mut kp_ack_status,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_prog(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+        key_iv,
+        &mut kp_ack_status,
+    ))
+    .unwrap();
     if kp_ack_status != KpAckStatus::SUCCESS {
         panic!(
             "KEY_PROG at Key Set 0 | TX | CPL failed with {:X?}",
@@ -883,216 +841,192 @@ async fn test_idekm_tdisp(
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_PR;
     let port_index = 0u8;
-    idekm_req_context
-        .pci_ide_km_key_set_go(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_go(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_GO at Key Set 0 | RX | PR!");
 
     // ide_km key_set_go key set 0 | RX | NPR
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_NPR;
-    idekm_req_context
-        .pci_ide_km_key_set_go(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_go(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_GO at Key Set 0 | RX | NPR!");
 
     // ide_km key_set_go key set 0 | RX | CPL
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_CPL;
-    idekm_req_context
-        .pci_ide_km_key_set_go(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_go(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_GO at Key Set 0 | RX | CPL!");
 
     // ide_km key_set_go key set 0 | TX | PR
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_PR;
-    idekm_req_context
-        .pci_ide_km_key_set_go(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_go(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_GO at Key Set 0 | TX | PR!");
 
     // ide_km key_set_go key set 0 | TX | NPR
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_NPR;
-    idekm_req_context
-        .pci_ide_km_key_set_go(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_go(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_GO at Key Set 0 | TX | NPR!");
 
     // ide_km key_set_go key set 0 | TX | CPL
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_CPL;
-    idekm_req_context
-        .pci_ide_km_key_set_go(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_go(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_GO at Key Set 0 | TX | CPL!");
 
     // ide_km key_set_stop key set 0 | RX | PR
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_PR;
-    idekm_req_context
-        .pci_ide_km_key_set_stop(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_stop(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_STOP at Key Set 0 | RX | PR!");
 
     // ide_km key_set_stop key set 0 | RX | NPR
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_NPR;
-    idekm_req_context
-        .pci_ide_km_key_set_stop(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_stop(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_STOP at Key Set 0 | RX | NPR!");
 
     // ide_km key_set_stop key set 0 | RX | CPL
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_CPL;
-    idekm_req_context
-        .pci_ide_km_key_set_stop(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_stop(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_STOP at Key Set 0 | RX | CPL!");
 
     // ide_km key_set_stop key set 0 | TX | PR
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_PR;
-    idekm_req_context
-        .pci_ide_km_key_set_stop(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_stop(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_STOP at Key Set 0 | TX | PR!");
 
     // ide_km key_set_stop key set 0 | TX | NPR
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_NPR;
-    idekm_req_context
-        .pci_ide_km_key_set_stop(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_stop(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_STOP at Key Set 0 | TX | NPR!");
 
     // ide_km key_set_stop key set 0 | TX | CPL
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_CPL;
-    idekm_req_context
-        .pci_ide_km_key_set_stop(
-            &mut context,
-            session_id,
-            stream_id,
-            key_set,
-            key_direction,
-            key_sub_stream,
-            port_index,
-        )
-        .await
-        .unwrap();
+    await_or!(idekm_req_context.pci_ide_km_key_set_stop(
+        &mut context,
+        session_id,
+        stream_id,
+        key_set,
+        key_direction,
+        key_sub_stream,
+        port_index,
+    ))
+    .unwrap();
     println!("Successful KEY_SET_STOP at Key Set 0 | TX | CPL!");
 
     // tdisp test
@@ -1104,9 +1038,12 @@ async fn test_idekm_tdisp(
         },
     };
 
-    pci_tdisp_req_get_tdisp_version(&mut context, session_id, interface_id)
-        .await
-        .unwrap();
+    await_or!(pci_tdisp_req_get_tdisp_version(
+        &mut context,
+        session_id,
+        interface_id
+    ))
+    .unwrap();
     println!("Successful Get Tdisp Version!");
 
     let tsm_caps = 0;
@@ -1116,7 +1053,7 @@ async fn test_idekm_tdisp(
     let mut num_req_this = 0u8;
     let mut num_req_all = 0u8;
     let mut req_msgs_supported = [0u8; 16];
-    pci_tdisp_req_get_tdisp_capabilities(
+    await_or!(pci_tdisp_req_get_tdisp_capabilities(
         &mut context,
         session_id,
         tsm_caps,
@@ -1127,19 +1064,17 @@ async fn test_idekm_tdisp(
         &mut num_req_this,
         &mut num_req_all,
         &mut req_msgs_supported,
-    )
-    .await
+    ))
     .unwrap();
     println!("Successful Get Tdisp Capabilities!");
 
     let mut tdi_state = TdiState::ERROR;
-    pci_tdisp_req_get_device_interface_state(
+    await_or!(pci_tdisp_req_get_device_interface_state(
         &mut context,
         session_id,
         interface_id,
         &mut tdi_state,
-    )
-    .await
+    ))
     .unwrap();
     assert_eq!(tdi_state, TdiState::CONFIG_UNLOCKED);
     println!("Successful Get Tdisp State: {:X?}!", tdi_state);
@@ -1150,7 +1085,7 @@ async fn test_idekm_tdisp(
     let bind_p2p_address_mask = 0;
     let mut start_interface_nonce = [0u8; START_INTERFACE_NONCE_LEN];
     let mut tdisp_error_code = None;
-    pci_tdisp_req_lock_interface_request(
+    await_or!(pci_tdisp_req_lock_interface_request(
         &mut context,
         session_id,
         interface_id,
@@ -1160,8 +1095,7 @@ async fn test_idekm_tdisp(
         bind_p2p_address_mask,
         &mut start_interface_nonce,
         &mut tdisp_error_code,
-    )
-    .await
+    ))
     .unwrap();
     assert!(tdisp_error_code.is_none());
     println!(
@@ -1169,28 +1103,26 @@ async fn test_idekm_tdisp(
         start_interface_nonce
     );
 
-    pci_tdisp_req_get_device_interface_state(
+    await_or!(pci_tdisp_req_get_device_interface_state(
         &mut context,
         session_id,
         interface_id,
         &mut tdi_state,
-    )
-    .await
+    ))
     .unwrap();
     assert_eq!(tdi_state, TdiState::CONFIG_LOCKED);
     println!("Successful Get Tdisp State: {:X?}!", tdi_state);
 
     let mut report = [0u8; MAX_DEVICE_REPORT_BUFFER];
     let mut report_size = 0usize;
-    pci_tdisp_req_get_device_interface_report(
+    await_or!(pci_tdisp_req_get_device_interface_report(
         &mut context,
         session_id,
         interface_id,
         &mut report,
         &mut report_size,
         &mut tdisp_error_code,
-    )
-    .await
+    ))
     .unwrap();
     assert!(tdisp_error_code.is_none());
     let tdi_report = TdiReportStructure::read_bytes(&report).unwrap();
@@ -1199,47 +1131,47 @@ async fn test_idekm_tdisp(
         tdi_report
     );
 
-    pci_tdisp_req_start_interface_request(
+    await_or!(pci_tdisp_req_start_interface_request(
         &mut context,
         session_id,
         interface_id,
         &start_interface_nonce,
         &mut tdisp_error_code,
-    )
-    .await
+    ))
     .unwrap();
     assert!(tdisp_error_code.is_none());
     println!("Successful Start Interface!");
 
-    pci_tdisp_req_get_device_interface_state(
+    await_or!(pci_tdisp_req_get_device_interface_state(
         &mut context,
         session_id,
         interface_id,
         &mut tdi_state,
-    )
-    .await
+    ))
     .unwrap();
     assert_eq!(tdi_state, TdiState::RUN);
     println!("Successful Get Tdisp State: {:X?}!", tdi_state);
 
-    pci_tdisp_req_stop_interface_request(&mut context, session_id, interface_id)
-        .await
-        .unwrap();
+    await_or!(pci_tdisp_req_stop_interface_request(
+        &mut context,
+        session_id,
+        interface_id
+    ))
+    .unwrap();
     println!("Successful Stop Interface!");
 
-    pci_tdisp_req_get_device_interface_state(
+    await_or!(pci_tdisp_req_get_device_interface_state(
         &mut context,
         session_id,
         interface_id,
         &mut tdi_state,
-    )
-    .await
+    ))
     .unwrap();
     assert_eq!(tdi_state, TdiState::CONFIG_UNLOCKED);
     println!("Successful Get Tdisp State: {:X?}!", tdi_state);
 
     // end spdm session
-    context.end_session(session_id).await.unwrap();
+    await_or!(context.end_session(session_id)).unwrap();
 }
 
 // A new logger enables the user to choose log level by setting a `SPDM_LOG` environment variable.
@@ -1293,31 +1225,49 @@ fn emu_main() {
         SOCKET_TRANSPORT_TYPE_MCTP
     };
 
-    block_on(Box::pin(send_receive_hello(
-        socket.clone(),
-        transport_encap.clone(),
-        transport_type,
-    )));
+    #[cfg(feature = "async")]
+    {
+        spdm_emu::async_runtime::block_on(Box::pin(send_receive_hello(
+            socket.clone(),
+            transport_encap.clone(),
+            transport_type,
+        )));
 
-    let socket_io_transport = SocketIoTransport::new(socket.clone());
-    let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
-        Arc::new(Mutex::new(socket_io_transport));
+        let socket_io_transport = SocketIoTransport::new(socket.clone());
+        let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
+            Arc::new(Mutex::new(socket_io_transport));
 
-    block_on(Box::pin(test_spdm(
-        socket_io_transport.clone(),
-        transport_encap.clone(),
-    )));
+        spdm_emu::async_runtime::block_on(Box::pin(test_spdm(
+            socket_io_transport.clone(),
+            transport_encap.clone(),
+        )));
 
-    block_on(Box::pin(test_idekm_tdisp(
-        socket_io_transport.clone(),
-        transport_encap.clone(),
-    )));
+        spdm_emu::async_runtime::block_on(Box::pin(test_idekm_tdisp(
+            socket_io_transport.clone(),
+            transport_encap.clone(),
+        )));
 
-    block_on(Box::pin(send_receive_stop(
-        socket,
-        transport_encap,
-        transport_type,
-    )));
+        spdm_emu::async_runtime::block_on(Box::pin(send_receive_stop(
+            socket,
+            transport_encap,
+            transport_type,
+        )));
+    }
+
+    #[cfg(not(feature = "async"))]
+    {
+        send_receive_hello(socket.clone(), transport_encap.clone(), transport_type);
+
+        let socket_io_transport = SocketIoTransport::new(socket.clone());
+        let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
+            Arc::new(Mutex::new(socket_io_transport));
+
+        test_spdm(socket_io_transport.clone(), transport_encap.clone());
+
+        test_idekm_tdisp(socket_io_transport.clone(), transport_encap.clone());
+
+        send_receive_stop(socket, transport_encap, transport_type);
+    }
 }
 
 fn main() {

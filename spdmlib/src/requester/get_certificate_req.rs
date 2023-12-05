@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
+
 use crate::crypto::{self, is_root_certificate};
 use crate::error::{
     SpdmResult, SPDM_STATUS_CRYPTO_ERROR, SPDM_STATUS_ERROR_PEER, SPDM_STATUS_INVALID_CERT,
@@ -12,7 +14,8 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
-    async fn send_receive_spdm_certificate_partial(
+    #[async_or]
+    fn send_receive_spdm_certificate_partial(
         &mut self,
         session_id: Option<u32>,
         slot_id: u8,
@@ -25,13 +28,10 @@ impl RequesterContext {
         let send_used =
             self.encode_spdm_certificate_partial(slot_id, offset, length, &mut send_buffer)?;
 
-        self.send_message(session_id, &send_buffer[..send_used], false)
-            .await?;
+        await_or!(self.send_message(session_id, &send_buffer[..send_used], false))?;
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self
-            .receive_message(session_id, &mut receive_buffer, false)
-            .await?;
+        let used = await_or!(self.receive_message(session_id, &mut receive_buffer, false))?;
 
         self.handle_spdm_certificate_partial_response(
             session_id,
@@ -171,7 +171,8 @@ impl RequesterContext {
         }
     }
 
-    pub async fn send_receive_spdm_certificate(
+    #[async_or]
+    pub fn send_receive_spdm_certificate(
         &mut self,
         session_id: Option<u32>,
         slot_id: u8,
@@ -191,11 +192,10 @@ impl RequesterContext {
 
         self.common.peer_info.peer_cert_chain_temp = Some(SpdmCertChainBuffer::default());
         while length != 0 {
-            let (portion_length, remainder_length) = self
+            let (portion_length, remainder_length) = await_or!(self
                 .send_receive_spdm_certificate_partial(
                     session_id, slot_id, total_size, offset, length,
-                )
-                .await?;
+                ))?;
             if total_size == 0 {
                 total_size = portion_length + remainder_length;
             }

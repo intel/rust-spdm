@@ -18,6 +18,8 @@ codec = { path = "../codec" }
 zeroize = { version = "1.5.0", features = ["zeroize_derive"]}
 spdmlib = { path = "../spdmlib", default-features = false, features = ["spdm-ring"]}
 conquer-once = { version = "0.3.2", default-features = false }
+async-or = { path = "../async-or" }
 
 
 [features]
+async = ["spdmlib/async", "async-or/async"]

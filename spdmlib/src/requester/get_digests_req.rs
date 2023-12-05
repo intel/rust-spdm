@@ -2,12 +2,15 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
+
 use crate::error::{SpdmResult, SPDM_STATUS_ERROR_PEER, SPDM_STATUS_INVALID_MSG_FIELD};
 use crate::message::*;
 use crate::requester::*;
 
 impl RequesterContext {
-    pub async fn send_receive_spdm_digest(&mut self, session_id: Option<u32>) -> SpdmResult {
+    #[async_or]
+    pub fn send_receive_spdm_digest(&mut self, session_id: Option<u32>) -> SpdmResult {
         info!("send spdm digest\n");
 
         self.common.reset_buffer_via_request_code(
@@ -18,13 +21,10 @@ impl RequesterContext {
         let mut send_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let send_used = self.encode_spdm_digest(&mut send_buffer)?;
 
-        self.send_message(session_id, &send_buffer[..send_used], false)
-            .await?;
+        await_or!(self.send_message(session_id, &send_buffer[..send_used], false))?;
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self
-            .receive_message(session_id, &mut receive_buffer, false)
-            .await?;
+        let used = await_or!(self.receive_message(session_id, &mut receive_buffer, false))?;
 
         self.handle_spdm_digest_response(
             session_id,

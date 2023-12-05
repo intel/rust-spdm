@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
 use spdmlib::error::SPDM_STATUS_INVALID_PARAMETER;
 use spdmlib::message::VendorDefinedRspPayloadStruct;
 use spdmlib::{
@@ -12,7 +13,8 @@ use crate::pci_tdisp::vendor_id;
 use crate::pci_tdisp::STANDARD_ID;
 use crate::pci_tdisp::TDISP_PROTOCOL_ID;
 
-pub async fn pci_tdisp_req_vdm_request(
+#[async_or]
+pub fn pci_tdisp_req_vdm_request(
     // IN
     spdm_requester: &mut RequesterContext,
     session_id: u32,
@@ -24,13 +26,11 @@ pub async fn pci_tdisp_req_vdm_request(
     {
         Err(SPDM_STATUS_INVALID_PARAMETER)
     } else {
-        spdm_requester
-            .send_spdm_vendor_defined_request(
-                Some(session_id),
-                STANDARD_ID,
-                vendor_id(),
-                vendor_defined_req_payload_struct,
-            )
-            .await
+        await_or!(spdm_requester.send_spdm_vendor_defined_request(
+            Some(session_id),
+            STANDARD_ID,
+            vendor_id(),
+            vendor_defined_req_payload_struct,
+        ))
     }
 }

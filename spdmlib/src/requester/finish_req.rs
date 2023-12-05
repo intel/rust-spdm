@@ -9,19 +9,19 @@ use crate::protocol::*;
 use crate::requester::*;
 extern crate alloc;
 use alloc::boxed::Box;
+use async_or::async_or;
+use async_or::await_or;
 
 impl RequesterContext {
-    pub async fn send_receive_spdm_finish(
+    #[async_or]
+    pub fn send_receive_spdm_finish(
         &mut self,
         req_slot_id: Option<u8>,
         session_id: u32,
     ) -> SpdmResult {
         info!("send spdm finish\n");
 
-        if let Err(e) = self
-            .delegate_send_receive_spdm_finish(req_slot_id, session_id)
-            .await
-        {
+        if let Err(e) = await_or!(self.delegate_send_receive_spdm_finish(req_slot_id, session_id)) {
             if let Some(session) = self.common.get_session_via_id(session_id) {
                 session.teardown();
             }
@@ -32,7 +32,8 @@ impl RequesterContext {
         }
     }
 
-    pub async fn delegate_send_receive_spdm_finish(
+    #[async_or]
+    pub fn delegate_send_receive_spdm_finish(
         &mut self,
         req_slot_id: Option<u8>,
         session_id: u32,
@@ -81,11 +82,9 @@ impl RequesterContext {
         }
         let send_used = res.unwrap();
         let res = if in_clear_text {
-            self.send_message(None, &send_buffer[..send_used], false)
-                .await
+            await_or!(self.send_message(None, &send_buffer[..send_used], false))
         } else {
-            self.send_message(Some(session_id), &send_buffer[..send_used], false)
-                .await
+            await_or!(self.send_message(Some(session_id), &send_buffer[..send_used], false))
         };
         if res.is_err() {
             self.common
@@ -97,10 +96,9 @@ impl RequesterContext {
 
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let res = if in_clear_text {
-            self.receive_message(None, &mut receive_buffer, false).await
+            await_or!(self.receive_message(None, &mut receive_buffer, false))
         } else {
-            self.receive_message(Some(session_id), &mut receive_buffer, false)
-                .await
+            await_or!(self.receive_message(Some(session_id), &mut receive_buffer, false))
         };
         if res.is_err() {
             self.common

@@ -54,12 +54,21 @@ build() {
     
     echo "Building Rust-SPDM with spdm-ring feature..."
     echo_command cargo build --release --no-default-features --features=spdm-ring
+
+    echo "Building Rust-SPDM with spdm-ring,async feature..."
+    echo_command cargo build --release --no-default-features --features=spdm-ring,async
     
     echo "Building Rust-SPDM with spdm-ring,hashed-transcript-data feature..."
     echo_command cargo build --release --no-default-features --features=spdm-ring,hashed-transcript-data
+
+    echo "Building Rust-SPDM with spdm-ring,hashed-transcript-data,async feature..."
+    echo_command cargo build --release --no-default-features --features=spdm-ring,hashed-transcript-data,async
     
     echo "Building Rust-SPDM with spdm-ring,hashed-transcript-data,mut-auth feature..."
     echo_command cargo build --release --no-default-features --features=spdm-ring,hashed-transcript-data,mut-auth
+
+    echo "Building Rust-SPDM with spdm-ring,hashed-transcript-data,mut-auth,async feature..."
+    echo_command cargo build --release --no-default-features --features=spdm-ring,hashed-transcript-data,mut-auth,async
 
     if [ -z "$RUSTFLAGS" ]; then
         echo "Building Rust-SPDM in no std with no-default-features..."
@@ -67,12 +76,21 @@ build() {
     
         echo "Building Rust-SPDM in no std with spdm-ring feature..."
         echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring"
-    
+
+        echo "Building Rust-SPDM in no std with spdm-ring,async feature..."
+        echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,async"
+
         echo "Building Rust-SPDM in no std with spdm-ring,hashed-transcript-data feature..."
         echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,hashed-transcript-data"
+
+        echo "Building Rust-SPDM in no std with spdm-ring,hashed-transcript-data,async feature..."
+        echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,hashed-transcript-data,async"
     
         echo "Building Rust-SPDM in no std with spdm-ring,hashed-transcript-data,mut-auth feature..."
         echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,hashed-transcript-data,mut-auth"
+
+        echo "Building Rust-SPDM in no std with spdm-ring,hashed-transcript-data,mut-auth,async feature..."
+        echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,hashed-transcript-data,mut-auth,async"
     fi
 
     popd
@@ -84,11 +102,13 @@ build() {
     echo_command cargo build -p spdm-responder-emu
 }
 
-RUN_REQUESTER_FEATURES=${RUN_REQUESTER_FEATURES:-spdm-ring,hashed-transcript-data,async-executor}
-RUN_RESPONDER_FEATURES=${RUN_RESPONDER_FEATURES:-spdm-ring,hashed-transcript-data,async-executor}
-RUN_REQUESTER_MUTAUTH_FEATURES="${RUN_REQUESTER_FEATURES},mut-auth"
-RUN_RESPONDER_MUTAUTH_FEATURES="${RUN_RESPONDER_FEATURES},mut-auth"
-RUN_RESPONDER_MANDATORY_MUTAUTH_FEATURES="${RUN_RESPONDER_FEATURES},mandatory-mut-auth"
+RUN_REQUESTER_FEATURES=${RUN_REQUESTER_FEATURES:-spdm-ring,hashed-transcript-data}
+RUN_RESPONDER_FEATURES=${RUN_RESPONDER_FEATURES:-spdm-ring,hashed-transcript-data}
+RUN_REQUESTER_FEATURES_WITH_ASYNC=${RUN_REQUESTER_FEATURES:-spdm-ring,hashed-transcript-data,async-executor}
+RUN_RESPONDER_FEATURES_WITH_ASYNC=${RUN_RESPONDER_FEATURES:-spdm-ring,hashed-transcript-data,async-executor}
+RUN_REQUESTER_MUTAUTH_FEATURES="${RUN_REQUESTER_FEATURES_WITH_ASYNC},mut-auth"
+RUN_RESPONDER_MUTAUTH_FEATURES="${RUN_RESPONDER_FEATURES_WITH_ASYNC},mut-auth"
+RUN_RESPONDER_MANDATORY_MUTAUTH_FEATURES="${RUN_RESPONDER_FEATURES_WITH_ASYNC},mandatory-mut-auth"
 
 run_with_spdm_emu() {
     echo "Running with spdm-emu..."
@@ -138,7 +158,7 @@ run_with_spdm_emu_mandatory_mut_auth() {
 run_basic_test() {
     echo "Running basic tests..."
     echo_command cargo test -- --test-threads=1
-    echo_command cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring" -- --test-threads=1
+    echo_command cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring,async" -- --test-threads=1
     echo "Running basic tests finished..."
 
     echo "Running spdmlib-test..."
@@ -153,6 +173,14 @@ run_rust_spdm_emu() {
     echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_FEATURES" &
     sleep 20
     echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_REQUESTER_FEATURES"
+    cleanup
+}
+
+run_async_rust_spdm_emu() {
+    echo "Running requester and responder..."
+    echo_command cargo run -p spdm-responder-emu --no-default-features --features="$RUN_RESPONDER_FEATURES_WITH_ASYNC" &
+    sleep 20
+    echo_command cargo run -p spdm-requester-emu --no-default-features --features="$RUN_REQUESTER_FEATURES_WITH_ASYNC"
     cleanup
 }
 
@@ -177,6 +205,7 @@ run_rust_spdm_emu_mandatory_mut_auth() {
 run() {
     run_basic_test
     run_rust_spdm_emu
+    run_async_rust_spdm_emu
     run_rust_spdm_emu_mut_auth
     run_rust_spdm_emu_mandatory_mut_auth
 }

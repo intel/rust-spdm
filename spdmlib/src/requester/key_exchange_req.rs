@@ -4,6 +4,8 @@
 
 extern crate alloc;
 use alloc::boxed::Box;
+use async_or::async_or;
+use async_or::await_or;
 use core::ops::DerefMut;
 
 use crate::common::session::SpdmSession;
@@ -27,7 +29,8 @@ use crate::message::*;
 use crate::protocol::{SpdmMeasurementSummaryHashType, SpdmSignatureStruct, SpdmVersion};
 
 impl RequesterContext {
-    pub async fn send_receive_spdm_key_exchange(
+    #[async_or]
+    pub fn send_receive_spdm_key_exchange(
         &mut self,
         slot_id: u8,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
@@ -50,14 +53,11 @@ impl RequesterContext {
             slot_id,
             measurement_summary_hash_type,
         )?;
-        self.send_message(None, &send_buffer[..send_used], false)
-            .await?;
+        await_or!(self.send_message(None, &send_buffer[..send_used], false))?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let receive_used = self
-            .receive_message(None, &mut receive_buffer, false)
-            .await?;
+        let receive_used = await_or!(self.receive_message(None, &mut receive_buffer, false))?;
 
         let mut target_session_id = None;
         if let Err(e) = self.handle_spdm_key_exchange_response(

@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-spdmlib = { path = "../../spdmlib", default-features = false, features=["spdm-ring"] }
+spdmlib = { path = "../../spdmlib", default-features = false, features=["spdm-ring", "async"] }
 codec = { path = "../../codec", features = ["alloc"] }
 log = "0.4.13"
 ring = { version = "0.17.6" }
@@ -16,7 +16,7 @@ async-trait = "0.1.71"
 async-recursion = "1.0.4"
 spin = { version = "0.9.8" }
 executor = { path = "../../executor" }
-pcidoe_transport = { path = "../../pcidoe_transport" }
+pcidoe_transport = { path = "../../pcidoe_transport", features=["async"] }
 
 [dev-dependencies]
 env_logger = "*"

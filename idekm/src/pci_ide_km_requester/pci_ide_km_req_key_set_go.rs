@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::async_or;
+use async_or::await_or;
 use codec::Codec;
 use codec::Writer;
 use spdmlib::error::SPDM_STATUS_BUFFER_FULL;
@@ -21,7 +23,8 @@ use super::IdekmReqContext;
 
 impl IdekmReqContext {
     #[allow(clippy::too_many_arguments)]
-    pub async fn pci_ide_km_key_set_go(
+    #[async_or]
+    pub fn pci_ide_km_key_set_go(
         &mut self,
         // IN
         spdm_requester: &mut RequesterContext,
@@ -51,14 +54,13 @@ impl IdekmReqContext {
         .map_err(|_| SPDM_STATUS_BUFFER_FULL)?
             as u16;
 
-        let vendor_defined_rsp_payload_struct = spdm_requester
+        let vendor_defined_rsp_payload_struct = await_or!(spdm_requester
             .send_spdm_vendor_defined_request(
                 Some(session_id),
                 STANDARD_ID,
                 vendor_id(),
                 vendor_defined_req_payload_struct,
-            )
-            .await?;
+            ))?;
 
         let kgo_stop_ack_data_object = KGoStopAckDataObject::read_bytes(
             &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload

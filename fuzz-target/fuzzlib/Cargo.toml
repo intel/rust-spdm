@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 afl = { version = "=0.12.12", optional = true }
-spdmlib = { path = "../../spdmlib", default-features = false, features=["spdm-ring"] }
+spdmlib = { path = "../../spdmlib", default-features = false, features=["spdm-ring", "async"] }
 simple_logger = "4.2.0"
 log = "0.4.13"
 ring = { version = "0.17.6" }

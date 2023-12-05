@@ -7,6 +7,7 @@ use alloc::boxed::Box;
 use core::{future::Future, pin::Pin};
 
 // Run async task
+#[cfg(feature = "async")]
 pub fn block_on<T>(future: Pin<Box<dyn Future<Output = T> + 'static + Send>>) -> T
 where
     T: Send + 'static,

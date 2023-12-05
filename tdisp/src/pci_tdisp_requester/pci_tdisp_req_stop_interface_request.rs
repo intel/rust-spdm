@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::async_or;
+use async_or::await_or;
 use codec::Codec;
 use codec::Writer;
 use spdmlib::error::SPDM_STATUS_BUFFER_FULL;
@@ -21,7 +23,8 @@ use crate::pci_tdisp::TdispRequestResponseCode;
 use crate::pci_tdisp::TdispVersion;
 use crate::pci_tdisp::STANDARD_ID;
 
-pub async fn pci_tdisp_req_stop_interface_request(
+#[async_or]
+pub fn pci_tdisp_req_stop_interface_request(
     // IN
     spdm_requester: &mut RequesterContext,
     session_id: u32,
@@ -49,14 +52,13 @@ pub async fn pci_tdisp_req_stop_interface_request(
     .map_err(|_| SPDM_STATUS_BUFFER_FULL)?
         as u16;
 
-    let vendor_defined_rsp_payload_struct = spdm_requester
+    let vendor_defined_rsp_payload_struct = await_or!(spdm_requester
         .send_spdm_vendor_defined_request(
             Some(session_id),
             STANDARD_ID,
             vendor_id(),
             vendor_defined_req_payload_struct,
-        )
-        .await?;
+        ))?;
 
     let rsp_stop_interface_response = RspStopInterfaceResponse::read_bytes(
         &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload

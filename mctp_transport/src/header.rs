@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use async_trait::async_trait;
+use async_or::async_impl_or;
 use codec::enum_builder;
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::SpdmTransportEncap;
@@ -57,9 +57,10 @@ impl Codec for MctpMessageHeader {
 #[derive(Debug, Copy, Clone, Default)]
 pub struct MctpTransportEncap {}
 
-#[async_trait]
+#[async_impl_or]
 impl SpdmTransportEncap for MctpTransportEncap {
-    async fn encap(
+    #[async_or]
+    fn encap(
         &mut self,
         spdm_buffer: Arc<&[u8]>,
         transport_buffer: Arc<Mutex<&mut [u8]>>,
@@ -87,7 +88,8 @@ impl SpdmTransportEncap for MctpTransportEncap {
         Ok(header_size + payload_len)
     }
 
-    async fn decap(
+    #[async_or]
+    fn decap(
         &mut self,
         transport_buffer: Arc<&[u8]>,
         spdm_buffer: Arc<Mutex<&mut [u8]>>,
@@ -119,7 +121,8 @@ impl SpdmTransportEncap for MctpTransportEncap {
         Ok((payload_size, secured_message))
     }
 
-    async fn encap_app(
+    #[async_or]
+    fn encap_app(
         &mut self,
         spdm_buffer: Arc<&[u8]>,
         app_buffer: Arc<Mutex<&mut [u8]>>,
@@ -149,7 +152,8 @@ impl SpdmTransportEncap for MctpTransportEncap {
         Ok(header_size + payload_len)
     }
 
-    async fn decap_app(
+    #[async_or]
+    fn decap_app(
         &mut self,
         app_buffer: Arc<&[u8]>,
         spdm_buffer: Arc<Mutex<&mut [u8]>>,

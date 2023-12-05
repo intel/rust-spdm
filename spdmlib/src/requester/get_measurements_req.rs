@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
+
 use crate::crypto;
 #[cfg(feature = "hashed-transcript-data")]
 use crate::error::SPDM_STATUS_INVALID_STATE_LOCAL;
@@ -16,7 +18,8 @@ use crate::requester::*;
 
 impl RequesterContext {
     #[allow(clippy::too_many_arguments)]
-    async fn send_receive_spdm_measurement_record(
+    #[async_or]
+    fn send_receive_spdm_measurement_record(
         &mut self,
         session_id: Option<u32>,
         measurement_attributes: SpdmMeasurementAttributes,
@@ -30,17 +33,15 @@ impl RequesterContext {
             *transcript_meas = Some(ManagedBufferM::default());
         }
 
-        let result = self
-            .delegate_send_receive_spdm_measurement_record(
-                session_id,
-                measurement_attributes,
-                measurement_operation,
-                content_changed,
-                spdm_measurement_record_structure,
-                transcript_meas,
-                slot_id,
-            )
-            .await;
+        let result = await_or!(self.delegate_send_receive_spdm_measurement_record(
+            session_id,
+            measurement_attributes,
+            measurement_operation,
+            content_changed,
+            spdm_measurement_record_structure,
+            transcript_meas,
+            slot_id,
+        ));
 
         if let Err(e) = result {
             if e != SPDM_STATUS_NOT_READY_PEER {
@@ -53,7 +54,8 @@ impl RequesterContext {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn delegate_send_receive_spdm_measurement_record(
+    #[async_or]
+    fn delegate_send_receive_spdm_measurement_record(
         &mut self,
         session_id: Option<u32>,
         measurement_attributes: SpdmMeasurementAttributes,
@@ -81,14 +83,11 @@ impl RequesterContext {
             slot_id,
             &mut send_buffer,
         )?;
-        self.send_message(session_id, &send_buffer[..send_used], false)
-            .await?;
+        await_or!(self.send_message(session_id, &send_buffer[..send_used], false))?;
 
         // Receive
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let used = self
-            .receive_message(session_id, &mut receive_buffer, true)
-            .await?;
+        let used = await_or!(self.receive_message(session_id, &mut receive_buffer, true))?;
 
         self.handle_spdm_measurement_record_response(
             session_id,
@@ -269,7 +268,8 @@ impl RequesterContext {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub async fn send_receive_spdm_measurement(
+    #[async_or]
+    pub fn send_receive_spdm_measurement(
         &mut self,
         session_id: Option<u32>,
         slot_id: u8,
@@ -281,17 +281,15 @@ impl RequesterContext {
         spdm_measurement_record_structure: &mut SpdmMeasurementRecordStructure, // out
         transcript_meas: &mut Option<ManagedBufferM>,                           // out
     ) -> SpdmResult {
-        *out_total_number = self
-            .send_receive_spdm_measurement_record(
-                session_id,
-                spdm_measuremente_attributes,
-                measurement_operation,
-                content_changed,
-                spdm_measurement_record_structure,
-                transcript_meas,
-                slot_id,
-            )
-            .await?;
+        *out_total_number = await_or!(self.send_receive_spdm_measurement_record(
+            session_id,
+            spdm_measuremente_attributes,
+            measurement_operation,
+            content_changed,
+            spdm_measurement_record_structure,
+            transcript_meas,
+            slot_id,
+        ))?;
         Ok(())
     }
 

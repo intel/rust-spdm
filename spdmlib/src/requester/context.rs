@@ -8,6 +8,7 @@ use crate::config;
 use crate::error::{SpdmResult, SPDM_STATUS_RECEIVE_FAIL, SPDM_STATUS_SEND_FAIL};
 use crate::protocol::*;
 
+use async_or::{async_or, await_or};
 use spin::Mutex;
 extern crate alloc;
 use alloc::sync::Arc;
@@ -34,28 +35,27 @@ impl RequesterContext {
         }
     }
 
-    pub async fn init_connection(
-        &mut self,
-        transcript_vca: &mut Option<ManagedBufferA>,
-    ) -> SpdmResult {
+    #[async_or]
+    pub fn init_connection(&mut self, transcript_vca: &mut Option<ManagedBufferA>) -> SpdmResult {
         *transcript_vca = None;
-        self.send_receive_spdm_version().await?;
-        self.send_receive_spdm_capability().await?;
-        self.send_receive_spdm_algorithm().await?;
+        await_or!(self.send_receive_spdm_version())?;
+        await_or!(self.send_receive_spdm_capability())?;
+        await_or!(self.send_receive_spdm_algorithm())?;
         *transcript_vca = Some(self.common.runtime_info.message_a.clone());
         Ok(())
     }
 
-    pub async fn start_session(
+    #[async_or]
+    pub fn start_session(
         &mut self,
         use_psk: bool,
         slot_id: u8,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,
     ) -> SpdmResult<u32> {
         if !use_psk {
-            let session_id = self
-                .send_receive_spdm_key_exchange(slot_id, measurement_summary_hash_type)
-                .await?;
+            let session_id = await_or!(
+                self.send_receive_spdm_key_exchange(slot_id, measurement_summary_hash_type)
+            )?;
             #[cfg(not(feature = "mut-auth"))]
             let req_slot_id: Option<u8> = None;
             #[cfg(feature = "mut-auth")]
@@ -71,30 +71,31 @@ impl RequesterContext {
                         .req_capabilities_sel
                         .contains(SpdmRequestCapabilityFlags::MUT_AUTH_CAP)
                 {
-                    self.session_based_mutual_authenticate(session_id).await?;
+                    await_or!(self.session_based_mutual_authenticate(session_id))?;
                     Some(self.common.runtime_info.get_local_used_cert_chain_slot_id())
                 } else {
                     None
                 }
             };
 
-            self.send_receive_spdm_finish(req_slot_id, session_id)
-                .await?;
+            await_or!(self.send_receive_spdm_finish(req_slot_id, session_id))?;
             Ok(session_id)
         } else {
-            let session_id = self
-                .send_receive_spdm_psk_exchange(measurement_summary_hash_type, None)
-                .await?;
-            self.send_receive_spdm_psk_finish(session_id).await?;
+            let session_id = await_or!(
+                self.send_receive_spdm_psk_exchange(measurement_summary_hash_type, None)
+            )?;
+            await_or!(self.send_receive_spdm_psk_finish(session_id))?;
             Ok(session_id)
         }
     }
 
-    pub async fn end_session(&mut self, session_id: u32) -> SpdmResult {
-        self.send_receive_spdm_end_session(session_id).await
+    #[async_or]
+    pub fn end_session(&mut self, session_id: u32) -> SpdmResult {
+        await_or!(self.send_receive_spdm_end_session(session_id))
     }
 
-    pub async fn send_message(
+    #[async_or]
+    pub fn send_message(
         &mut self,
         session_id: Option<u32>,
         send_buffer: &[u8],
@@ -112,28 +113,25 @@ impl RequesterContext {
 
         let mut transport_buffer = [0u8; config::SENDER_BUFFER_SIZE];
         let used = if let Some(session_id) = session_id {
-            self.common
-                .encode_secured_message(
-                    session_id,
-                    send_buffer,
-                    &mut transport_buffer,
-                    true,
-                    is_app_message,
-                )
-                .await?
+            await_or!(self.common.encode_secured_message(
+                session_id,
+                send_buffer,
+                &mut transport_buffer,
+                true,
+                is_app_message,
+            ))?
         } else {
-            self.common
-                .encap(send_buffer, &mut transport_buffer)
-                .await?
+            await_or!(self.common.encap(send_buffer, &mut transport_buffer))?
         };
 
         let mut device_io = self.common.device_io.lock();
         let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
 
-        device_io.send(Arc::new(&transport_buffer[..used])).await
+        await_or!(device_io.send(Arc::new(&transport_buffer[..used])))
     }
 
-    pub async fn receive_message(
+    #[async_or]
+    pub fn receive_message(
         &mut self,
         session_id: Option<u32>,
         receive_buffer: &mut [u8],
@@ -153,20 +151,18 @@ impl RequesterContext {
             let mut device_io = self.common.device_io.lock();
             let device_io: &mut (dyn SpdmDeviceIo + Send + Sync) = device_io.deref_mut();
 
-            device_io
-                .receive(Arc::new(Mutex::new(&mut transport_buffer)), timeout)
-                .await
+            await_or!(device_io.receive(Arc::new(Mutex::new(&mut transport_buffer)), timeout))
                 .map_err(|_| SPDM_STATUS_RECEIVE_FAIL)?
         };
 
         if let Some(session_id) = session_id {
-            self.common
-                .decode_secured_message(session_id, &transport_buffer[..used], receive_buffer)
-                .await
+            await_or!(self.common.decode_secured_message(
+                session_id,
+                &transport_buffer[..used],
+                receive_buffer
+            ))
         } else {
-            self.common
-                .decap(&transport_buffer[..used], receive_buffer)
-                .await
+            await_or!(self.common.decap(&transport_buffer[..used], receive_buffer))
         }
     }
 }

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+use async_or::{async_or, await_or};
 use codec::{Codec, Reader, Writer};
 
 use crate::{
@@ -26,7 +27,8 @@ use crate::{
 use super::RequesterContext;
 
 impl RequesterContext {
-    pub async fn get_encapsulated_request_response(
+    #[async_or]
+    pub fn get_encapsulated_request_response(
         &mut self,
         session_id: u32,
         mut_auth_requested: SpdmKeyExchangeMutAuthAttributes,
@@ -66,20 +68,20 @@ impl RequesterContext {
                     ),
                 };
                 let _ = get_digest_request.spdm_encode(&mut self.common, &mut writer)?;
-                self.process_encapsulated_request(session_id, 0, &encapsulated_request)
-                    .await?;
+                await_or!(self.process_encapsulated_request(session_id, 0, &encapsulated_request))?;
             }
             _ => {
-                self.send_get_encapsulated_request(session_id).await?;
-                self.receive_encapsulated_request(session_id).await?;
+                await_or!(self.send_get_encapsulated_request(session_id))?;
+                await_or!(self.receive_encapsulated_request(session_id))?;
             }
         }
 
-        while self.receive_encapsulated_response_ack(session_id).await? {}
+        while await_or!(self.receive_encapsulated_response_ack(session_id))? {}
         Ok(())
     }
 
-    pub async fn send_get_encapsulated_request(&mut self, session_id: u32) -> SpdmResult {
+    #[async_or]
+    pub fn send_get_encapsulated_request(&mut self, session_id: u32) -> SpdmResult {
         let mut send_buffer = [0u8; 4];
         let mut writer = Writer::init(&mut send_buffer);
         let get_encap_request = SpdmMessage {
@@ -93,15 +95,13 @@ impl RequesterContext {
         };
         let _ = get_encap_request.spdm_encode(&mut self.common, &mut writer)?;
 
-        self.send_message(Some(session_id), writer.mut_used_slice(), false)
-            .await
+        await_or!(self.send_message(Some(session_id), writer.mut_used_slice(), false))
     }
 
-    pub async fn receive_encapsulated_request(&mut self, session_id: u32) -> SpdmResult {
+    #[async_or]
+    pub fn receive_encapsulated_request(&mut self, session_id: u32) -> SpdmResult {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let _ = self
-            .receive_message(Some(session_id), &mut receive_buffer, false)
-            .await?;
+        let _ = await_or!(self.receive_message(Some(session_id), &mut receive_buffer, false))?;
         let mut reader = Reader::init(&receive_buffer);
 
         let header = SpdmMessageHeader::read(&mut reader).ok_or(SPDM_STATUS_INVALID_MSG_SIZE)?;
@@ -116,19 +116,17 @@ impl RequesterContext {
             SpdmEncapsulatedRequestPayload::spdm_read(&mut self.common, &mut reader)
                 .ok_or(SPDM_STATUS_INVALID_MSG_SIZE)?;
 
-        self.process_encapsulated_request(
+        await_or!(self.process_encapsulated_request(
             session_id,
             encapsulated_request.request_id,
             &receive_buffer[reader.used()..],
-        )
-        .await
+        ))
     }
 
-    pub async fn receive_encapsulated_response_ack(&mut self, session_id: u32) -> SpdmResult<bool> {
+    #[async_or]
+    pub fn receive_encapsulated_response_ack(&mut self, session_id: u32) -> SpdmResult<bool> {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
-        let size = self
-            .receive_message(Some(session_id), &mut receive_buffer, false)
-            .await?;
+        let size = await_or!(self.receive_message(Some(session_id), &mut receive_buffer, false))?;
         let mut reader = Reader::init(&receive_buffer);
 
         let header = SpdmMessageHeader::read(&mut reader).ok_or(SPDM_STATUS_INVALID_MSG_SIZE)?;
@@ -169,17 +167,17 @@ impl RequesterContext {
             _ => {}
         }
 
-        self.process_encapsulated_request(
+        await_or!(self.process_encapsulated_request(
             session_id,
             ack_header.request_id,
             &receive_buffer[reader.used()..],
-        )
-        .await?;
+        ))?;
 
         Ok(true)
     }
 
-    async fn process_encapsulated_request(
+    #[async_or]
+    fn process_encapsulated_request(
         &mut self,
         session_id: u32,
         request_id: u8,
@@ -218,7 +216,6 @@ impl RequesterContext {
             ),
         }
 
-        self.send_message(Some(session_id), writer.used_slice(), false)
-            .await
+        await_or!(self.send_message(Some(session_id), writer.used_slice(), false))
     }
 }

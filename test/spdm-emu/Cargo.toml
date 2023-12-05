@@ -22,6 +22,7 @@ async-recursion = "1.0.4"
 spin = { version = "0.9.8" }
 tokio = { version = "1.30.0", features = ["full"] }
 executor = { path = "../../executor" }
+async-or = { path = "../../async-or" }
 
 spdmlib_crypto_mbedtls = { path = "../../spdmlib_crypto_mbedtls", default-features = false, optional = true }
 
@@ -32,5 +33,10 @@ mandatory-mut-auth = ["mut-auth", "spdmlib/mandatory-mut-auth"]
 spdm-ring = ["spdmlib/spdm-ring", "spdmlib/std"]
 spdm-mbedtls = ["spdmlib_crypto_mbedtls"]
 hashed-transcript-data = ["spdmlib/hashed-transcript-data", "spdmlib_crypto_mbedtls?/hashed-transcript-data"]
-async-executor = []
-async-tokio = []
+
+# when adding any other async runtime, please include "async" feature!
+async-executor = ["async"]
+async-tokio = ["async"]
+
+# below async feature is for internal usage only
+async = ["spdmlib/async", "async-or/async", "mctp_transport/async", "pcidoe_transport/async"]

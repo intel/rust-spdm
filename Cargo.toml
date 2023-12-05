@@ -3,6 +3,7 @@
 default-members = [
     "spdmlib",
     "codec",
+    "async-or",
     "executor",
     "sys_time",
     "test/spdm-requester-emu",
@@ -12,6 +13,7 @@ default-members = [
 members = [
     "spdmlib",
     "codec",
+    "async-or",
     "executor",
     "sys_time",
     "idekm",

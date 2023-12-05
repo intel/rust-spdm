@@ -1,0 +1,17 @@
+[package]
+name = "async-or-impl"
+version = "0.0.1"
+edition = "2018"
+publish = false
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0", features = ["full", "extra-traits"]}
+quote = "1.0"
+proc-macro2 = { version = "1.0.66", default-features = false }
+
+[features]
+default = []
+async = []

@@ -34,6 +34,7 @@ impl RequesterContext {
         }
     }
 
+    #[maybe_async::maybe_async]
     pub async fn init_connection(
         &mut self,
         transcript_vca: &mut Option<ManagedBufferA>,
@@ -46,6 +47,7 @@ impl RequesterContext {
         Ok(())
     }
 
+    #[maybe_async::maybe_async]
     pub async fn start_session(
         &mut self,
         use_psk: bool,
@@ -90,10 +92,12 @@ impl RequesterContext {
         }
     }
 
+    #[maybe_async::maybe_async]
     pub async fn end_session(&mut self, session_id: u32) -> SpdmResult {
         self.send_receive_spdm_end_session(session_id).await
     }
 
+    #[maybe_async::maybe_async]
     pub async fn send_message(
         &mut self,
         session_id: Option<u32>,
@@ -133,6 +137,7 @@ impl RequesterContext {
         device_io.send(Arc::new(&transport_buffer[..used])).await
     }
 
+    #[maybe_async::maybe_async]
     pub async fn receive_message(
         &mut self,
         session_id: Option<u32>,

@@ -10,6 +10,7 @@ use crate::message::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     async fn send_receive_spdm_key_update_op(
         &mut self,
         session_id: u32,
@@ -129,6 +130,7 @@ impl RequesterContext {
         }
     }
 
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_key_update(
         &mut self,
         session_id: u32,

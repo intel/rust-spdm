@@ -19,6 +19,7 @@ extern crate alloc;
 use core::ops::DerefMut;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_psk_exchange(
         &mut self,
         measurement_summary_hash_type: SpdmMeasurementSummaryHashType,

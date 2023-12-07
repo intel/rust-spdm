@@ -7,6 +7,7 @@ use crate::message::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_spdm_vendor_defined_request(
         &mut self,
         session_id: Option<u32>,

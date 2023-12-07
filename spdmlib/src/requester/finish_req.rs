@@ -11,6 +11,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_finish(
         &mut self,
         req_slot_id: Option<u8>,
@@ -32,6 +33,7 @@ impl RequesterContext {
         }
     }
 
+    #[maybe_async::maybe_async]
     pub async fn delegate_send_receive_spdm_finish(
         &mut self,
         req_slot_id: Option<u8>,

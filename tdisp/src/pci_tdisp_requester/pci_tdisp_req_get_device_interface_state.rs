@@ -22,6 +22,7 @@ use crate::pci_tdisp::TdispRequestResponseCode;
 use crate::pci_tdisp::TdispVersion;
 use crate::pci_tdisp::STANDARD_ID;
 
+#[maybe_async::maybe_async]
 pub async fn pci_tdisp_req_get_device_interface_state(
     // IN
     spdm_requester: &mut RequesterContext,

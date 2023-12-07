@@ -5,7 +5,6 @@
 use crate::common::{SpdmCodec, SpdmContext, SpdmDeviceIo, SpdmTransportEncap};
 use crate::config::MAX_SPDM_MSG_SIZE;
 use crate::message::SpdmMessage;
-use async_trait::async_trait;
 use codec::{Reader, Writer};
 use spin::Mutex;
 extern crate alloc;
@@ -46,7 +45,7 @@ pub(crate) use create_spdm_context;
 pub struct DeviceIO;
 pub struct TransportEncap;
 
-#[async_trait]
+#[maybe_async::maybe_async]
 impl SpdmDeviceIo for DeviceIO {
     async fn send(&mut self, _buffer: Arc<&[u8]>) -> crate::error::SpdmResult {
         unimplemented!()
@@ -65,7 +64,7 @@ impl SpdmDeviceIo for DeviceIO {
     }
 }
 
-#[async_trait]
+#[maybe_async::maybe_async]
 impl SpdmTransportEncap for TransportEncap {
     async fn encap(
         &mut self,

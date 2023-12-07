@@ -11,6 +11,9 @@ pub fn block_on<T>(future: Pin<Box<dyn Future<Output = T> + 'static + Send>>) ->
 where
     T: Send + 'static,
 {
+    #[cfg(feature = "is_sync")]
+    compile_error!("block_on function is not available when feature is `is_sync`");
+
     #[cfg(all(feature = "async-executor", feature = "async-tokio"))]
     compile_error!("features `async-executor` and `async-tokio` are mutually exclusive");
 

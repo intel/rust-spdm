@@ -26,6 +26,7 @@ use crate::pci_tdisp::MAX_PORTION_LENGTH;
 use crate::pci_tdisp::STANDARD_ID;
 use crate::pci_tdisp_requester::TdispVersion;
 
+#[maybe_async::maybe_async]
 pub async fn pci_tdisp_req_get_device_interface_report(
     // IN
     spdm_requester: &mut RequesterContext,

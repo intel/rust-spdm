@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(not(feature = "is_sync"))]
 pub mod async_runtime;
 pub mod crypto;
 pub mod crypto_callback;

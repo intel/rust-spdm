@@ -10,6 +10,7 @@ use crate::{
 use super::RequesterContext;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn session_based_mutual_authenticate(&mut self, session_id: u32) -> SpdmResult<()> {
         self.common.construct_my_cert_chain()?;
 

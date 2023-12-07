@@ -16,6 +16,7 @@ use crate::requester::*;
 
 impl RequesterContext {
     #[allow(clippy::too_many_arguments)]
+    #[maybe_async::maybe_async]
     async fn send_receive_spdm_measurement_record(
         &mut self,
         session_id: Option<u32>,
@@ -53,6 +54,7 @@ impl RequesterContext {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[maybe_async::maybe_async]
     async fn delegate_send_receive_spdm_measurement_record(
         &mut self,
         session_id: Option<u32>,
@@ -269,6 +271,7 @@ impl RequesterContext {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_measurement(
         &mut self,
         session_id: Option<u32>,

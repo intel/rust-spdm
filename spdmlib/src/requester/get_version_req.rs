@@ -10,6 +10,7 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_version(&mut self) -> SpdmResult {
         // reset context on get version request
         self.common.reset_context();

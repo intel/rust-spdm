@@ -22,6 +22,7 @@ async-recursion = "1.0.4"
 spin = { version = "0.9.8" }
 tokio = { version = "1.30.0", features = ["full"] }
 executor = { path = "../../executor" }
+maybe-async = "0.2.7"
 
 spdmlib_crypto_mbedtls = { path = "../../spdmlib_crypto_mbedtls", default-features = false, optional = true }
 
@@ -34,3 +35,4 @@ spdm-mbedtls = ["spdmlib_crypto_mbedtls"]
 hashed-transcript-data = ["spdmlib/hashed-transcript-data", "spdmlib_crypto_mbedtls?/hashed-transcript-data"]
 async-executor = []
 async-tokio = []
+is_sync = ["spdmlib/is_sync", "maybe-async/is_sync", "mctp_transport/is_sync", "pcidoe_transport/is_sync"]

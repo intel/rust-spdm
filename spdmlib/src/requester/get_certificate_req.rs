@@ -12,6 +12,7 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     async fn send_receive_spdm_certificate_partial(
         &mut self,
         session_id: Option<u32>,
@@ -171,6 +172,7 @@ impl RequesterContext {
         }
     }
 
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_certificate(
         &mut self,
         session_id: Option<u32>,

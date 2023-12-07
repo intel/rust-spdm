@@ -26,6 +26,8 @@ jobs:
             "spdm-ring,hashed-transcript-data,async-executor",
             "spdm-mbedtls,async-executor",
             "spdm-mbedtls,hashed-transcript-data,async-executor",
+            "spdm-ring,hashed-transcript-data,is_sync",
+            "spdm-ring,is_sync",
           ]
         run_responder_features:
           [
@@ -33,6 +35,8 @@ jobs:
             "spdm-ring,hashed-transcript-data,async-executor",
             "spdm-mbedtls,async-executor",
             "spdm-mbedtls,hashed-transcript-data,async-executor",
+            "spdm-ring,hashed-transcript-data,is_sync",
+            "spdm-ring,is_sync",
           ]
         include:
           - runs-on: windows-latest

@@ -21,6 +21,7 @@ use super::IdekmReqContext;
 
 impl IdekmReqContext {
     #[allow(clippy::too_many_arguments)]
+    #[maybe_async::maybe_async]
     pub async fn pci_ide_km_key_set_stop(
         &mut self,
         // IN

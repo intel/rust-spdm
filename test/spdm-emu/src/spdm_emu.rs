@@ -55,6 +55,7 @@ impl Codec for SpdmSocketHeader {
 }
 
 // u32 type, u32 command, usize, payload
+#[maybe_async::maybe_async]
 pub async fn receive_message(
     stream: Arc<Mutex<TcpStream>>,
     buffer: &mut [u8],

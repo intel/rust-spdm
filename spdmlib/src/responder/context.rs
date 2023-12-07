@@ -38,6 +38,7 @@ impl ResponderContext {
         }
     }
 
+    #[maybe_async::maybe_async]
     pub async fn send_message(
         &mut self,
         session_id: Option<u32>,
@@ -186,6 +187,7 @@ impl ResponderContext {
         Ok(())
     }
 
+    #[maybe_async::maybe_async]
     pub async fn process_message(
         &mut self,
         crypto_request: bool,
@@ -306,6 +308,7 @@ impl ResponderContext {
     // whose value is not normal, will return Err to caller to handle the raw packet,
     // So can't swap transport_buffer and receive_buffer, even though it should be by
     // their name suggestion. (03.01.2022)
+    #[maybe_async::maybe_async]
     async fn receive_message(
         &mut self,
         receive_buffer: &mut [u8],

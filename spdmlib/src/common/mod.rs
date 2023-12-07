@@ -15,7 +15,6 @@ use alloc::boxed::Box;
 use alloc::sync::Arc;
 use core::ops::DerefMut;
 
-use async_trait::async_trait;
 pub use opaque::*;
 pub use spdm_codec::SpdmCodec;
 
@@ -78,7 +77,7 @@ pub const INITIAL_SESSION_ID: u16 = 0xFFFD;
 pub const INVALID_HALF_SESSION_ID: u16 = 0x0;
 pub const INVALID_SESSION_ID: u32 = 0x0;
 
-#[async_trait]
+#[maybe_async::maybe_async]
 pub trait SpdmDeviceIo {
     async fn send(&mut self, buffer: Arc<&[u8]>) -> SpdmResult;
 
@@ -96,7 +95,7 @@ pub trait SpdmDeviceIo {
 
 use core::fmt::Debug;
 
-#[async_trait]
+#[maybe_async::maybe_async]
 pub trait SpdmTransportEncap {
     async fn encap(
         &mut self,
@@ -967,6 +966,7 @@ impl SpdmContext {
         }
     }
 
+    #[maybe_async::maybe_async]
     pub async fn encap(
         &mut self,
         send_buffer: &[u8],
@@ -983,6 +983,7 @@ impl SpdmContext {
             .await
     }
 
+    #[maybe_async::maybe_async]
     pub async fn encode_secured_message(
         &mut self,
         session_id: u32,
@@ -1027,6 +1028,7 @@ impl SpdmContext {
             .await
     }
 
+    #[maybe_async::maybe_async]
     pub async fn decap(
         &mut self,
         transport_buffer: &[u8],
@@ -1050,6 +1052,7 @@ impl SpdmContext {
         Ok(used)
     }
 
+    #[maybe_async::maybe_async]
     pub async fn decode_secured_message(
         &mut self,
         session_id: u32,

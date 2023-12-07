@@ -11,6 +11,7 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_algorithm(&mut self) -> SpdmResult {
         self.common.reset_buffer_via_request_code(
             SpdmRequestResponseCode::SpdmRequestNegotiateAlgorithms,

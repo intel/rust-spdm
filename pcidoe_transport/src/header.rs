@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use async_trait::async_trait;
 extern crate alloc;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
@@ -89,7 +88,7 @@ impl Codec for PciDoeMessageHeader {
 #[derive(Debug, Copy, Clone, Default)]
 pub struct PciDoeTransportEncap {}
 
-#[async_trait]
+#[maybe_async::maybe_async]
 impl SpdmTransportEncap for PciDoeTransportEncap {
     async fn encap(
         &mut self,

@@ -13,6 +13,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_psk_finish(&mut self, session_id: u32) -> SpdmResult {
         info!("send spdm psk_finish\n");
 
@@ -27,6 +28,7 @@ impl RequesterContext {
         }
     }
 
+    #[maybe_async::maybe_async]
     pub async fn delegate_send_receive_spdm_psk_finish(&mut self, session_id: u32) -> SpdmResult {
         if self.common.get_session_via_id(session_id).is_none() {
             return Err(SPDM_STATUS_INVALID_PARAMETER);

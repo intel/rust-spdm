@@ -122,10 +122,16 @@ cargo fmt
 cargo build
 ```
 
-### Build `no_std` spdm
+### Build async `no_std` spdm
 ```
 pushd spdmlib
 cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring"
+```
+
+### Build sync `no_std` spdm
+```
+pushd spdmlib
+cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,is_sync"
 ```
 
 ## Run Rust SPDM emulator
@@ -147,14 +153,15 @@ cargo run -p spdm-requester-emu --no-default-features --features "spdm-ring,hash
 The following list shows the supported combinations for both spdm-requester-emu and spdm-responder-emu
 
 
-| Features                                        | CryptoLibrary | Hashed transcript data support | async runtime | notes                                                                                             |
-|-------------------------------------------------|---------------|--------------------------------|---------------|---------------------------------------------------------------------------------------------------|
-| spdm-ring,async-executor                                       | ring          | No                             | executor      | use ring as crypto library with hashed-transcript-data disabled, use executor as async runtime    |
-| spdm-ring,hashed-transcript-data,async-executor                 | ring          | Yes                            | executor      | use ring as crypto library with hashed-transcript-data enabled, use executor as async runtime     |
-| spdm-ring,hashed-transcript-data,async-tokio    | ring          | Yes                            | tokio         | use ring as crypto library with hashed-transcript-data enabled, use tokio as async runtime        |
-| spdm-mbedtls,async-executor                                     | mbedtls       | No                             | executor      | use mbedtls as crypto library with hashed-transcript-data disabled, use executor as async runtime |
-| spdm-mbedtls,hashed-transcript-data,async-executor              | mbedtls       | Yes                            | executor      | use mbedtls as crypto library with hashed-transcript-data enabled, use executor as async runtime  |
-| spdm-mbedtls,hashed-transcript-data,async-tokio | mbedtls       | Yes                            | tokio         | use mbedtls as crypto library with hashed-transcript-data enabled, use tokio as async runtime     |
+| Features                                           | CryptoLibrary | Hashed transcript data support | sync/async             | notes                                                                                                           |
+|----------------------------------------------------|---------------|--------------------------------|------------------------|-----------------------------------------------------------------------------------------------------------------|
+| spdm-ring,is_sync                                  | ring          | No                             | sync                   | use ring as crypto library with hashed-transcript-data disabled, sync version.                                  |
+| spdm-ring,hashed-transcript-data,is_sync           | ring          | Yes                            | sync                   | use ring as crypto library with hashed-transcript-data enabled, sync version.                                   |
+| spdm-ring,hashed-transcript-data,async-tokio       | ring          | Yes                            | tokio async runtime    | use ring as crypto library with hashed-transcript-data enabled, async version, use tokio as async runtime       |
+| spdm-mbedtls,is_sync                               | mbedtls       | No                             | sync                   | use mbedtls as crypto library with hashed-transcript-data disabled, sync version.                               |
+| spdm-mbedtls,hashed-transcript-data,is_sync        | mbedtls       | Yes                            | sync                   | use mbedtls as crypto library with hashed-transcript-data enabled, sync version.                                |
+| spdm-mbedtls,hashed-transcript-data,async-executor | mbedtls       | Yes                            | executor async runtime | use mbedtls as crypto library with hashed-transcript-data enabled, async version, use executor as async runtime |
+
 
 For example, run the emulator with spdm-ring enabled and without hashed-transcript-data enabled, and use executor as async runtime. 
 Open one command windows and run:
@@ -166,6 +173,12 @@ run the emulator with spdm-mbedtls enabled and with hashed-transcript-data enabl
 Open another command windows and run:
 ```
 cargo run -p spdm-requester-emu --no-default-features --features "spdm-mbedtls,hashed-transcript-data,async-tokio"
+```
+
+run the emulator with spdm-mbedtls enabled and with hashed-transcript-data enabled, and without using async style.  
+Open another command windows and run:
+```
+cargo run -p spdm-requester-emu --no-default-features --features "spdm-mbedtls,hashed-transcript-data,is_sync"
 ```
 
 NOTE: In order to run the emu without hashed-transcript-data, please change `max_cert_chain_data_size` in `spdmlib/etc/config.json` from `4096` to `3500`.

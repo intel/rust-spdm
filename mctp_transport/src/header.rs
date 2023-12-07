@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-use async_trait::async_trait;
 use codec::enum_builder;
 use codec::{Codec, Reader, Writer};
 use spdmlib::common::SpdmTransportEncap;
@@ -57,7 +56,7 @@ impl Codec for MctpMessageHeader {
 #[derive(Debug, Copy, Clone, Default)]
 pub struct MctpTransportEncap {}
 
-#[async_trait]
+#[maybe_async::maybe_async]
 impl SpdmTransportEncap for MctpTransportEncap {
     async fn encap(
         &mut self,

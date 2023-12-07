@@ -12,6 +12,7 @@ use crate::pci_tdisp::vendor_id;
 use crate::pci_tdisp::STANDARD_ID;
 use crate::pci_tdisp::TDISP_PROTOCOL_ID;
 
+#[maybe_async::maybe_async]
 pub async fn pci_tdisp_req_vdm_request(
     // IN
     spdm_requester: &mut RequesterContext,

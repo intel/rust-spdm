@@ -22,6 +22,7 @@ use log::LevelFilter;
 use log::*;
 use simple_logger::SimpleLogger;
 
+#[cfg(not(feature = "is_sync"))]
 use spdm_emu::async_runtime::block_on;
 use spdm_emu::crypto_callback::SECRET_ASYM_IMPL_INSTANCE;
 use spdm_emu::secret_impl_sample::SECRET_PSK_IMPL_INSTANCE;
@@ -62,6 +63,7 @@ extern crate alloc;
 use alloc::sync::Arc;
 use core::ops::DerefMut;
 
+#[maybe_async::maybe_async]
 async fn send_receive_hello(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn common::SpdmTransportEncap + Send + Sync>>,
@@ -94,6 +96,7 @@ async fn send_receive_hello(
             .unwrap();
 }
 
+#[maybe_async::maybe_async]
 async fn send_receive_stop(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn common::SpdmTransportEncap + Send + Sync>>,
@@ -124,6 +127,7 @@ async fn send_receive_stop(
             .unwrap();
 }
 
+#[maybe_async::maybe_async]
 async fn test_spdm(
     socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
@@ -417,6 +421,7 @@ async fn test_spdm(
     }
 }
 
+#[maybe_async::maybe_async]
 async fn test_idekm_tdisp(
     socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
@@ -1293,31 +1298,47 @@ fn emu_main() {
         SOCKET_TRANSPORT_TYPE_MCTP
     };
 
+    #[cfg(not(feature = "is_sync"))]
     block_on(Box::pin(send_receive_hello(
         socket.clone(),
         transport_encap.clone(),
         transport_type,
     )));
 
+    #[cfg(feature = "is_sync")]
+    send_receive_hello(socket.clone(), transport_encap.clone(), transport_type);
+
     let socket_io_transport = SocketIoTransport::new(socket.clone());
     let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
         Arc::new(Mutex::new(socket_io_transport));
 
-    block_on(Box::pin(test_spdm(
-        socket_io_transport.clone(),
-        transport_encap.clone(),
-    )));
+    #[cfg(not(feature = "is_sync"))]
+    {
+        block_on(Box::pin(test_spdm(
+            socket_io_transport.clone(),
+            transport_encap.clone(),
+        )));
 
-    block_on(Box::pin(test_idekm_tdisp(
-        socket_io_transport.clone(),
-        transport_encap.clone(),
-    )));
+        block_on(Box::pin(test_idekm_tdisp(
+            socket_io_transport.clone(),
+            transport_encap.clone(),
+        )));
 
-    block_on(Box::pin(send_receive_stop(
-        socket,
-        transport_encap,
-        transport_type,
-    )));
+        block_on(Box::pin(send_receive_stop(
+            socket,
+            transport_encap,
+            transport_type,
+        )));
+    }
+
+    #[cfg(feature = "is_sync")]
+    {
+        test_spdm(socket_io_transport.clone(), transport_encap.clone());
+
+        test_idekm_tdisp(socket_io_transport.clone(), transport_encap.clone());
+
+        send_receive_stop(socket, transport_encap, transport_type);
+    }
 }
 
 fn main() {

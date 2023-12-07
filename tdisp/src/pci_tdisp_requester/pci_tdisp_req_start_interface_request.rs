@@ -25,6 +25,7 @@ use crate::pci_tdisp::TdispVersion;
 use crate::pci_tdisp::STANDARD_ID;
 use crate::pci_tdisp::START_INTERFACE_NONCE_LEN;
 
+#[maybe_async::maybe_async]
 pub async fn pci_tdisp_req_start_interface_request(
     // IN
     spdm_requester: &mut RequesterContext,

@@ -22,6 +22,7 @@ use crate::pci_tdisp::{
     InterfaceId, TdispErrorCode, TdispMessageHeader, TdispRequestResponseCode, TdispVersion,
 };
 
+#[maybe_async::maybe_async]
 pub async fn pci_tdisp_req_unbind_p2p_stream_request(
     // IN
     spdm_requester: &mut RequesterContext,

@@ -14,6 +14,7 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_challenge(
         &mut self,
         slot_id: u8,

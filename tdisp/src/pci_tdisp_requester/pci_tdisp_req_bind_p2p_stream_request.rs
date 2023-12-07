@@ -23,6 +23,7 @@ use crate::pci_tdisp::{
     TdispRequestResponseCode,
 };
 
+#[maybe_async::maybe_async]
 pub async fn pci_tdisp_req_bind_p2p_stream_request(
     // IN
     spdm_requester: &mut RequesterContext,

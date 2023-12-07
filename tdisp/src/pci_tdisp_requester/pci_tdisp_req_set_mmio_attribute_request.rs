@@ -23,6 +23,7 @@ use crate::pci_tdisp::{
     InterfaceId, TdispErrorCode, TdispMessageHeader, TdispRequestResponseCode, TdispVersion,
 };
 
+#[maybe_async::maybe_async]
 pub async fn pci_tdisp_req_set_mmio_attribute_request(
     // IN
     spdm_requester: &mut RequesterContext,

@@ -8,6 +8,7 @@ use crate::protocol::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_capability(&mut self) -> SpdmResult {
         self.common.reset_buffer_via_request_code(
             SpdmRequestResponseCode::SpdmRequestGetCapabilities,

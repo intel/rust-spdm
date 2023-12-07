@@ -54,12 +54,21 @@ build() {
     
     echo "Building Rust-SPDM with spdm-ring feature..."
     echo_command cargo build --release --no-default-features --features=spdm-ring
+
+    echo "Building Rust-SPDM with spdm-ring,is_sync feature..."
+    echo_command cargo build --release --no-default-features --features=spdm-ring,is_sync
     
     echo "Building Rust-SPDM with spdm-ring,hashed-transcript-data feature..."
     echo_command cargo build --release --no-default-features --features=spdm-ring,hashed-transcript-data
-    
+
+    echo "Building Rust-SPDM with spdm-ring,hashed-transcript-data,is_sync feature..."
+    echo_command cargo build --release --no-default-features --features=spdm-ring,hashed-transcript-data,is_sync
+
     echo "Building Rust-SPDM with spdm-ring,hashed-transcript-data,mut-auth feature..."
     echo_command cargo build --release --no-default-features --features=spdm-ring,hashed-transcript-data,mut-auth
+
+    echo "Building Rust-SPDM with spdm-ring,hashed-transcript-data,mut-auth,is_sync feature..."
+    echo_command cargo build --release --no-default-features --features=spdm-ring,hashed-transcript-data,mut-auth,is_sync
 
     if [ -z "$RUSTFLAGS" ]; then
         echo "Building Rust-SPDM in no std with no-default-features..."
@@ -68,11 +77,20 @@ build() {
         echo "Building Rust-SPDM in no std with spdm-ring feature..."
         echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring"
     
+        echo "Building Rust-SPDM in no std with spdm-ring,is_sync feature..."
+        echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,is_sync"
+
         echo "Building Rust-SPDM in no std with spdm-ring,hashed-transcript-data feature..."
         echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,hashed-transcript-data"
     
+        echo "Building Rust-SPDM in no std with spdm-ring,hashed-transcript-data,is_sync feature..."
+        echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,hashed-transcript-data,is_sync"
+
         echo "Building Rust-SPDM in no std with spdm-ring,hashed-transcript-data,mut-auth feature..."
         echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,hashed-transcript-data,mut-auth"
+    
+        echo "Building Rust-SPDM in no std with spdm-ring,hashed-transcript-data,mut-auth,is_sync feature..."
+        echo_command cargo build -Z build-std=core,alloc,compiler_builtins --target x86_64-unknown-none --release --no-default-features --features="spdm-ring,hashed-transcript-data,mut-auth,is_sync"
     fi
 
     popd
@@ -139,6 +157,7 @@ run_basic_test() {
     echo "Running basic tests..."
     echo_command cargo test -- --test-threads=1
     echo_command cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring" -- --test-threads=1
+    echo_command cargo test --no-default-features --features "spdmlib/std,spdmlib/spdm-ring,spdm-emu/is_sync,spdmlib/is_sync,maybe-async/is_sync,idekm/is_sync,tdisp/is_sync,mctp_transport/is_sync,pcidoe_transport/is_sync,spdm-requester-emu/is_sync,spdm-responder-emu/is_sync" -- --test-threads=1
     echo "Running basic tests finished..."
 
     echo "Running spdmlib-test..."

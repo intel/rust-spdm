@@ -12,6 +12,8 @@ use spdm_device_tdisp_example::init_device_tdisp_instance;
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
+
+#[cfg(not(feature = "is_sync"))]
 use spdm_emu::async_runtime::block_on;
 use spdm_emu::watchdog_impl_sample::init_watchdog;
 use spdmlib::common::{SecuredMessageVersion, SpdmOpaqueSupport};
@@ -52,6 +54,7 @@ use std::ops::Deref;
 
 use crate::spdm_device_tdisp_example::DeviceContext;
 
+#[maybe_async::maybe_async]
 async fn process_socket_message(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
@@ -172,26 +175,53 @@ fn emu_main() {
         let raw_packet = [0u8; RECEIVER_BUFFER_SIZE];
         let raw_packet = Arc::new(Mutex::new(raw_packet));
         loop {
-            let sz = block_on(Box::pin(handle_message(
-                stream.clone(),
-                if USE_PCIDOE {
-                    pcidoe_transport_encap.clone()
-                } else {
-                    mctp_transport_encap.clone()
-                },
-                raw_packet.clone(),
-            )));
+            #[cfg(not(feature = "is_sync"))]
+            {
+                let sz = block_on(Box::pin(handle_message(
+                    stream.clone(),
+                    if USE_PCIDOE {
+                        pcidoe_transport_encap.clone()
+                    } else {
+                        mctp_transport_encap.clone()
+                    },
+                    raw_packet.clone(),
+                )));
 
-            need_continue = block_on(Box::pin(process_socket_message(
-                stream.clone(),
-                if USE_PCIDOE {
-                    pcidoe_transport_encap.clone()
-                } else {
-                    mctp_transport_encap.clone()
-                },
-                raw_packet.clone(),
-                sz,
-            )));
+                need_continue = block_on(Box::pin(process_socket_message(
+                    stream.clone(),
+                    if USE_PCIDOE {
+                        pcidoe_transport_encap.clone()
+                    } else {
+                        mctp_transport_encap.clone()
+                    },
+                    raw_packet.clone(),
+                    sz,
+                )));
+            }
+
+            #[cfg(feature = "is_sync")]
+            {
+                let sz = handle_message(
+                    stream.clone(),
+                    if USE_PCIDOE {
+                        pcidoe_transport_encap.clone()
+                    } else {
+                        mctp_transport_encap.clone()
+                    },
+                    raw_packet.clone(),
+                );
+
+                need_continue = process_socket_message(
+                    stream.clone(),
+                    if USE_PCIDOE {
+                        pcidoe_transport_encap.clone()
+                    } else {
+                        mctp_transport_encap.clone()
+                    },
+                    raw_packet.clone(),
+                    sz,
+                );
+            }
 
             if !need_continue {
                 // TBD: return or break??
@@ -201,6 +231,7 @@ fn emu_main() {
     }
 }
 
+#[maybe_async::maybe_async]
 async fn handle_message(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
@@ -342,6 +373,7 @@ async fn handle_message(
     }
 }
 
+#[maybe_async::maybe_async]
 pub async fn send_hello(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
@@ -371,6 +403,7 @@ pub async fn send_hello(
     );
 }
 
+#[maybe_async::maybe_async]
 pub async fn send_unknown(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
@@ -394,6 +427,7 @@ pub async fn send_unknown(
     );
 }
 
+#[maybe_async::maybe_async]
 pub async fn send_stop(
     stream: Arc<Mutex<TcpStream>>,
     _transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
@@ -409,6 +443,7 @@ pub async fn send_stop(
     );
 }
 
+#[maybe_async::maybe_async]
 pub async fn send_pci_discovery(
     stream: Arc<Mutex<TcpStream>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,

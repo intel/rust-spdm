@@ -26,6 +26,7 @@ use crate::{
 use super::RequesterContext;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn get_encapsulated_request_response(
         &mut self,
         session_id: u32,
@@ -79,6 +80,7 @@ impl RequesterContext {
         Ok(())
     }
 
+    #[maybe_async::maybe_async]
     pub async fn send_get_encapsulated_request(&mut self, session_id: u32) -> SpdmResult {
         let mut send_buffer = [0u8; 4];
         let mut writer = Writer::init(&mut send_buffer);
@@ -97,6 +99,7 @@ impl RequesterContext {
             .await
     }
 
+    #[maybe_async::maybe_async]
     pub async fn receive_encapsulated_request(&mut self, session_id: u32) -> SpdmResult {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let _ = self
@@ -124,6 +127,7 @@ impl RequesterContext {
         .await
     }
 
+    #[maybe_async::maybe_async]
     pub async fn receive_encapsulated_response_ack(&mut self, session_id: u32) -> SpdmResult<bool> {
         let mut receive_buffer = [0u8; config::MAX_SPDM_MSG_SIZE];
         let size = self
@@ -179,6 +183,7 @@ impl RequesterContext {
         Ok(true)
     }
 
+    #[maybe_async::maybe_async]
     async fn process_encapsulated_request(
         &mut self,
         session_id: u32,

@@ -5,7 +5,6 @@
 use crate::spdm_emu::*;
 use std::net::TcpStream;
 
-use async_trait::async_trait;
 use spdmlib::common::SpdmDeviceIo;
 use spdmlib::config;
 use spdmlib::error::SpdmResult;
@@ -35,7 +34,7 @@ impl SocketIoTransport {
     }
 }
 
-#[async_trait]
+#[maybe_async::maybe_async]
 impl SpdmDeviceIo for SocketIoTransport {
     async fn receive(
         &mut self,

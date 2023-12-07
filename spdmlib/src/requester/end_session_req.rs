@@ -10,6 +10,7 @@ use crate::message::*;
 use crate::requester::*;
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_end_session(&mut self, session_id: u32) -> SpdmResult {
         info!("send spdm end_session\n");
 

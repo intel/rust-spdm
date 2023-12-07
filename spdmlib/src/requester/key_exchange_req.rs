@@ -27,6 +27,7 @@ use crate::message::*;
 use crate::protocol::{SpdmMeasurementSummaryHashType, SpdmSignatureStruct, SpdmVersion};
 
 impl RequesterContext {
+    #[maybe_async::maybe_async]
     pub async fn send_receive_spdm_key_exchange(
         &mut self,
         slot_id: u8,

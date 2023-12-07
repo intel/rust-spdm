@@ -27,6 +27,7 @@ use crate::pci_tdisp::START_INTERFACE_NONCE_LEN;
 use crate::pci_tdisp_requester::TdispVersion;
 
 #[allow(clippy::too_many_arguments)]
+#[maybe_async::maybe_async]
 pub async fn pci_tdisp_req_lock_interface_request(
     // IN
     spdm_requester: &mut RequesterContext,

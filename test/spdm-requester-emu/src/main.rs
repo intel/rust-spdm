@@ -1345,7 +1345,7 @@ fn main() {
     use std::thread;
 
     thread::Builder::new()
-        .stack_size(EMU_STACK_SIZE * 2)
+        .stack_size(EMU_STACK_SIZE)
         .spawn(emu_main)
         .unwrap()
         .join()

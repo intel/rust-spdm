@@ -5,6 +5,8 @@
 use crate::error::{SpdmResult, SPDM_STATUS_VERIF_FAIL};
 use crate::protocol::SpdmBaseAsymAlgo;
 
+// Key Usage: Digital Signature Bit;
+const RFC_5280_KEY_USAGE_DIGITAL_SIGNATURE_BIT: u8 = 0x80;
 // reference: https://www.itu.int/rec/T-REC-X.690/en
 // TAG
 const ASN1_TAG_CLASS_UNIVERSAL_MASK: u8 = 0x0;
@@ -13,12 +15,14 @@ const ASN1_TAG_CLASS_CONTEXT_SPECIFIC_MASK: u8 = 0x80;
 const ASN1_FORM_CONSTRUCTED_MASK: u8 = 0x20;
 
 const ASN1_TAG_NUMBER_INTEGER: u8 = 0x2;
+const ASN1_TAG_BIT_STRING: u8 = 0x3;
 const ASN1_TAG_NUMBER_OBJECT_IDENTIFIER: u8 = 0x6;
 const ASN1_TAG_NUMBER_SEQUENCE: u8 = 0x10;
 
 const ASN1_TAG_SEQUENCE: u8 =
     ASN1_TAG_CLASS_UNIVERSAL_MASK | ASN1_FORM_CONSTRUCTED_MASK | ASN1_TAG_NUMBER_SEQUENCE;
-
+const ASN1_TAG_EXPLICIT_EXTENSION: u8 = 0xA3;
+const ASN1_TAG_EXTN_VALUE: u8 = 0x04;
 const ASN1_LENGTH_MULTI_OCTET_MASK: u8 = 0x80;
 
 const X509V3_VERSION: u8 = 2;
@@ -27,6 +31,21 @@ const OID_RSA_SHA384RSA: &[u8] = &[0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x0
 const OID_RSA_SHA512RSA: &[u8] = &[0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0du8];
 const OID_ECDSA_SHA256: &[u8] = &[0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02u8];
 const OID_ECDSA_SHA384: &[u8] = &[0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x03u8];
+const OID_DMTF_SPDM_DEVICE_INFO: &[u8] =
+    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0x1C, 0x82, 0x12, 0x01];
+const OID_DMTF_SPDM_HARDWARE_IDENTITY: &[u8] =
+    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0x1C, 0x82, 0x12, 0x02];
+const OID_DMTF_SPDM_EKU_RESPONDER_AUTH: &[u8] =
+    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0x1C, 0x82, 0x12, 0x03];
+const OID_DMTF_SPDM_EKU_REQUESTER_AUTH: &[u8] =
+    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0x1C, 0x82, 0x12, 0x04];
+const OID_DMTF_MUTABLE_CERTIFICATE: &[u8] =
+    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0x1C, 0x82, 0x12, 0x05];
+const OID_DMTF_SPDM_EXTENSION: &[u8] =
+    &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0x1C, 0x82, 0x12, 0x06];
+const OID_KEY_USAGE: &[u8] = &[0x55, 0x1D, 0x0F];
+const OID_SUBJECT_ALTERNATIVE_NAME: &[u8] = &[0x55, 0x1D, 0x11];
+const OID_EXT_KEY_USAGE: &[u8] = &[0x55, 0x1D, 0x25];
 
 // reference: https://www.rfc-editor.org/rfc/rfc5280.txt
 // IN DER encoded certificate chain slice
@@ -139,13 +158,35 @@ fn check_tbs_certificate(
     t_walker += bytes_consumed;
 
     // subjectPublicKeyInfo SubjectPublicKeyInfo,
-    check_public_key_info(&data[t_walker..])?;
+    let bytes_consumed = check_public_key_info(&data[t_walker..])?;
+    t_walker += bytes_consumed;
 
     // issuerUniqueID  [1]  IMPLICIT UniqueIdentifier OPTIONAL,
     // subjectUniqueID [2]  IMPLICIT UniqueIdentifier OPTIONAL,
     // extensions      [3]  EXPLICIT Extensions OPTIONAL
 
-    Ok(length_before_tbs + tbs_length)
+    // key_usage             EXTENSIONS,
+    let (find_key_usage, key_usage_value) = get_key_usage_value(&data[t_walker..])?;
+    // The digitalSignature bit SHOULD asserted when subject public key is used for verifying digital signatures
+    // in an entity authentication service, a data origin authentication service, and/or an integrity service.
+    let check_extensions_success = !(find_key_usage
+        && (RFC_5280_KEY_USAGE_DIGITAL_SIGNATURE_BIT & key_usage_value
+            != RFC_5280_KEY_USAGE_DIGITAL_SIGNATURE_BIT));
+    // when key usage digitalSignature bit unset, it SHOULD return false.
+
+    //extensions            EXTENSIONS,
+    let (bytes_consumed, extension_data) = check_and_get_extensions(&data[t_walker..])?;
+    let check_extn_spdm_success = check_extensions_spdm_oid(extension_data, is_leaf_cert)?;
+    t_walker += bytes_consumed;
+
+    if (t_walker == length_before_tbs + tbs_length)
+        && check_extensions_success
+        && check_extn_spdm_success
+    {
+        Ok(length_before_tbs + tbs_length)
+    } else {
+        Err(SPDM_STATUS_VERIF_FAIL)
+    }
 }
 
 fn check_signature_algorithm(
@@ -255,6 +296,206 @@ fn check_validity(data: &[u8]) -> SpdmResult<usize> {
 
 fn check_public_key_info(data: &[u8]) -> SpdmResult<usize> {
     check_and_skip_common_sequence(data)
+}
+
+fn check_and_get_extensions(data: &[u8]) -> SpdmResult<(usize, &[u8])> {
+    let len = data.len();
+    if len < 1 || data[0] != ASN1_TAG_EXPLICIT_EXTENSION {
+        Ok((len, &data[0..]))
+    } else {
+        let (payload_length, bytes_consumed) = check_length(&data[1..])?;
+        if len < 1 + bytes_consumed + payload_length {
+            Err(SPDM_STATUS_VERIF_FAIL)
+        } else {
+            Ok((
+                1 + bytes_consumed + payload_length,
+                &data[1 + bytes_consumed..1 + bytes_consumed + payload_length],
+            ))
+        }
+    }
+}
+
+fn get_key_usage_value(data: &[u8]) -> SpdmResult<(bool, u8)> {
+    let mut find_key_usage = false;
+    let len = data.len();
+    let key_usage_oid_len = OID_KEY_USAGE.len();
+    let (data_length, bytes_consumed) = check_length(&data[1..])?;
+    if len < 1 + data_length + bytes_consumed {
+        Err(SPDM_STATUS_VERIF_FAIL)
+    } else {
+        let mut index = 1 + bytes_consumed;
+        while index < data_length {
+            let (payload_length, bytes_consumed) = check_length(&data[index + 1..])?;
+            if data[index] == ASN1_TAG_SEQUENCE {
+                index += 1 + payload_length;
+                continue;
+            } else if data[index] == ASN1_TAG_NUMBER_OBJECT_IDENTIFIER
+                && payload_length == key_usage_oid_len
+                && object_identifiers_are_same(
+                    &data[index + 1 + bytes_consumed..index + 1 + bytes_consumed + payload_length],
+                    OID_KEY_USAGE,
+                )
+            {
+                index += 1 + bytes_consumed + payload_length;
+                if data[index] == ASN1_TAG_EXTN_VALUE {
+                    let (_, extnvalue_consumed) = check_length(&data[index + 1..])?;
+                    index += 1 + extnvalue_consumed;
+                    if data[index] == ASN1_TAG_BIT_STRING {
+                        let (string_length, string_consumed) = check_length(&data[index + 1..])?;
+                        index += string_consumed + string_length;
+                        find_key_usage = true;
+                    } else {
+                        find_key_usage = false;
+                    }
+                    break;
+                } else {
+                    index += 1 + bytes_consumed + payload_length;
+                    continue;
+                }
+            } else {
+                index += 1 + bytes_consumed + payload_length;
+                continue;
+            }
+        }
+        if find_key_usage {
+            Ok((true, data[index]))
+        } else {
+            Ok((false, 0x00))
+        }
+    }
+}
+
+fn check_extensions_spdm_oid(extensions: &[u8], is_leaf_cert: bool) -> SpdmResult<bool> {
+    let mut responder_auth_oid_find_success = false;
+    let mut requester_auth_oid_find_success = false;
+    let len = extensions.len();
+    if len < 1 || extensions[0] != ASN1_TAG_SEQUENCE {
+        Err(SPDM_STATUS_VERIF_FAIL)
+    } else {
+        let (payload_length, sequences_bytes_consumed) = check_length(&extensions[1..])?;
+        let extn_sequences = &extensions[1 + sequences_bytes_consumed..];
+        let sequences_len = extn_sequences.len();
+        if sequences_len < payload_length {
+            Err(SPDM_STATUS_VERIF_FAIL)
+        } else {
+            let mut index = 0;
+            while index < payload_length {
+                let (extnid, extn_sequence_len) = check_and_get_extn_id(&extn_sequences[index..])?;
+                // find the first level extension identifiy from extensions sequence
+                if object_identifiers_are_same(extnid, OID_SUBJECT_ALTERNATIVE_NAME) {
+                    if find_target_object_identifiers(
+                        &extn_sequences[index..index + extn_sequence_len],
+                        OID_DMTF_SPDM_DEVICE_INFO,
+                    )? {
+                        info!("find id-DMTF-device-info OID\n");
+                    }
+                    index += extn_sequence_len;
+                    continue;
+                } else if object_identifiers_are_same(extnid, OID_EXT_KEY_USAGE) {
+                    if find_target_object_identifiers(
+                        &extn_sequences[index..index + extn_sequence_len],
+                        OID_DMTF_SPDM_EKU_RESPONDER_AUTH,
+                    )? {
+                        responder_auth_oid_find_success = true;
+                        info!("find id-DMTF-eku-responder-auth OID\n");
+                    } else if find_target_object_identifiers(
+                        &extn_sequences[index..index + extn_sequence_len],
+                        OID_DMTF_SPDM_EKU_REQUESTER_AUTH,
+                    )? {
+                        requester_auth_oid_find_success = true;
+                        info!("find id-DMTF-eku-requester-auth OID\n");
+                    }
+                    index += extn_sequence_len;
+                    continue;
+                } else if object_identifiers_are_same(extnid, OID_DMTF_SPDM_EXTENSION) {
+                    if find_target_object_identifiers(
+                        &extn_sequences[index..index + extn_sequence_len],
+                        OID_DMTF_MUTABLE_CERTIFICATE,
+                    )? {
+                        info!("find id-DMTF-mutable-certificate OID\n");
+                    } else if find_target_object_identifiers(
+                        &extn_sequences[index..index + extn_sequence_len],
+                        OID_DMTF_SPDM_HARDWARE_IDENTITY,
+                    )? {
+                        info!("find id-DMTF-hardware-identity OID\n");
+                    }
+                    index += extn_sequence_len;
+                    continue;
+                } else {
+                    index += extn_sequence_len;
+                    continue;
+                }
+            }
+            // if not the leaf certificate, reuester/responder auth OIDs SHOULD not be presented.
+            Ok(!(!is_leaf_cert
+                && (responder_auth_oid_find_success || requester_auth_oid_find_success)))
+        }
+    }
+}
+
+// IN  (sequences slice, target oid)
+// OUT true when find target oid
+// OUT false when not find target oid
+fn find_target_object_identifiers(data: &[u8], target_oid: &[u8]) -> SpdmResult<bool> {
+    let mut target_oid_find_success = false;
+    let len = data.len();
+    let target_oid_len = target_oid.len();
+    if len < target_oid_len {
+        target_oid_find_success = false;
+    } else {
+        let mut index = 0;
+        while index < len - target_oid_len {
+            let (payload_length, bytes_consumed) = check_length(&data[index + 1..])?;
+            if data[index] == ASN1_TAG_NUMBER_OBJECT_IDENTIFIER {
+                if object_identifiers_are_same(
+                    &data[index + 1 + bytes_consumed..index + 1 + bytes_consumed + payload_length],
+                    target_oid,
+                ) && payload_length == target_oid_len
+                {
+                    target_oid_find_success = true;
+                    break;
+                } else {
+                    index += 1 + bytes_consumed + payload_length;
+                    continue;
+                }
+            } else if data[index] == ASN1_TAG_SEQUENCE || data[index] == ASN1_TAG_EXTN_VALUE {
+                index += 1 + bytes_consumed;
+                continue;
+            } else {
+                index += 1 + bytes_consumed + payload_length;
+                continue;
+            }
+        }
+    }
+    Ok(target_oid_find_success)
+}
+
+// IN extension sequence slice
+// OUT Ok (extnID, extn sequence length)
+// OUT Error not found extnID, verify fail
+fn check_and_get_extn_id(extn_sequences: &[u8]) -> SpdmResult<(&[u8], usize)> {
+    let len = extn_sequences.len();
+    if len < 1 || extn_sequences[0] != ASN1_TAG_SEQUENCE {
+        Err(SPDM_STATUS_VERIF_FAIL)
+    } else {
+        let (extn_payload_length, extn_bytes_consumed) = check_length(&extn_sequences[1..])?;
+        if len < 1 + extn_bytes_consumed + extn_payload_length {
+            Err(SPDM_STATUS_VERIF_FAIL)
+        } else {
+            // extnID is the first item in the extension sequence and the tag is Object identifier
+            let extn_id = &extn_sequences[1 + extn_bytes_consumed..];
+            if extn_id[0] != ASN1_TAG_NUMBER_OBJECT_IDENTIFIER {
+                Err(SPDM_STATUS_VERIF_FAIL)
+            } else {
+                let (extn_id_length, extn_id_bytes_consumed) = check_length(&extn_id[1..])?;
+                Ok((
+                    &extn_id
+                        [1 + extn_id_bytes_consumed..1 + extn_id_bytes_consumed + extn_id_length],
+                    1 + extn_bytes_consumed + extn_payload_length,
+                ))
+            }
+        }
+    }
 }
 
 fn check_and_skip_common_sequence(data: &[u8]) -> SpdmResult<usize> {
@@ -661,6 +902,31 @@ mod tests {
     }
 
     #[test]
+    fn test_case1_check_tbs_certificate() {
+        let t1 = std::fs::read("../test_key/rsa2048/end_requester_with_spdm_rsp_eku.cert.der")
+            .expect("unable to read leaf cert!");
+        let t2 = std::fs::read("../test_key/rsa2048/end_responder_with_spdm_req_eku.cert.der")
+            .expect("unable to read leaf cert!");
+
+        assert_eq!(
+            check_tbs_certificate(&t1[4..], SpdmBaseAsymAlgo::TPM_ALG_RSASSA_2048, true),
+            Ok(562)
+        );
+        assert_eq!(
+            check_tbs_certificate(&t1[4..], SpdmBaseAsymAlgo::TPM_ALG_RSASSA_2048, false),
+            Err(SPDM_STATUS_VERIF_FAIL)
+        );
+        assert_eq!(
+            check_tbs_certificate(&t2[4..], SpdmBaseAsymAlgo::TPM_ALG_RSASSA_2048, true),
+            Ok(562)
+        );
+        assert_eq!(
+            check_tbs_certificate(&t2[4..], SpdmBaseAsymAlgo::TPM_ALG_RSASSA_2048, false),
+            Err(SPDM_STATUS_VERIF_FAIL)
+        );
+    }
+
+    #[test]
     fn test_case0_check_cert_format() {
         let c1 = std::fs::read("../test_key/ecp384/ca.cert.der").expect("unable to read ca cert!");
         let c2 =
@@ -758,5 +1024,114 @@ mod tests {
         assert!(is_root_certificate(&end1).is_err());
         assert!(is_root_certificate(&end2).is_err());
         assert!(is_root_certificate(&ct1_wrong).is_err());
+    }
+
+    #[test]
+    fn test_case0_get_key_usage_value() {
+        let key_usage1 = &[
+            0x30, 0x0B, 0x06, 0x03, 0x55, 0x1D, 0x0F, 0x04, 0x04, 0x03, 0x02, 0x05, 0xE0,
+        ];
+        let key_usage2_wrong = &[
+            0x30, 0x0B, 0x06, 0x03, 0x55, 0x1D, 0x0E, 0x04, 0x04, 0x03, 0x02, 0x05, 0xE0,
+        ];
+        let key_usage3_wrong = &[0x30, 0x0B];
+        let key_usage4_wrong = &[
+            0x30, 0x0B, 0x06, 0x03, 0x55, 0x1D, 0x0F, 0x04, 0x04, 0x03, 0x02, 0x05,
+        ];
+        assert_eq!(get_key_usage_value(key_usage1), Ok((true, 0xE0)));
+        assert_eq!(get_key_usage_value(key_usage2_wrong), Ok((false, 0x00)));
+        assert_eq!(
+            get_key_usage_value(key_usage3_wrong),
+            Err(SPDM_STATUS_VERIF_FAIL)
+        );
+        assert_eq!(
+            get_key_usage_value(key_usage4_wrong),
+            Err(SPDM_STATUS_VERIF_FAIL)
+        );
+    }
+
+    #[test]
+    fn test_case0_check_extensions_spdm_oid() {
+        let e1 = std::fs::read("../test_key/ecp384/end_responder.cert.der")
+            .expect("unable to read leaf cert!");
+        let e2 = std::fs::read("../test_key/rsa2048/end_requester_with_spdm_rsp_eku.cert.der")
+            .expect("unable to read leaf cert!");
+        let e3 = std::fs::read("../test_key/rsa2048/end_responder_with_spdm_req_eku.cert.der")
+            .expect("unable to read leaf cert!");
+        assert_eq!(check_extensions_spdm_oid(&e1[280..], false), Ok(true));
+        assert_eq!(check_extensions_spdm_oid(&e1[280..], true), Ok(true));
+        assert_eq!(check_extensions_spdm_oid(&e2[450..], true), Ok(true));
+        assert_eq!(check_extensions_spdm_oid(&e2[450..], false), Ok(false));
+        assert_eq!(check_extensions_spdm_oid(&e3[450..], true), Ok(true));
+        assert_eq!(check_extensions_spdm_oid(&e3[450..], false), Ok(false));
+    }
+
+    #[test]
+    fn test_case0_check_and_get_extn_id() {
+        let extension_s1 = &[
+            0x30, 0x0C, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x02, 0x30, 0x00,
+        ];
+        let extension_s2 = &[
+            0x30, 0x2A, 0x06, 0x03, 0x55, 0x1D, 0x25, 0x01, 0x01, 0xFF, 0x04, 0x20, 0x30, 0x1E,
+            0x06, 0x08, 0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x01, 0x06, 0x08, 0x2B, 0x06,
+            0x01, 0x05, 0x05, 0x07, 0x03, 0x02, 0x06, 0x08, 0x2B, 0x06, 0x01, 0x05, 0x05, 0x07,
+            0x03, 0x09,
+        ];
+        let extension_s3_wrong = &[
+            0x30, 0x0D, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x02, 0x30, 0x00,
+        ];
+        let extension_sa4_wrong = &[
+            0x30, 0x0C, 0x05, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x02, 0x30, 0x00,
+        ];
+        let oid1: &[u8] = &[0x55, 0x1D, 0x13];
+        let oid2: &[u8] = &[0x55, 0x1D, 0x25];
+        assert_eq!(check_and_get_extn_id(extension_s1), Ok((oid1, 14)));
+        assert_eq!(check_and_get_extn_id(extension_s2), Ok((oid2, 44)));
+        assert_eq!(
+            check_and_get_extn_id(extension_s3_wrong),
+            Err(SPDM_STATUS_VERIF_FAIL)
+        );
+        assert_eq!(
+            check_and_get_extn_id(extension_sa4_wrong),
+            Err(SPDM_STATUS_VERIF_FAIL)
+        );
+    }
+
+    #[test]
+    fn test_case0_find_target_object_identifiers() {
+        let extension_s1 = &[
+            0x30, 0x0C, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x02, 0x30, 0x00,
+        ];
+        let extension_s2 = &[
+            0x04, 0x2C, 0x30, 0x2A, 0x06, 0x08, 0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x01,
+            0x06, 0x08, 0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x02, 0x06, 0x08, 0x2B, 0x06,
+            0x01, 0x05, 0x05, 0x07, 0x03, 0x09, 0x06, 0x0A, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x83,
+            0x1C, 0x82, 0x12, 0x04,
+        ];
+        let extension_s3_wrong = &[
+            0x30, 0x0D, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x02, 0x30, 0x00,
+        ];
+        let extension_sa4_wrong = &[
+            0x30, 0x0C, 0x05, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x02, 0x30, 0x00,
+        ];
+        assert_eq!(
+            find_target_object_identifiers(extension_s1, &[0x55, 0x1D, 0x13]),
+            Ok(true)
+        );
+        assert_eq!(
+            find_target_object_identifiers(
+                extension_s2,
+                &[0x2B, 0x06, 0x01, 0x04, 0x01, 0x83, 0x1C, 0x82, 0x12, 0x04]
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            find_target_object_identifiers(extension_s3_wrong, &[0x55, 0x1D, 0x14]),
+            Ok(false)
+        );
+        assert_eq!(
+            find_target_object_identifiers(extension_sa4_wrong, &[0x55, 0x1D, 0x13]),
+            Ok(false)
+        );
     }
 }

@@ -11,6 +11,8 @@ use codec::{Codec, Reader, Writer};
 
 use self::common::SpdmOpaqueSupport;
 
+pub const MAX_SUPPORTED_ALG_STRUCTURE_COUNT: usize = 4;
+
 #[derive(Debug, Clone, Default)]
 pub struct SpdmNegotiateAlgorithmsRequestPayload {
     pub measurement_specification: SpdmMeasurementSpecification,
@@ -18,7 +20,7 @@ pub struct SpdmNegotiateAlgorithmsRequestPayload {
     pub base_asym_algo: SpdmBaseAsymAlgo,
     pub base_hash_algo: SpdmBaseHashAlgo,
     pub alg_struct_count: u8,
-    pub alg_struct: [SpdmAlgStruct; 4],
+    pub alg_struct: [SpdmAlgStruct; MAX_SUPPORTED_ALG_STRUCTURE_COUNT],
 }
 
 impl SpdmCodec for SpdmNegotiateAlgorithmsRequestPayload {

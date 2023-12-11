@@ -32,6 +32,34 @@ impl RequesterContext {
     pub fn encode_spdm_algorithm(&mut self, buf: &mut [u8]) -> SpdmResult<usize> {
         let other_params_support: SpdmOpaqueSupport = self.common.config_info.opaque_support;
 
+        let mut alg_struct_count = 0;
+        let mut alg_struct: [SpdmAlgStruct; MAX_SUPPORTED_ALG_STRUCTURE_COUNT] =
+            gen_array_clone(SpdmAlgStruct::default(), MAX_SUPPORTED_ALG_STRUCTURE_COUNT);
+        if self.common.config_info.dhe_algo.is_valid() {
+            alg_struct[alg_struct_count].alg_type = SpdmAlgType::SpdmAlgTypeDHE;
+            alg_struct[alg_struct_count].alg_supported =
+                SpdmAlg::SpdmAlgoDhe(self.common.config_info.dhe_algo);
+            alg_struct_count += 1;
+        }
+        if self.common.config_info.aead_algo.is_valid() {
+            alg_struct[alg_struct_count].alg_type = SpdmAlgType::SpdmAlgTypeAEAD;
+            alg_struct[alg_struct_count].alg_supported =
+                SpdmAlg::SpdmAlgoAead(self.common.config_info.aead_algo);
+            alg_struct_count += 1;
+        }
+        if self.common.config_info.req_asym_algo.is_valid() {
+            alg_struct[alg_struct_count].alg_type = SpdmAlgType::SpdmAlgTypeReqAsym;
+            alg_struct[alg_struct_count].alg_supported =
+                SpdmAlg::SpdmAlgoReqAsym(self.common.config_info.req_asym_algo);
+            alg_struct_count += 1;
+        }
+        if self.common.config_info.key_schedule_algo.is_valid() {
+            alg_struct[alg_struct_count].alg_type = SpdmAlgType::SpdmAlgTypeKeySchedule;
+            alg_struct[alg_struct_count].alg_supported =
+                SpdmAlg::SpdmAlgoKeySchedule(self.common.config_info.key_schedule_algo);
+            alg_struct_count += 1;
+        }
+
         let mut writer = Writer::init(buf);
         let request = SpdmMessage {
             header: SpdmMessageHeader {
@@ -44,29 +72,8 @@ impl RequesterContext {
                     other_params_support,
                     base_asym_algo: self.common.config_info.base_asym_algo,
                     base_hash_algo: self.common.config_info.base_hash_algo,
-                    alg_struct_count: 4,
-                    alg_struct: [
-                        SpdmAlgStruct {
-                            alg_type: SpdmAlgType::SpdmAlgTypeDHE,
-                            alg_supported: SpdmAlg::SpdmAlgoDhe(self.common.config_info.dhe_algo),
-                        },
-                        SpdmAlgStruct {
-                            alg_type: SpdmAlgType::SpdmAlgTypeAEAD,
-                            alg_supported: SpdmAlg::SpdmAlgoAead(self.common.config_info.aead_algo),
-                        },
-                        SpdmAlgStruct {
-                            alg_type: SpdmAlgType::SpdmAlgTypeReqAsym,
-                            alg_supported: SpdmAlg::SpdmAlgoReqAsym(
-                                self.common.config_info.req_asym_algo,
-                            ),
-                        },
-                        SpdmAlgStruct {
-                            alg_type: SpdmAlgType::SpdmAlgTypeKeySchedule,
-                            alg_supported: SpdmAlg::SpdmAlgoKeySchedule(
-                                self.common.config_info.key_schedule_algo,
-                            ),
-                        },
-                    ],
+                    alg_struct_count: alg_struct_count as u8,
+                    alg_struct,
                 },
             ),
         };
@@ -116,16 +123,59 @@ impl RequesterContext {
                             {
                                 match &alg.alg_supported {
                                     SpdmAlg::SpdmAlgoDhe(v) => {
-                                        self.common.negotiate_info.dhe_sel = *v
+                                        if v.is_no_more_than_one_selected() || v.bits() == 0 {
+                                            self.common.negotiate_info.dhe_sel =
+                                                self.common.config_info.dhe_algo;
+                                            self.common.negotiate_info.dhe_sel.prioritize(*v);
+                                        } else {
+                                            error!(
+                                                "unknown Dhe algorithm structure:{:X?}\n",
+                                                v.bits()
+                                            );
+                                            return Err(SPDM_STATUS_INVALID_MSG_FIELD);
+                                        }
                                     }
                                     SpdmAlg::SpdmAlgoAead(v) => {
-                                        self.common.negotiate_info.aead_sel = *v
+                                        if v.is_no_more_than_one_selected() || v.bits() == 0 {
+                                            self.common.negotiate_info.aead_sel =
+                                                self.common.config_info.aead_algo;
+                                            self.common.negotiate_info.aead_sel.prioritize(*v);
+                                        } else {
+                                            error!(
+                                                "unknown aead algorithm structure:{:X?}\n",
+                                                v.bits()
+                                            );
+                                            return Err(SPDM_STATUS_INVALID_MSG_FIELD);
+                                        }
                                     }
                                     SpdmAlg::SpdmAlgoReqAsym(v) => {
-                                        self.common.negotiate_info.req_asym_sel = *v
+                                        if v.is_no_more_than_one_selected() || v.bits() == 0 {
+                                            self.common.negotiate_info.req_asym_sel =
+                                                self.common.config_info.req_asym_algo;
+                                            self.common.negotiate_info.req_asym_sel.prioritize(*v);
+                                        } else {
+                                            error!(
+                                                "unknown req asym algorithm structure:{:X?}\n",
+                                                v.bits()
+                                            );
+                                            return Err(SPDM_STATUS_INVALID_MSG_FIELD);
+                                        }
                                     }
                                     SpdmAlg::SpdmAlgoKeySchedule(v) => {
-                                        self.common.negotiate_info.key_schedule_sel = *v
+                                        if v.is_no_more_than_one_selected() || v.bits() == 0 {
+                                            self.common.negotiate_info.key_schedule_sel =
+                                                self.common.config_info.key_schedule_algo;
+                                            self.common
+                                                .negotiate_info
+                                                .key_schedule_sel
+                                                .prioritize(*v);
+                                        } else {
+                                            error!(
+                                                "unknown key schedule algorithm structure:{:X?}\n",
+                                                v.bits()
+                                            );
+                                            return Err(SPDM_STATUS_INVALID_MSG_FIELD);
+                                        }
                                     }
                                     SpdmAlg::SpdmAlgoUnknown(_v) => {}
                                 }

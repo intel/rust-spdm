@@ -34,9 +34,9 @@ use core::ops::DerefMut;
 pub fn create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
     let config_info = SpdmConfigInfo {
         spdm_version: [
-            SpdmVersion::SpdmVersion10,
-            SpdmVersion::SpdmVersion11,
-            SpdmVersion::SpdmVersion12,
+            Some(SpdmVersion::SpdmVersion10),
+            Some(SpdmVersion::SpdmVersion11),
+            Some(SpdmVersion::SpdmVersion12),
         ],
         rsp_capabilities: SpdmResponseCapabilityFlags::CERT_CAP
             | SpdmResponseCapabilityFlags::CHAL_CAP
@@ -74,6 +74,10 @@ pub fn create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
         opaque_support: SpdmOpaqueSupport::OPAQUE_DATA_FMT1,
         data_transfer_size: 0x1200,
         max_spdm_msg_size: 0x1200,
+        secure_spdm_version: [
+            Some(SecuredMessageVersion::try_from(0x10u8).unwrap()),
+            Some(SecuredMessageVersion::try_from(0x11u8).unwrap()),
+        ],
         ..Default::default()
     };
 
@@ -169,9 +173,9 @@ pub fn req_create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
     };
     let config_info = SpdmConfigInfo {
         spdm_version: [
-            SpdmVersion::SpdmVersion10,
-            SpdmVersion::SpdmVersion11,
-            SpdmVersion::SpdmVersion12,
+            Some(SpdmVersion::SpdmVersion10),
+            Some(SpdmVersion::SpdmVersion11),
+            Some(SpdmVersion::SpdmVersion12),
         ],
         req_capabilities: req_capabilities,
         req_ct_exponent: 0,
@@ -193,6 +197,10 @@ pub fn req_create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
         opaque_support: SpdmOpaqueSupport::OPAQUE_DATA_FMT1,
         data_transfer_size: config::MAX_SPDM_MSG_SIZE as u32,
         max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
+        secure_spdm_version: [
+            Some(SecuredMessageVersion::try_from(0x10u8).unwrap()),
+            Some(SecuredMessageVersion::try_from(0x11u8).unwrap()),
+        ],
         ..Default::default()
     };
 
@@ -294,9 +302,9 @@ pub fn rsp_create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
     };
     let config_info = SpdmConfigInfo {
         spdm_version: [
-            SpdmVersion::SpdmVersion10,
-            SpdmVersion::SpdmVersion11,
-            SpdmVersion::SpdmVersion12,
+            Some(SpdmVersion::SpdmVersion10),
+            Some(SpdmVersion::SpdmVersion11),
+            Some(SpdmVersion::SpdmVersion12),
         ],
         rsp_capabilities: rsp_capabilities,
         rsp_ct_exponent: 0,
@@ -321,8 +329,8 @@ pub fn rsp_create_info() -> (SpdmConfigInfo, SpdmProvisionInfo) {
         max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
         heartbeat_period: config::HEARTBEAT_PERIOD,
         secure_spdm_version: [
-            SecuredMessageVersion::try_from(0x10u8).unwrap(),
-            SecuredMessageVersion::try_from(0x11u8).unwrap(),
+            Some(SecuredMessageVersion::try_from(0x10u8).unwrap()),
+            Some(SecuredMessageVersion::try_from(0x11u8).unwrap()),
         ],
         ..Default::default()
     };

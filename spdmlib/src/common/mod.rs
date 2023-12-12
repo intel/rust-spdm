@@ -1106,7 +1106,7 @@ impl SpdmContext {
 
 #[derive(Debug, Default)]
 pub struct SpdmConfigInfo {
-    pub spdm_version: [SpdmVersion; MAX_SPDM_VERSION_COUNT],
+    pub spdm_version: [Option<SpdmVersion>; MAX_SPDM_VERSION_COUNT],
     pub req_capabilities: SpdmRequestCapabilityFlags,
     pub rsp_capabilities: SpdmResponseCapabilityFlags,
     pub req_ct_exponent: u8,
@@ -1125,7 +1125,7 @@ pub struct SpdmConfigInfo {
     pub data_transfer_size: u32,
     pub max_spdm_msg_size: u32,
     pub heartbeat_period: u8, // used by responder only
-    pub secure_spdm_version: [SecuredMessageVersion; MAX_SECURE_SPDM_VERSION_COUNT], // used by responder only
+    pub secure_spdm_version: [Option<SecuredMessageVersion>; MAX_SECURE_SPDM_VERSION_COUNT], // used by responder only
 }
 
 #[derive(Debug, Default)]

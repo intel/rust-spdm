@@ -53,7 +53,7 @@ async fn fuzz_send_receive_spdm_version(fuzzdata: Arc<Vec<u8>>) {
     {
         let (mut req_config_info, req_provision_info) = req_create_info();
         for i in 0..MAX_SPDM_VERSION_COUNT {
-            req_config_info.spdm_version[i] = SpdmVersion::default();
+            req_config_info.spdm_version[i] = Some(SpdmVersion::default());
         }
 
         let shared_buffer = SharedBuffer::new();

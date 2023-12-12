@@ -7,7 +7,7 @@
 use codec::Codec;
 use common::SpdmDeviceIo;
 use common::SpdmTransportEncap;
-
+use core::convert::TryFrom;
 use idekm::pci_ide_km_requester::IdekmReqContext;
 use idekm::pci_idekm::Aes256GcmKeyBuffer;
 use idekm::pci_idekm::KpAckStatus;
@@ -28,6 +28,7 @@ use spdm_emu::crypto_callback::SECRET_ASYM_IMPL_INSTANCE;
 use spdm_emu::secret_impl_sample::SECRET_PSK_IMPL_INSTANCE;
 use spdm_emu::EMU_STACK_SIZE;
 use spdmlib::common;
+use spdmlib::common::SecuredMessageVersion;
 use spdmlib::common::SpdmOpaqueSupport;
 use spdmlib::common::ST1;
 use spdmlib::config;
@@ -151,9 +152,9 @@ async fn test_spdm(
 
     let config_info = common::SpdmConfigInfo {
         spdm_version: [
-            SpdmVersion::SpdmVersion10,
-            SpdmVersion::SpdmVersion11,
-            SpdmVersion::SpdmVersion12,
+            Some(SpdmVersion::SpdmVersion10),
+            Some(SpdmVersion::SpdmVersion11),
+            Some(SpdmVersion::SpdmVersion12),
         ],
         req_capabilities,
         req_ct_exponent: 0,
@@ -175,6 +176,10 @@ async fn test_spdm(
         opaque_support: SpdmOpaqueSupport::OPAQUE_DATA_FMT1,
         data_transfer_size: config::MAX_SPDM_MSG_SIZE as u32,
         max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
+        secure_spdm_version: [
+            Some(SecuredMessageVersion::try_from(0x10u8).unwrap()),
+            Some(SecuredMessageVersion::try_from(0x11u8).unwrap()),
+        ],
         ..Default::default()
     };
 
@@ -445,9 +450,9 @@ async fn test_idekm_tdisp(
 
     let config_info = common::SpdmConfigInfo {
         spdm_version: [
-            SpdmVersion::SpdmVersion10,
-            SpdmVersion::SpdmVersion11,
-            SpdmVersion::SpdmVersion12,
+            Some(SpdmVersion::SpdmVersion10),
+            Some(SpdmVersion::SpdmVersion11),
+            Some(SpdmVersion::SpdmVersion12),
         ],
         req_capabilities,
         req_ct_exponent: 0,
@@ -469,6 +474,10 @@ async fn test_idekm_tdisp(
         opaque_support: SpdmOpaqueSupport::OPAQUE_DATA_FMT1,
         data_transfer_size: config::MAX_SPDM_MSG_SIZE as u32,
         max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
+        secure_spdm_version: [
+            Some(SecuredMessageVersion::try_from(0x10u8).unwrap()),
+            Some(SecuredMessageVersion::try_from(0x11u8).unwrap()),
+        ],
         ..Default::default()
     };
 

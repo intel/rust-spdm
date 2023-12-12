@@ -509,6 +509,11 @@ impl SpdmCodec for SecuredMessageDMTFVersionSelection {
     ) -> Option<SecuredMessageDMTFVersionSelection> {
         let secured_message_general_opaque_data_header =
             SecuredMessageGeneralOpaqueDataHeader::spdm_read(context, r)?;
+        if secured_message_general_opaque_data_header.total_elements as usize
+            > MAX_OPAQUE_LIST_ELEMENTS_COUNT
+        {
+            return None;
+        }
         let mut opaque_element_dmtf_version_selection_list =
             [OpaqueElementDMTFVersionSelection::default(); MAX_OPAQUE_LIST_ELEMENTS_COUNT];
         for d in opaque_element_dmtf_version_selection_list

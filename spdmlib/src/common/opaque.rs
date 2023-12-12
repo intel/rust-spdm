@@ -249,6 +249,9 @@ impl SpdmCodec for SecuredMessageVersionList {
     }
     fn spdm_read(context: &mut SpdmContext, r: &mut Reader) -> Option<SecuredMessageVersionList> {
         let version_count = u8::read(r)?;
+        if version_count as usize > MAX_SECURE_SPDM_VERSION_COUNT {
+            return None;
+        }
         let mut versions_list = [SecuredMessageVersion::default(); MAX_SECURE_SPDM_VERSION_COUNT];
         for d in versions_list.iter_mut().take(version_count as usize) {
             *d = SecuredMessageVersion::spdm_read(context, r)?;

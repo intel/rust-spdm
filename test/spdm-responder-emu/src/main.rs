@@ -261,9 +261,9 @@ async fn handle_message(
 
     let config_info = common::SpdmConfigInfo {
         spdm_version: [
-            SpdmVersion::SpdmVersion10,
-            SpdmVersion::SpdmVersion11,
-            SpdmVersion::SpdmVersion12,
+            Some(SpdmVersion::SpdmVersion10),
+            Some(SpdmVersion::SpdmVersion11),
+            Some(SpdmVersion::SpdmVersion12),
         ],
         rsp_capabilities,
         rsp_ct_exponent: 0,
@@ -288,8 +288,8 @@ async fn handle_message(
         max_spdm_msg_size: config::MAX_SPDM_MSG_SIZE as u32,
         heartbeat_period: config::HEARTBEAT_PERIOD,
         secure_spdm_version: [
-            SecuredMessageVersion::try_from(0x10u8).unwrap(),
-            SecuredMessageVersion::try_from(0x11u8).unwrap(),
+            Some(SecuredMessageVersion::try_from(0x10u8).unwrap()),
+            Some(SecuredMessageVersion::try_from(0x11u8).unwrap()),
         ],
         ..Default::default()
     };

@@ -74,27 +74,30 @@ impl ResponderContext {
         }
 
         info!("send spdm version\n");
+        let mut version_number_entry_count = 0;
+        let mut versions = gen_array_clone(SpdmVersionStruct::default(), MAX_SPDM_VERSION_COUNT);
+        for (_, v) in self
+            .common
+            .config_info
+            .spdm_version
+            .iter()
+            .flatten()
+            .enumerate()
+        {
+            versions[version_number_entry_count] = SpdmVersionStruct {
+                update: 0,
+                version: *v,
+            };
+            version_number_entry_count += 1;
+        }
         let response = SpdmMessage {
             header: SpdmMessageHeader {
                 version: SpdmVersion::SpdmVersion10,
                 request_response_code: SpdmRequestResponseCode::SpdmResponseVersion,
             },
             payload: SpdmMessagePayload::SpdmVersionResponse(SpdmVersionResponsePayload {
-                version_number_entry_count: 3,
-                versions: [
-                    SpdmVersionStruct {
-                        update: 0,
-                        version: self.common.config_info.spdm_version[0],
-                    },
-                    SpdmVersionStruct {
-                        update: 0,
-                        version: self.common.config_info.spdm_version[1],
-                    },
-                    SpdmVersionStruct {
-                        update: 0,
-                        version: self.common.config_info.spdm_version[2],
-                    },
-                ],
+                version_number_entry_count: version_number_entry_count as u8,
+                versions,
             }),
         };
 

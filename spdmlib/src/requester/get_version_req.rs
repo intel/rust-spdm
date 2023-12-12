@@ -71,7 +71,7 @@ impl RequesterContext {
                                 .common
                                 .config_info
                                 .spdm_version
-                                .contains(&spdm_version_struct.version)
+                                .contains(&Some(spdm_version_struct.version))
                             {
                                 negotiate_version = Some(spdm_version_struct.version);
                                 break;

@@ -143,8 +143,15 @@ impl ResponderContext {
                     );
                 }
                 for index in 0..secured_message_version_list.version_count as usize {
-                    for local_version in self.common.config_info.secure_spdm_version {
-                        if secured_message_version_list.versions_list[index] == local_version {
+                    for (_, local_version) in self
+                        .common
+                        .config_info
+                        .secure_spdm_version
+                        .iter()
+                        .flatten()
+                        .enumerate()
+                    {
+                        if secured_message_version_list.versions_list[index] == *local_version {
                             if self.common.negotiate_info.spdm_version_sel
                                 < SpdmVersion::SpdmVersion12
                             {

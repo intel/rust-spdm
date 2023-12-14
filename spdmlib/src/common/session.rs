@@ -883,9 +883,9 @@ impl SpdmSession {
                         app_buffer,
                         &self.handshake_secret.request_direction,
                     );
-                    if r.is_ok() {
-                        self.handshake_secret.request_direction.sequence_number += 1
-                    };
+                    if r != Err(SPDM_STATUS_SEQUENCE_NUMBER_OVERFLOW) {
+                        self.handshake_secret.request_direction.sequence_number += 1;
+                    }
                     r
                 } else {
                     let r = self.decode_msg(
@@ -893,9 +893,9 @@ impl SpdmSession {
                         app_buffer,
                         &self.handshake_secret.response_direction,
                     );
-                    if r.is_ok() {
-                        self.handshake_secret.response_direction.sequence_number += 1
-                    };
+                    if r != Err(SPDM_STATUS_SEQUENCE_NUMBER_OVERFLOW) {
+                        self.handshake_secret.response_direction.sequence_number += 1;
+                    }
                     r
                 }
             }
@@ -906,9 +906,9 @@ impl SpdmSession {
                         app_buffer,
                         &self.application_secret.request_direction,
                     );
-                    if r.is_ok() {
-                        self.application_secret.request_direction.sequence_number += 1
-                    };
+                    if r != Err(SPDM_STATUS_SEQUENCE_NUMBER_OVERFLOW) {
+                        self.application_secret.request_direction.sequence_number += 1;
+                    }
                     r
                 } else {
                     let r = self.decode_msg(
@@ -916,9 +916,9 @@ impl SpdmSession {
                         app_buffer,
                         &self.application_secret.response_direction,
                     );
-                    if r.is_ok() {
-                        self.application_secret.response_direction.sequence_number += 1
-                    };
+                    if r != Err(SPDM_STATUS_SEQUENCE_NUMBER_OVERFLOW) {
+                        self.application_secret.response_direction.sequence_number += 1;
+                    }
                     r
                 }
             }

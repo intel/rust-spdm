@@ -57,6 +57,12 @@ impl<'a> Reader<'a> {
     }
 }
 
+impl AsRef<[u8]> for Reader<'_> {
+    fn as_ref(&self) -> &[u8] {
+        &self.buf[self.offs..]
+    }
+}
+
 /// Write to a byte slice.
 pub struct Writer<'a> {
     buf: &'a mut [u8],

@@ -9,7 +9,6 @@ use crate::common::transport::PciDoeTransportEncap;
 use crate::common::util::create_info;
 use bytes::BytesMut;
 use codec::{Codec, Writer};
-use spdmlib::common::opaque;
 use spdmlib::common::opaque::*;
 use spdmlib::common::SpdmCodec;
 use spdmlib::message::*;
@@ -74,14 +73,30 @@ fn test_case0_handle_spdm_key_exchange() {
                 data: [100u8; SPDM_RANDOM_SIZE],
             },
             exchange: SpdmDheExchangeStruct::from(public_key),
-            opaque: SpdmOpaqueStruct {
-                data_size: opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0274_FMT1.len()
-                    as u16,
-                data: [0u8; MAX_SPDM_OPAQUE_SIZE],
-            },
+            opaque: SpdmOpaqueStruct::from_sm_supported_ver_list_opaque(
+                &mut context.common,
+                &SMSupportedVerListOpaque {
+                    secured_message_version_list: SecuredMessageVersionList {
+                        version_count: 2,
+                        versions_list: [
+                            SecuredMessageVersion {
+                                major_version: 1,
+                                minor_version: 0,
+                                update_version_number: 0,
+                                alpha: 0,
+                            },
+                            SecuredMessageVersion {
+                                major_version: 1,
+                                minor_version: 1,
+                                update_version_number: 0,
+                                alpha: 0,
+                            },
+                        ],
+                    },
+                },
+            )
+            .unwrap(),
         };
-        value.opaque.data[0..value.opaque.data_size as usize]
-            .copy_from_slice(&opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0274_FMT1);
         let _ = value.spdm_encode(&mut context.common, &mut writer);
 
         let bytes = &mut [0u8; 1024];
@@ -149,14 +164,30 @@ fn test_case1_handle_spdm_key_exchange() {
                 data: [100u8; SPDM_RANDOM_SIZE],
             },
             exchange: SpdmDheExchangeStruct::from(public_key),
-            opaque: SpdmOpaqueStruct {
-                data_size: opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0274_FMT1.len()
-                    as u16,
-                data: [0u8; MAX_SPDM_OPAQUE_SIZE],
-            },
+            opaque: SpdmOpaqueStruct::from_sm_supported_ver_list_opaque(
+                &mut context.common,
+                &SMSupportedVerListOpaque {
+                    secured_message_version_list: SecuredMessageVersionList {
+                        version_count: 2,
+                        versions_list: [
+                            SecuredMessageVersion {
+                                major_version: 1,
+                                minor_version: 0,
+                                update_version_number: 0,
+                                alpha: 0,
+                            },
+                            SecuredMessageVersion {
+                                major_version: 1,
+                                minor_version: 1,
+                                update_version_number: 0,
+                                alpha: 0,
+                            },
+                        ],
+                    },
+                },
+            )
+            .unwrap(),
         };
-        value.opaque.data[0..value.opaque.data_size as usize]
-            .copy_from_slice(&opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0274_FMT1);
         let _ = value.spdm_encode(&mut context.common, &mut writer);
 
         let bytes = &mut [0u8; 1024];

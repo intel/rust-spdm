@@ -6,7 +6,6 @@ use config::MAX_SPDM_PSK_CONTEXT_SIZE;
 
 use crate::crypto;
 use crate::error::SPDM_STATUS_BUFFER_FULL;
-use crate::error::SPDM_STATUS_UNSUPPORTED_CAP;
 use crate::error::{
     SpdmResult, SPDM_STATUS_ERROR_PEER, SPDM_STATUS_INVALID_MSG_FIELD,
     SPDM_STATUS_INVALID_PARAMETER, SPDM_STATUS_SESSION_NUMBER_EXCEED, SPDM_STATUS_VERIF_FAIL,
@@ -87,32 +86,30 @@ impl RequesterContext {
         let mut psk_context = [0u8; MAX_SPDM_PSK_CONTEXT_SIZE];
         crypto::rand::get_random(&mut psk_context)?;
 
-        let mut opaque;
-        if self.common.negotiate_info.spdm_version_sel < SpdmVersion::SpdmVersion12 {
-            opaque = SpdmOpaqueStruct {
-                data_size: crate::common::opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0277
-                    .len() as u16,
-                ..Default::default()
-            };
-            opaque.data[..(opaque.data_size as usize)].copy_from_slice(
-                crate::common::opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0277.as_ref(),
-            );
-        } else if self.common.negotiate_info.opaque_data_support
-            == SpdmOpaqueSupport::OPAQUE_DATA_FMT1
+        let mut secured_message_version_list = SecuredMessageVersionList {
+            version_count: 0,
+            versions_list: [SecuredMessageVersion::default(); MAX_SECURE_SPDM_VERSION_COUNT],
+        };
+
+        for (_, local_version) in self
+            .common
+            .config_info
+            .secure_spdm_version
+            .iter()
+            .flatten()
+            .enumerate()
         {
-            opaque = SpdmOpaqueStruct {
-                data_size:
-                    crate::common::opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0274_FMT1
-                        .len() as u16,
-                ..Default::default()
-            };
-            opaque.data[..(opaque.data_size as usize)].copy_from_slice(
-                crate::common::opaque::REQ_DMTF_OPAQUE_DATA_SUPPORT_VERSION_LIST_DSP0274_FMT1
-                    .as_ref(),
-            );
-        } else {
-            return Err(SPDM_STATUS_UNSUPPORTED_CAP);
+            secured_message_version_list.versions_list
+                [secured_message_version_list.version_count as usize] = *local_version;
+            secured_message_version_list.version_count += 1;
         }
+
+        let opaque = SpdmOpaqueStruct::from_sm_supported_ver_list_opaque(
+            &mut self.common,
+            &SMSupportedVerListOpaque {
+                secured_message_version_list,
+            },
+        )?;
 
         let request = SpdmMessage {
             header: SpdmMessageHeader {

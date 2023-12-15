@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
 use crate::common::opaque::SpdmOpaqueStruct;
+use crate::common::SMVersionSelOpaque;
 use crate::common::SecuredMessageVersion;
 use crate::common::SpdmCodec;
 use crate::common::SpdmConnectionState;
-use crate::common::SpdmOpaqueSupport;
 use crate::common::SpdmTransportEncap;
 use crate::common::INVALID_SLOT;
 use crate::crypto;
@@ -142,6 +142,8 @@ impl ResponderContext {
                         Some(writer.used_slice()),
                     );
                 }
+
+                let mut selected_version: Option<SecuredMessageVersion> = None;
                 for index in 0..secured_message_version_list.version_count as usize {
                     for (_, local_version) in self
                         .common
@@ -152,45 +154,37 @@ impl ResponderContext {
                         .enumerate()
                     {
                         if secured_message_version_list.versions_list[index] == *local_version {
-                            if self.common.negotiate_info.spdm_version_sel
-                                < SpdmVersion::SpdmVersion12
-                            {
-                                return_opaque.data_size =
-                                    crate::common::opaque::RSP_DMTF_OPAQUE_DATA_VERSION_SELECTION_DSP0277
-                                        .len() as u16;
-                                return_opaque.data[..(return_opaque.data_size as usize)]
-                                    .copy_from_slice(
-                                    crate::common::opaque::RSP_DMTF_OPAQUE_DATA_VERSION_SELECTION_DSP0277
-                                        .as_ref(),
-                                );
-                                return_opaque.data[return_opaque.data_size as usize - 1] =
-                                    u8::from(local_version);
-                            } else if self.common.negotiate_info.opaque_data_support
-                                == SpdmOpaqueSupport::OPAQUE_DATA_FMT1
-                            {
-                                return_opaque.data_size =
-                                    crate::common::opaque::RSP_DMTF_OPAQUE_DATA_VERSION_SELECTION_DSP0274_FMT1
-                                        .len() as u16;
-                                return_opaque.data[..(return_opaque.data_size as usize)]
-                                    .copy_from_slice(
-                                    crate::common::opaque::RSP_DMTF_OPAQUE_DATA_VERSION_SELECTION_DSP0274_FMT1
-                                        .as_ref(),
-                                );
-                                return_opaque.data[return_opaque.data_size as usize - 1] =
-                                    u8::from(local_version);
-                            } else {
-                                self.write_spdm_error(
-                                    SpdmErrorCode::SpdmErrorUnsupportedRequest,
-                                    0,
-                                    writer,
-                                );
-                                return (
-                                    Err(SPDM_STATUS_INVALID_MSG_FIELD),
-                                    Some(writer.used_slice()),
-                                );
-                            }
+                            selected_version = Some(*local_version);
                         }
                     }
+                }
+
+                if let Some(selected_version) = selected_version {
+                    if let Ok(opaque) = SpdmOpaqueStruct::from_sm_version_sel_opaque(
+                        &mut self.common,
+                        &SMVersionSelOpaque {
+                            secured_message_version: selected_version,
+                        },
+                    ) {
+                        return_opaque = opaque;
+                    } else {
+                        self.write_spdm_error(
+                            SpdmErrorCode::SpdmErrorUnsupportedRequest,
+                            0,
+                            writer,
+                        );
+                        return (
+                            Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                            Some(writer.used_slice()),
+                        );
+                    }
+                } else {
+                    error!("secure message version not selected!");
+                    self.write_spdm_error(SpdmErrorCode::SpdmErrorInvalidRequest, 0, writer);
+                    return (
+                        Err(SPDM_STATUS_INVALID_MSG_FIELD),
+                        Some(writer.used_slice()),
+                    );
                 }
             }
         } else {
@@ -293,7 +287,7 @@ impl ResponderContext {
                     data_size: psk_context_size,
                     data: psk_context,
                 },
-                opaque: return_opaque.clone(),
+                opaque: return_opaque,
                 verify_data: SpdmDigestStruct {
                     data_size: self.common.negotiate_info.base_hash_sel.get_size(),
                     data: Box::new([0xcc; SPDM_MAX_HASH_SIZE]),

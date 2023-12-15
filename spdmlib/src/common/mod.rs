@@ -1125,7 +1125,7 @@ pub struct SpdmConfigInfo {
     pub data_transfer_size: u32,
     pub max_spdm_msg_size: u32,
     pub heartbeat_period: u8, // used by responder only
-    pub secure_spdm_version: [Option<SecuredMessageVersion>; MAX_SECURE_SPDM_VERSION_COUNT], // used by responder only
+    pub secure_spdm_version: [Option<SecuredMessageVersion>; MAX_SECURE_SPDM_VERSION_COUNT],
 }
 
 #[derive(Debug, Default)]

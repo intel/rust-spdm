@@ -145,7 +145,7 @@ jobs:
             -t lcov \
             --ignore-not-existing \
             -o coverage/lcov.info
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage_data-${{ github.sha }}
           path: coverage/

@@ -121,6 +121,14 @@ impl Executor {
 
         tasks.front().is_some()
     }
+
+    pub fn active_tasks_count(&self) -> usize {
+        if let Some(tl) = &self.tasks {
+            tl.len()
+        } else {
+            0
+        }
+    }
 }
 
 pub(crate) static DEFAULT_EXECUTOR: Mutex<Executor> = Mutex::new(Executor { tasks: None });

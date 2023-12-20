@@ -38,3 +38,7 @@ where
 pub fn poll_tasks() -> bool {
     DEFAULT_EXECUTOR.lock().poll_tasks()
 }
+
+pub fn active_tasks_count() -> usize {
+    DEFAULT_EXECUTOR.lock().active_tasks_count()
+}

@@ -424,6 +424,12 @@ async fn test_spdm(
     } else {
         panic!("\nSession session_id not got\n");
     }
+
+    #[cfg(feature = "test_stack_size")]
+    {
+        let value = td_benchmark::StackProfiling::stack_usage().unwrap();
+        println!("max stack usage {}", value);
+    }
 }
 
 #[maybe_async::maybe_async]
@@ -1273,7 +1279,21 @@ fn new_logger_from_env() -> SimpleLogger {
     SimpleLogger::new().with_utc_timestamps().with_level(level)
 }
 
+#[cfg(feature = "test_stack_size")]
 fn emu_main() {
+    td_benchmark::StackProfiling::init(
+        0x5aa5_5aa5_5aa5_5aa5,
+        EMU_STACK_SIZE - 0x40000, // main function stack
+    );
+    emu_main_inner()
+}
+
+#[cfg(not(feature = "test_stack_size"))]
+fn emu_main() {
+    emu_main_inner()
+}
+
+fn emu_main_inner() {
     new_logger_from_env().init().unwrap();
 
     spdmlib::secret::psk::register(SECRET_PSK_IMPL_INSTANCE.clone());
@@ -1347,6 +1367,11 @@ fn emu_main() {
         test_idekm_tdisp(socket_io_transport.clone(), transport_encap.clone());
 
         send_receive_stop(socket, transport_encap, transport_type);
+    }
+    #[cfg(feature = "test_stack_size")]
+    {
+        let value = td_benchmark::StackProfiling::stack_usage().unwrap();
+        println!("max stack usage {}", value);
     }
 }
 

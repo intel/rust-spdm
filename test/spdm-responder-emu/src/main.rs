@@ -119,7 +119,21 @@ fn new_logger_from_env() -> SimpleLogger {
     SimpleLogger::new().with_utc_timestamps().with_level(level)
 }
 
+#[cfg(feature = "test_stack_size")]
 fn emu_main() {
+    td_benchmark::StackProfiling::init(
+        0x5aa5_5aa5_5aa5_5aa5,
+        EMU_STACK_SIZE - 0x40000, // main function stack
+    );
+    emu_main_inner()
+}
+
+#[cfg(not(feature = "test_stack_size"))]
+fn emu_main() {
+    emu_main_inner()
+}
+
+fn emu_main_inner() {
     new_logger_from_env().init().unwrap();
 
     #[cfg(feature = "spdm-mbedtls")]
@@ -225,6 +239,11 @@ fn emu_main() {
 
             if !need_continue {
                 // TBD: return or break??
+                #[cfg(feature = "test_stack_size")]
+                {
+                    let value = td_benchmark::StackProfiling::stack_usage().unwrap();
+                    println!("max stack usage: {}", value);
+                }
                 return;
             }
         }

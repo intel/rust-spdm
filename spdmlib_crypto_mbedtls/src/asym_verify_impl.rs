@@ -74,6 +74,11 @@ fn asym_verify(
 // add ASN.1 for the ECDSA binary signature
 fn ecc_signature_bin_to_der(signature: &[u8], der_signature: &mut [u8]) -> SpdmResult<usize> {
     let sign_size = signature.len();
+    assert!(
+        // prevent API misuse
+        sign_size == spdmlib::protocol::ECDSA_ECC_NIST_P256_KEY_SIZE
+            || sign_size == spdmlib::protocol::ECDSA_ECC_NIST_P384_KEY_SIZE
+    );
     let half_size = sign_size / 2;
 
     let mut r_index = half_size;

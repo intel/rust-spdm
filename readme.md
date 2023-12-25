@@ -245,5 +245,15 @@ To run a specific test, use `cargo test <test_func_name>`
 
 To run test with println!() message, use `cargo test -- --nocapture`
 
+## Collect memory usage
+
+To collect memory usage, use
+
+```
+python sh_script/collect_memory_usage.py
+```
+
+This script will display the peak memory used by spdm-emu
+
 ## Known limitation
 This package is only the sample code to show the concept. It does not have a full validation such as robustness functional test and fuzzing test. It does not meet the production quality yet. Any codes including the API definition, the libary and the drivers are subject to change.

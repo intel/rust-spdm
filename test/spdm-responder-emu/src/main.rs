@@ -121,9 +121,11 @@ fn new_logger_from_env() -> SimpleLogger {
 
 #[cfg(feature = "test_stack_size")]
 fn emu_main() {
+    const EMU_MAIN_FUNCTION_STACK: usize = 0x60000;
+
     td_benchmark::StackProfiling::init(
         0x5aa5_5aa5_5aa5_5aa5,
-        EMU_STACK_SIZE - 0x40000, // main function stack
+        EMU_STACK_SIZE - EMU_MAIN_FUNCTION_STACK, // main function stack
     );
     emu_main_inner()
 }
@@ -555,8 +557,16 @@ fn pci_idekm_tdisp_rsp_dispatcher(
     }
 }
 
+#[cfg(feature = "test_heap_size")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 fn main() {
     use std::thread;
+
+    #[cfg(feature = "test_heap_size")]
+    let _profiler = dhat::Profiler::builder().testing().build();
+
     init_device_idekm_instance();
     init_device_tdisp_instance();
 
@@ -566,4 +576,7 @@ fn main() {
         .unwrap()
         .join()
         .unwrap();
+
+    #[cfg(feature = "test_heap_size")]
+    log::info!("max heap usage: {}", dhat::HeapStats::get().max_bytes);
 }

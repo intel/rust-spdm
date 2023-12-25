@@ -428,7 +428,7 @@ async fn test_spdm(
     #[cfg(feature = "test_stack_size")]
     {
         let value = td_benchmark::StackProfiling::stack_usage().unwrap();
-        println!("max stack usage {}", value);
+        println!("max stack usage(no idekm): {}", value);
     }
 }
 
@@ -1281,9 +1281,40 @@ fn new_logger_from_env() -> SimpleLogger {
 
 #[cfg(feature = "test_stack_size")]
 fn emu_main() {
+    // emu_main function stack
+    // 1. When compiler optimization is turned off
+    // The stack size used by emu_main will not exceed 4k
+    // 2. However if compiler optimization is turned on.
+    // The situation becomes complicated.
+    // The size of the stack used in emu_main needs to be estimated by looking at
+    // the location of rsp and the memory map in /proc/self/maps.
+    // Here is an example code to dump memory map info for determining EMU_MAIN_FUNCTION_STACK
+    //
+    // use std::fs::File;
+    // use std::io::Read;
+    // let rsp: usize;
+    // unsafe {
+    //     core::arch::asm!("mov {}, rsp", out(reg) rsp);
+    // }
+    // println!("rsp in emu_main_function: {:x}", rsp);
+    // let file_path = "/proc/self/maps";
+    // let mut file = File::open(file_path).unwrap();
+    // let mut content = String::new();
+    // file.read_to_string(&mut content).unwrap();
+    // println!("Memory:\n{}", content);
+    //
+    // Results (example):
+    // rsp in emu_main_function: 7f98529a6ef0
+    // ...
+    // 7f9852656000-7f9852a00000 rw-p 00000000 00:00 0
+    //
+    // we can got emu_main_function_stack size:
+    // 7f9852a00000 - 7f98529a6ef0 = 59110
+    const EMU_MAIN_FUNCTION_STACK: usize = 0x60000;
+
     td_benchmark::StackProfiling::init(
         0x5aa5_5aa5_5aa5_5aa5,
-        EMU_STACK_SIZE - 0x40000, // main function stack
+        EMU_STACK_SIZE - EMU_MAIN_FUNCTION_STACK,
     );
     emu_main_inner()
 }
@@ -1371,12 +1402,19 @@ fn emu_main_inner() {
     #[cfg(feature = "test_stack_size")]
     {
         let value = td_benchmark::StackProfiling::stack_usage().unwrap();
-        println!("max stack usage {}", value);
+        println!("max stack usage: {}", value);
     }
 }
 
+#[cfg(feature = "test_heap_size")]
+#[global_allocator]
+static ALLOC: dhat::Alloc = dhat::Alloc;
+
 fn main() {
     use std::thread;
+
+    #[cfg(feature = "test_heap_size")]
+    let _profiler = dhat::Profiler::builder().testing().build();
 
     thread::Builder::new()
         .stack_size(EMU_STACK_SIZE)
@@ -1384,6 +1422,9 @@ fn main() {
         .unwrap()
         .join()
         .unwrap();
+
+    #[cfg(feature = "test_heap_size")]
+    log::info!("max heap usage: {}", dhat::HeapStats::get().max_bytes);
 }
 
 pub const MMIO_RANGE_COUNT: usize = 4;

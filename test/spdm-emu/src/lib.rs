@@ -4,6 +4,12 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(all(
+    feature = "is_sync",
+    any(feature = "async-executor", feature = "async-tokio")
+))]
+compile_error!("Only support either sync mode or async mode, not both at the same time!");
+
 #[cfg(not(feature = "is_sync"))]
 pub mod async_runtime;
 pub mod crypto;

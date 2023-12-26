@@ -628,6 +628,7 @@ async fn test_idekm_tdisp(
 
     // ide_km test
     let mut idekm_req_context = IdekmReqContext;
+    let mut rsp_payload_struct = VendorDefinedRspPayloadStruct::default();
     // ide_km query
     let port_index = 0u8;
     let mut dev_func_num = 0u8;
@@ -647,6 +648,7 @@ async fn test_idekm_tdisp(
             &mut max_port_index,
             &mut ide_reg_block,
             &mut ide_reg_block_cnt,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -680,6 +682,7 @@ async fn test_idekm_tdisp(
             port_index,
             key_iv,
             &mut kp_ack_status,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -721,6 +724,7 @@ async fn test_idekm_tdisp(
             port_index,
             key_iv,
             &mut kp_ack_status,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -762,6 +766,7 @@ async fn test_idekm_tdisp(
             port_index,
             key_iv,
             &mut kp_ack_status,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -803,6 +808,7 @@ async fn test_idekm_tdisp(
             port_index,
             key_iv,
             &mut kp_ack_status,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -844,6 +850,7 @@ async fn test_idekm_tdisp(
             port_index,
             key_iv,
             &mut kp_ack_status,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -885,6 +892,7 @@ async fn test_idekm_tdisp(
             port_index,
             key_iv,
             &mut kp_ack_status,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -912,6 +920,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -930,6 +939,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -948,6 +958,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -966,6 +977,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -984,6 +996,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -1002,6 +1015,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -1020,6 +1034,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -1038,6 +1053,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -1056,6 +1072,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -1074,6 +1091,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -1092,6 +1110,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -1110,6 +1129,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
+            &mut rsp_payload_struct,
         )
         .await
         .unwrap();
@@ -1124,9 +1144,14 @@ async fn test_idekm_tdisp(
         },
     };
 
-    pci_tdisp_req_get_tdisp_version(&mut context, session_id, interface_id)
-        .await
-        .unwrap();
+    pci_tdisp_req_get_tdisp_version(
+        &mut context,
+        session_id,
+        interface_id,
+        &mut rsp_payload_struct,
+    )
+    .await
+    .unwrap();
     println!("Successful Get Tdisp Version!");
 
     let tsm_caps = 0;
@@ -1147,6 +1172,7 @@ async fn test_idekm_tdisp(
         &mut num_req_this,
         &mut num_req_all,
         &mut req_msgs_supported,
+        &mut rsp_payload_struct,
     )
     .await
     .unwrap();
@@ -1158,6 +1184,7 @@ async fn test_idekm_tdisp(
         session_id,
         interface_id,
         &mut tdi_state,
+        &mut rsp_payload_struct,
     )
     .await
     .unwrap();
@@ -1180,6 +1207,7 @@ async fn test_idekm_tdisp(
         bind_p2p_address_mask,
         &mut start_interface_nonce,
         &mut tdisp_error_code,
+        &mut rsp_payload_struct,
     )
     .await
     .unwrap();
@@ -1194,6 +1222,7 @@ async fn test_idekm_tdisp(
         session_id,
         interface_id,
         &mut tdi_state,
+        &mut rsp_payload_struct,
     )
     .await
     .unwrap();
@@ -1209,6 +1238,7 @@ async fn test_idekm_tdisp(
         &mut report,
         &mut report_size,
         &mut tdisp_error_code,
+        &mut rsp_payload_struct,
     )
     .await
     .unwrap();
@@ -1225,6 +1255,7 @@ async fn test_idekm_tdisp(
         interface_id,
         &start_interface_nonce,
         &mut tdisp_error_code,
+        &mut rsp_payload_struct,
     )
     .await
     .unwrap();
@@ -1236,15 +1267,21 @@ async fn test_idekm_tdisp(
         session_id,
         interface_id,
         &mut tdi_state,
+        &mut rsp_payload_struct,
     )
     .await
     .unwrap();
     assert_eq!(tdi_state, TdiState::RUN);
     println!("Successful Get Tdisp State: {:X?}!", tdi_state);
 
-    pci_tdisp_req_stop_interface_request(&mut context, session_id, interface_id)
-        .await
-        .unwrap();
+    pci_tdisp_req_stop_interface_request(
+        &mut context,
+        session_id,
+        interface_id,
+        &mut rsp_payload_struct,
+    )
+    .await
+    .unwrap();
     println!("Successful Stop Interface!");
 
     pci_tdisp_req_get_device_interface_state(
@@ -1252,6 +1289,7 @@ async fn test_idekm_tdisp(
         session_id,
         interface_id,
         &mut tdi_state,
+        &mut rsp_payload_struct,
     )
     .await
     .unwrap();

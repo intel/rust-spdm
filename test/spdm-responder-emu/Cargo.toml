@@ -26,7 +26,7 @@ td-benchmark = { git = "https://github.com/confidential-containers/td-shim.git",
 
 [features]
 default = ["spdm-emu/default", "async-executor", "test_stack_size"]
-mut-auth = ["spdm-emu/mut-auth", "async-executor"]
+mut-auth = ["spdm-emu/mut-auth"]
 mandatory-mut-auth = ["mut-auth", "spdm-emu/mandatory-mut-auth"]
 spdm-ring = ["spdm-emu/spdm-ring"]
 spdm-mbedtls = ["spdm-emu/spdm-mbedtls"]

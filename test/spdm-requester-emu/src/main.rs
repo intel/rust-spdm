@@ -436,6 +436,7 @@ async fn test_spdm(
 async fn test_idekm_tdisp(
     socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>>,
     transport_encap: Arc<Mutex<dyn SpdmTransportEncap + Send + Sync>>,
+    key_iv: Arc<Mutex<Aes256GcmKeyBuffer>>,
 ) {
     let req_capabilities = SpdmRequestCapabilityFlags::CERT_CAP
         | SpdmRequestCapabilityFlags::CHAL_CAP
@@ -656,8 +657,9 @@ async fn test_idekm_tdisp(
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_PR;
-    let mut key_iv: Aes256GcmKeyBuffer;
-    key_iv = Default::default();
+
+    let mut key_iv = key_iv.lock();
+
     get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
@@ -678,7 +680,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
-            key_iv,
+            &key_iv,
             &mut kp_ack_status,
         )
         .await
@@ -697,8 +699,7 @@ async fn test_idekm_tdisp(
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_NPR;
-    let mut key_iv: Aes256GcmKeyBuffer;
-    key_iv = Default::default();
+
     get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
@@ -719,7 +720,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
-            key_iv,
+            &key_iv,
             &mut kp_ack_status,
         )
         .await
@@ -738,8 +739,7 @@ async fn test_idekm_tdisp(
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_RX;
     let key_sub_stream = KEY_SUB_STREAM_CPL;
-    let mut key_iv: Aes256GcmKeyBuffer;
-    key_iv = Default::default();
+
     get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
@@ -760,7 +760,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
-            key_iv,
+            &key_iv,
             &mut kp_ack_status,
         )
         .await
@@ -779,8 +779,7 @@ async fn test_idekm_tdisp(
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_PR;
-    let mut key_iv: Aes256GcmKeyBuffer;
-    key_iv = Default::default();
+
     get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
@@ -801,7 +800,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
-            key_iv,
+            &key_iv,
             &mut kp_ack_status,
         )
         .await
@@ -820,8 +819,7 @@ async fn test_idekm_tdisp(
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_NPR;
-    let mut key_iv: Aes256GcmKeyBuffer;
-    key_iv = Default::default();
+
     get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
@@ -842,7 +840,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
-            key_iv,
+            &key_iv,
             &mut kp_ack_status,
         )
         .await
@@ -861,8 +859,7 @@ async fn test_idekm_tdisp(
     let key_set = KEY_SET_0;
     let key_direction = KEY_DIRECTION_TX;
     let key_sub_stream = KEY_SUB_STREAM_CPL;
-    let mut key_iv: Aes256GcmKeyBuffer;
-    key_iv = Default::default();
+
     get_random(&mut key_iv.key[0].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[1].to_le_bytes()).unwrap();
     get_random(&mut key_iv.key[2].to_le_bytes()).unwrap();
@@ -883,7 +880,7 @@ async fn test_idekm_tdisp(
             key_direction,
             key_sub_stream,
             port_index,
-            key_iv,
+            &key_iv,
             &mut kp_ack_status,
         )
         .await
@@ -1372,6 +1369,11 @@ fn emu_main_inner() {
     let socket_io_transport: Arc<Mutex<dyn SpdmDeviceIo + Send + Sync>> =
         Arc::new(Mutex::new(socket_io_transport));
 
+    let key_iv = Arc::new(Mutex::new(Aes256GcmKeyBuffer {
+        key: Box::new([0u32; 8]),
+        iv: Box::new([0u32; 2]),
+    }));
+
     #[cfg(not(feature = "is_sync"))]
     {
         block_on(Box::pin(test_spdm(
@@ -1382,6 +1384,7 @@ fn emu_main_inner() {
         block_on(Box::pin(test_idekm_tdisp(
             socket_io_transport.clone(),
             transport_encap.clone(),
+            key_iv,
         )));
 
         block_on(Box::pin(send_receive_stop(
@@ -1395,7 +1398,7 @@ fn emu_main_inner() {
     {
         test_spdm(socket_io_transport.clone(), transport_encap.clone());
 
-        test_idekm_tdisp(socket_io_transport.clone(), transport_encap.clone());
+        test_idekm_tdisp(socket_io_transport.clone(), transport_encap.clone(), key_iv);
 
         send_receive_stop(socket, transport_encap, transport_type);
     }

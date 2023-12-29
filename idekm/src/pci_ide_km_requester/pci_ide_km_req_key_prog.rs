@@ -32,7 +32,7 @@ impl IdekmReqContext {
         key_direction: u8,
         key_sub_stream: u8,
         port_index: u8,
-        key_iv: Aes256GcmKeyBuffer,
+        key_iv: &Aes256GcmKeyBuffer,
         // OUT
         kp_ack_status: &mut KpAckStatus,
     ) -> SpdmResult {
@@ -50,7 +50,7 @@ impl IdekmReqContext {
             key_direction,
             key_sub_stream,
             port_index,
-            key_iv,
+            key_iv: key_iv.clone(),
         }
         .encode(&mut writer)
         .map_err(|_| SPDM_STATUS_BUFFER_FULL)?

@@ -37,6 +37,7 @@ pub async fn pci_tdisp_req_get_tdisp_capabilities(
     num_req_this: &mut u8,
     num_req_all: &mut u8,
     req_msgs_supported: &mut [u8; 16],
+    rsp_payload_struct: &mut spdmlib::message::VendorDefinedRspPayloadStruct,
 ) -> SpdmResult {
     let mut vendor_defined_req_payload_struct = VendorDefinedReqPayloadStruct {
         req_length: 0,
@@ -60,18 +61,18 @@ pub async fn pci_tdisp_req_get_tdisp_capabilities(
     .encode(&mut writer)
     .map_err(|_| SPDM_STATUS_BUFFER_FULL)?
         as u16;
-    let vendor_defined_rsp_payload_struct = spdm_requester
+    spdm_requester
         .send_spdm_vendor_defined_request(
             Some(session_id),
             STANDARD_ID,
             vendor_id(),
-            vendor_defined_req_payload_struct,
+            &vendor_defined_req_payload_struct,
+            rsp_payload_struct,
         )
         .await?;
 
     let rsp_tdisp_capabilities = RspTdispCapabilities::read_bytes(
-        &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload
-            [..vendor_defined_rsp_payload_struct.rsp_length as usize],
+        &rsp_payload_struct.vendor_defined_rsp_payload[..rsp_payload_struct.rsp_length as usize],
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 

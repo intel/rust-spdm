@@ -5,6 +5,9 @@
 
 # rust-spdm
 
+NOTE: This project is moved to https://github.com/ccc-spdm-tools/spdm-rs. This repo will be achieved as read-only.
+
+
 This project provides a Rust language implementation of [SPDM](https://www.dmtf.org/standards/spdm), [IDE_KM](https://pcisig.com/integrity-and-data-encryption-ide-ecn-%E2%80%93-revision)
 and [TDISP](https://pcisig.com/tee-device-interface-security-protocol-tdisp).
 These protocols are used to facilitate direct device assignment for Trusted Execution

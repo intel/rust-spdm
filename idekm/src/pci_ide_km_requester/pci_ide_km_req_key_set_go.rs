@@ -32,6 +32,7 @@ impl IdekmReqContext {
         key_direction: u8,
         key_sub_stream: u8,
         port_index: u8,
+        rsp_payload_struct: &mut spdmlib::message::VendorDefinedRspPayloadStruct,
     ) -> SpdmResult {
         let mut vendor_defined_req_payload_struct = VendorDefinedReqPayloadStruct {
             req_length: 0,
@@ -52,18 +53,19 @@ impl IdekmReqContext {
         .map_err(|_| SPDM_STATUS_BUFFER_FULL)?
             as u16;
 
-        let vendor_defined_rsp_payload_struct = spdm_requester
+        spdm_requester
             .send_spdm_vendor_defined_request(
                 Some(session_id),
                 STANDARD_ID,
                 vendor_id(),
-                vendor_defined_req_payload_struct,
+                &vendor_defined_req_payload_struct,
+                rsp_payload_struct,
             )
             .await?;
 
         let kgo_stop_ack_data_object = KGoStopAckDataObject::read_bytes(
-            &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload
-                [..vendor_defined_rsp_payload_struct.rsp_length as usize],
+            &rsp_payload_struct.vendor_defined_rsp_payload
+                [..rsp_payload_struct.rsp_length as usize],
         )
         .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 

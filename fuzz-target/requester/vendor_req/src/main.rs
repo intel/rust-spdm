@@ -46,8 +46,16 @@ async fn fuzz_send_spdm_vendor_defined_request(fuzzdata: Arc<Vec<u8>>) {
         vendor_defined_req_payload: [0u8; config::MAX_SPDM_MSG_SIZE - 7 - 2],
     };
 
+    let mut rsp_payload_struct = spdmlib::message::VendorDefinedRspPayloadStruct::default();
+
     let _ = requester
-        .send_spdm_vendor_defined_request(None, standard_id, vendor_idstruct, req_payload_struct)
+        .send_spdm_vendor_defined_request(
+            None,
+            standard_id,
+            vendor_idstruct,
+            &req_payload_struct,
+            &mut rsp_payload_struct,
+        )
         .await
         .is_ok();
 }

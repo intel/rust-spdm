@@ -34,6 +34,7 @@ pub async fn pci_tdisp_req_start_interface_request(
     start_interface_nonce: &[u8; START_INTERFACE_NONCE_LEN],
     // OUT
     tdisp_error_code: &mut Option<TdispErrorCode>,
+    rsp_payload_struct: &mut spdmlib::message::VendorDefinedRspPayloadStruct,
 ) -> SpdmResult {
     let mut vendor_defined_req_payload_struct = VendorDefinedReqPayloadStruct {
         req_length: 0,
@@ -58,18 +59,18 @@ pub async fn pci_tdisp_req_start_interface_request(
     .map_err(|_| SPDM_STATUS_BUFFER_FULL)?
         as u16;
 
-    let vendor_defined_rsp_payload_struct = spdm_requester
+    spdm_requester
         .send_spdm_vendor_defined_request(
             Some(session_id),
             STANDARD_ID,
             vendor_id(),
-            vendor_defined_req_payload_struct,
+            &vendor_defined_req_payload_struct,
+            rsp_payload_struct,
         )
         .await?;
 
     if let Ok(tdisp_error) = RspTdispError::read_bytes(
-        &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload
-            [..vendor_defined_rsp_payload_struct.rsp_length as usize],
+        &rsp_payload_struct.vendor_defined_rsp_payload[..rsp_payload_struct.rsp_length as usize],
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)
     {
@@ -78,8 +79,7 @@ pub async fn pci_tdisp_req_start_interface_request(
     }
 
     let rsp_start_interface_response = RspStartInterfaceResponse::read_bytes(
-        &vendor_defined_rsp_payload_struct.vendor_defined_rsp_payload
-            [..vendor_defined_rsp_payload_struct.rsp_length as usize],
+        &rsp_payload_struct.vendor_defined_rsp_payload[..rsp_payload_struct.rsp_length as usize],
     )
     .ok_or(SPDM_STATUS_INVALID_MSG_FIELD)?;
 

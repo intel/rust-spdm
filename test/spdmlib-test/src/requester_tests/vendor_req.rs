@@ -63,12 +63,15 @@ fn test_case0_send_spdm_vendor_defined_request() {
             vendor_defined_req_payload: [0u8; config::MAX_SPDM_MSG_SIZE - 7 - 2],
         };
 
+        let mut rsp_payload_struct = spdmlib::message::VendorDefinedRspPayloadStruct::default();
+
         let status = requester
             .send_spdm_vendor_defined_request(
                 Some(session_id),
                 standard_id,
                 vendor_idstruct,
-                req_payload_struct,
+                &req_payload_struct,
+                &mut rsp_payload_struct,
             )
             .await
             .is_ok();

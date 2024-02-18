@@ -5,7 +5,7 @@
 
 # rust-spdm
 
-NOTE: This project is moved to https://github.com/ccc-spdm-tools/spdm-rs. This repo will be achieved as read-only.
+NOTE: This project is moved to https://github.com/ccc-spdm-tools/spdm-rs. This repo will be archived as read-only.
 
 
 This project provides a Rust language implementation of [SPDM](https://www.dmtf.org/standards/spdm), [IDE_KM](https://pcisig.com/integrity-and-data-encryption-ide-ecn-%E2%80%93-revision)

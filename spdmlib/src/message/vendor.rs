@@ -144,6 +144,15 @@ pub struct VendorDefinedRspPayloadStruct {
     pub vendor_defined_rsp_payload: [u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
 }
 
+impl Default for VendorDefinedRspPayloadStruct {
+    fn default() -> Self {
+        Self {
+            rsp_length: 0,
+            vendor_defined_rsp_payload: [0u8; MAX_SPDM_VENDOR_DEFINED_PAYLOAD_SIZE],
+        }
+    }
+}
+
 impl Codec for VendorDefinedRspPayloadStruct {
     fn encode(&self, bytes: &mut Writer) -> Result<usize, codec::EncodeErr> {
         let mut cnt = 0usize;

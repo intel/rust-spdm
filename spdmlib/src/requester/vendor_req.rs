@@ -13,8 +13,9 @@ impl RequesterContext {
         session_id: Option<u32>,
         standard_id: RegistryOrStandardsBodyID,
         vendor_id_struct: VendorIDStruct,
-        req_payload_struct: VendorDefinedReqPayloadStruct,
-    ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+        req_payload_struct: &VendorDefinedReqPayloadStruct,
+        rsp_payload_struct: &mut VendorDefinedRspPayloadStruct,
+    ) -> SpdmResult {
         info!("send vendor defined request\n");
 
         self.common.reset_buffer_via_request_code(
@@ -33,7 +34,7 @@ impl RequesterContext {
                 SpdmVendorDefinedRequestPayload {
                     standard_id,
                     vendor_id: vendor_id_struct,
-                    req_payload: req_payload_struct,
+                    req_payload: req_payload_struct.clone(),
                 },
             ),
         };
@@ -48,14 +49,19 @@ impl RequesterContext {
             .receive_message(session_id, &mut receive_buffer, false)
             .await?;
 
-        self.handle_spdm_vendor_defined_respond(session_id, &receive_buffer[..receive_used])
+        self.handle_spdm_vendor_defined_respond(
+            session_id,
+            &receive_buffer[..receive_used],
+            rsp_payload_struct,
+        )
     }
 
     pub fn handle_spdm_vendor_defined_respond(
         &mut self,
         session_id: Option<u32>,
         receive_buffer: &[u8],
-    ) -> SpdmResult<VendorDefinedRspPayloadStruct> {
+        rsp_payload_struct: &mut VendorDefinedRspPayloadStruct,
+    ) -> SpdmResult {
         let mut reader = Reader::init(receive_buffer);
         match SpdmMessageHeader::read(&mut reader) {
             Some(message_header) => {
@@ -69,7 +75,9 @@ impl RequesterContext {
                             &mut reader,
                         ) {
                             Some(spdm_vendor_defined_response_payload) => {
-                                Ok(spdm_vendor_defined_response_payload.rsp_payload)
+                                *rsp_payload_struct =
+                                    spdm_vendor_defined_response_payload.rsp_payload;
+                                Ok(())
                             }
                             None => Err(SPDM_STATUS_INVALID_MSG_FIELD),
                         }
